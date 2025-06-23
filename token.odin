@@ -13,6 +13,7 @@ TokenType :: enum {
 	INT,
 	IDENT,
 	FUNC,
+	SEMI_COLON,
 }
 
 Token :: struct {

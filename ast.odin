@@ -41,12 +41,15 @@ ExprStmt :: struct {
 }
 
 AnyNode :: union {
+	// root
 	^Program,
-	^Function,
-	^CallExpr,
+	// statements
 	^BlockStmt,
-	^StringLiteral,
+	^Function,
 	^ExprStmt,
+	// expressions
+	^CallExpr,
+	^StringLiteral,
 }
 
 Stmt :: union {

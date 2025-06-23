@@ -28,6 +28,8 @@ lexer_next_token :: proc(l: ^Lexer) -> Token {
 		tok = token_new(.L_BRACE, l.ch)
 	case '}':
 		tok = token_new(.R_BRACE, l.ch)
+	case ';':
+		tok = token_new(.SEMI_COLON, l.ch)
 	case 0:
 		tok.type = TokenType.EOF
 		tok.literal = ""
