@@ -1,4 +1,9 @@
 fn main() {
-  print("Hello world\n")
-  print("Foo\n")
+  hello()
+  hello()
+  hello()
+}
+
+fn hello() {
+  printf("Hello world\n")
 }

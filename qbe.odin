@@ -78,28 +78,24 @@ qbe_check_string_literal :: proc(qbe: ^Qbe, s: ^StringLiteral) -> string {
 }
 
 qbe_gen_call_expr :: proc(qbe: ^Qbe, e: ^CallExpr) {
-	if e.callee == "print" {
-		labels: [dynamic]string
-		for arg in e.args {
-			if s, ok := arg.(^StringLiteral); ok {
-				label := qbe_check_string_literal(qbe, s)
-				append(&labels, label)
-			} else {
-				qbe_error(qbe, "unsupported call expression argument, got %s", arg)
-				break
-			}
+	labels: [dynamic]string
+	for arg in e.args {
+		if s, ok := arg.(^StringLiteral); ok {
+			label := qbe_check_string_literal(qbe, s)
+			append(&labels, label)
+		} else {
+			qbe_error(qbe, "unsupported call expression argument, got %s", arg)
+			break
 		}
-		qbe_emit(qbe, "call $printf(")
-		for l, i in labels {
-			qbe_emit(qbe, "l %s", l)
-			if i + 1 < len(labels) {
-				qbe_emit(qbe, ", ")
-			}
-		}
-		qbe_emit(qbe, ")\n")
-	} else {
-		qbe_error(qbe, "unsupported call expression, got %s", e.callee)
 	}
+	qbe_emit(qbe, "call $%s(", e.callee)
+	for l, i in labels {
+		qbe_emit(qbe, "l %s", l)
+		if i + 1 < len(labels) {
+			qbe_emit(qbe, ", ")
+		}
+	}
+	qbe_emit(qbe, ")\n")
 }
 
 qbe_emit :: proc(qbe: ^Qbe, format: string, args: ..any) {
@@ -138,20 +134,6 @@ qbe_compile :: proc(qbe: ^Qbe, program_name: string) -> (err: os.Error) {
 		stderr  = os.stderr,
 	}
 	_ = os.process_start(cc_desc) or_return
-
-	// p := os.process_start(
-	// 	{command = {"qbe", "-o", asm_file, " ", qbe_file}, stdout = os.stdout, stderr = os.stderr},
-	// ) or_return
-	// _ = os.process_wait(p) or_return
-
-	// p = os.process_start(
-	// 	{
-	// 		command = {"cc", "-o", program_name, " ", asm_file},
-	// 		stdout = os.stdout,
-	// 		stderr = os.stderr,
-	// 	},
-	// ) or_return
-	// _ = os.process_wait(p) or_return
 
 	return nil
 }

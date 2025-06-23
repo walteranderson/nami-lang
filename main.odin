@@ -51,23 +51,6 @@ main :: proc() {
 		fmt.eprintln("Error compiling qbe: %v", err)
 		return
 	}
-
-	// if err != nil {
-	// 	fmt.eprintf("Error executing qbe: %v\n", err)
-	// 	return
-	// }
-	//
-	// // Wait for the process to finish
-	// // This will return the exit code of the executed program
-	// exit_code := os.process_wait(process)
-	// os.process_destroy(process) // Clean up the process handle
-	//
-	// fmt.printf("qbe exited with code: %d\n", exit_code)
-	// if exit_code == 0 {
-	// 	fmt.printf("qbe command executed successfully. Output written to %s\n", output_file)
-	// } else {
-	// 	fmt.eprintf("qbe command failed.\n")
-	// }
 }
 
 read_entire_file :: proc(file_name: string) -> string {
