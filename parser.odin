@@ -120,7 +120,6 @@ parser_parse_call_expr :: proc(p: ^Parser) -> ^CallExpr {
 		parser_next_token(p)
 	}
 	expr.args = args
-	parser_next_token(p)
 
 	return expr
 }
