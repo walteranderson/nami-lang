@@ -6,7 +6,7 @@ import "core:strings"
 
 main :: proc() {
 	if len(os.args) <= 1 {
-		fmt.eprintfln("Usage: lang <input.lang>")
+		fmt.eprintfln("Usage: nami <input.nami>")
 		os.exit(1)
 	}
 

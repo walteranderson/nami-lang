@@ -1,3 +1,3 @@
 .PHONY: build
 build:
-	odin build .
+	odin build . -out:nami
