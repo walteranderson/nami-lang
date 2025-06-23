@@ -1,6 +1,7 @@
 package main
 
 import "core:fmt"
+import vmem "core:mem/virtual"
 import "core:os"
 import "core:strings"
 
@@ -19,11 +20,20 @@ main :: proc() {
 		os.exit(1)
 	}
 
+	arena: vmem.Arena
+	arena_err := vmem.arena_init_growing(&arena)
+	if arena_err != nil {
+		fmt.eprintfln("Error allocating arena")
+		os.exit(1)
+	}
+	defer vmem.arena_free_all(&arena)
+	allocator := vmem.arena_allocator(&arena)
+
 	lexer: Lexer
-	lexer_init(&lexer, file_contents)
+	lexer_init(&lexer, allocator, file_contents)
 
 	parser: Parser
-	parser_init(&parser, &lexer)
+	parser_init(&parser, &lexer, allocator)
 
 	program := parser_parse(&parser)
 	if len(parser.errors) > 0 {
@@ -51,6 +61,7 @@ main :: proc() {
 		fmt.eprintln("Error compiling qbe: %v", err)
 		return
 	}
+
 }
 
 read_entire_file :: proc(file_name: string) -> string {

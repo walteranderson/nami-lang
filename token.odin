@@ -1,5 +1,6 @@
 package main
 
+import "core:mem"
 import "core:unicode/utf8"
 
 TokenType :: enum {
@@ -21,8 +22,8 @@ Token :: struct {
 	literal: string,
 }
 
-token_new :: proc(type: TokenType, ch: rune) -> Token {
-	return Token{type = type, literal = utf8.runes_to_string([]rune{ch})}
+token_new :: proc(type: TokenType, ch: rune, allocator: mem.Allocator) -> Token {
+	return Token{type = type, literal = utf8.runes_to_string([]rune{ch}, allocator)}
 }
 
 ident_lookup :: proc(ident: string) -> TokenType {

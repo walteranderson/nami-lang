@@ -1,17 +1,20 @@
 package main
 
 import "core:fmt"
+import "core:mem"
 import "core:strings"
 
 Lexer :: struct {
-	input:    string,
-	pos:      int,
-	read_pos: int,
-	ch:       rune,
+	input:     string,
+	pos:       int,
+	read_pos:  int,
+	ch:        rune,
+	allocator: mem.Allocator,
 }
 
-lexer_init :: proc(l: ^Lexer, input: string) {
+lexer_init :: proc(l: ^Lexer, allocator: mem.Allocator, input: string) {
 	l.input = input
+	l.allocator = allocator
 	lexer_read_char(l)
 }
 
@@ -21,15 +24,15 @@ lexer_next_token :: proc(l: ^Lexer) -> Token {
 
 	switch (l.ch) {
 	case '(':
-		tok = token_new(.L_PAREN, l.ch)
+		tok = token_new(.L_PAREN, l.ch, l.allocator)
 	case ')':
-		tok = token_new(.R_PAREN, l.ch)
+		tok = token_new(.R_PAREN, l.ch, l.allocator)
 	case '{':
-		tok = token_new(.L_BRACE, l.ch)
+		tok = token_new(.L_BRACE, l.ch, l.allocator)
 	case '}':
-		tok = token_new(.R_BRACE, l.ch)
+		tok = token_new(.R_BRACE, l.ch, l.allocator)
 	case ';':
-		tok = token_new(.SEMI_COLON, l.ch)
+		tok = token_new(.SEMI_COLON, l.ch, l.allocator)
 	case 0:
 		tok.type = TokenType.EOF
 		tok.literal = ""
@@ -46,7 +49,7 @@ lexer_next_token :: proc(l: ^Lexer) -> Token {
 			tok.literal = lexer_read_number(l)
 			return tok
 		} else {
-			tok = token_new(.ILLEGAL, l.ch)
+			tok = token_new(.ILLEGAL, l.ch, l.allocator)
 		}
 	}
 	lexer_read_char(l)

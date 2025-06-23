@@ -64,8 +64,8 @@ Expr :: union {
 }
 
 
-ast_new :: proc($T: typeid, tok: Token) -> ^T {
-	n, _ := mem.new(T)
+ast_new :: proc($T: typeid, tok: Token, allocator: mem.Allocator) -> ^T {
+	n, _ := new(T, allocator)
 	n.derived = n
 	n.tok = tok
 	return n

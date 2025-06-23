@@ -2,26 +2,30 @@ package main
 
 
 import "core:fmt"
+import "core:mem"
 
 Parser :: struct {
-	lexer:    ^Lexer,
-	program:  ^Program,
-	cur:      Token,
-	peek:     Token,
-	errors:   [dynamic]string,
-	has_main: bool,
+	lexer:     ^Lexer,
+	program:   ^Program,
+	allocator: mem.Allocator,
+	cur:       Token,
+	peek:      Token,
+	errors:    [dynamic]string,
+	has_main:  bool,
 }
 
-parser_init :: proc(p: ^Parser, l: ^Lexer) {
+parser_init :: proc(p: ^Parser, l: ^Lexer, allocator: mem.Allocator) {
 	p.lexer = l
+	p.allocator = allocator
+	p.errors = make([dynamic]string, allocator)
 	parser_next_token(p)
 	parser_next_token(p)
 }
 
 parser_parse :: proc(p: ^Parser) -> ^Program {
-	program := ast_new(Program, p.cur)
+	program := ast_new(Program, p.cur, p.allocator)
 
-	stmts: [dynamic]Stmt
+	stmts := make([dynamic]Stmt, p.allocator)
 	for !parser_cur_token_is(p, .EOF) {
 		stmt := parser_parse_stmt(p)
 		if stmt != nil {
@@ -46,7 +50,7 @@ parser_parse_stmt :: proc(p: ^Parser) -> Stmt {
 }
 
 parser_parse_expr_stmt :: proc(p: ^Parser) -> ^ExprStmt {
-	stmt := ast_new(ExprStmt, p.cur)
+	stmt := ast_new(ExprStmt, p.cur, p.allocator)
 	stmt.expr = parser_parse_expr(p)
 	return stmt
 }
@@ -65,13 +69,13 @@ parser_parse_expr :: proc(p: ^Parser) -> Expr {
 }
 
 parser_parse_string :: proc(p: ^Parser) -> ^StringLiteral {
-	str := ast_new(StringLiteral, p.cur)
+	str := ast_new(StringLiteral, p.cur, p.allocator)
 	str.value = p.cur.literal
 	return str
 }
 
 parser_parse_func :: proc(p: ^Parser) -> ^Function {
-	def := ast_new(Function, p.cur)
+	def := ast_new(Function, p.cur, p.allocator)
 	if !parser_expect_peek(p, .IDENT) {
 		return nil
 	}
@@ -104,14 +108,14 @@ parser_parse_func :: proc(p: ^Parser) -> ^Function {
 }
 
 parser_parse_call_expr :: proc(p: ^Parser) -> ^CallExpr {
-	expr := ast_new(CallExpr, p.cur)
+	expr := ast_new(CallExpr, p.cur, p.allocator)
 	expr.callee = p.cur.literal
 	if !parser_expect_peek(p, .L_PAREN) {
 		return nil
 	}
 	parser_next_token(p)
 
-	args: [dynamic]Expr
+	args := make([dynamic]Expr, p.allocator)
 	for !parser_cur_token_is(p, .R_PAREN) && !parser_cur_token_is(p, .EOF) {
 		arg := parser_parse_expr(p)
 		if arg != nil {
@@ -128,10 +132,10 @@ parser_parse_call_expr :: proc(p: ^Parser) -> ^CallExpr {
 }
 
 parser_parse_block_stmt :: proc(p: ^Parser) -> ^BlockStmt {
-	block := ast_new(BlockStmt, p.cur)
+	block := ast_new(BlockStmt, p.cur, p.allocator)
 	parser_next_token(p)
 
-	stmts: [dynamic]Stmt
+	stmts := make([dynamic]Stmt, p.allocator)
 	for !parser_cur_token_is(p, .R_BRACE) && !parser_cur_token_is(p, .EOF) {
 		stmt := parser_parse_stmt(p)
 		if stmt != nil {
