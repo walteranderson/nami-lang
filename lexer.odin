@@ -1,0 +1,115 @@
+package main
+
+import "core:fmt"
+import "core:strings"
+
+Lexer :: struct {
+	input:    string,
+	pos:      int,
+	read_pos: int,
+	ch:       rune,
+}
+
+lexer_init :: proc(l: ^Lexer, input: string) {
+	l.input = input
+	lexer_read_char(l)
+}
+
+lexer_next_token :: proc(l: ^Lexer) -> Token {
+	lexer_skip_whitespace(l)
+	tok: Token
+
+	switch (l.ch) {
+	case '(':
+		tok = token_new(.L_PAREN, l.ch)
+	case ')':
+		tok = token_new(.R_PAREN, l.ch)
+	case '{':
+		tok = token_new(.L_BRACE, l.ch)
+	case '}':
+		tok = token_new(.R_BRACE, l.ch)
+	case 0:
+		tok.type = TokenType.EOF
+		tok.literal = ""
+	case:
+		if is_string(l.ch) {
+			tok.type = TokenType.STRING
+			tok.literal = lexer_read_string(l)
+		} else if is_letter(l.ch) {
+			tok.literal = lexer_read_ident(l)
+			tok.type = ident_lookup(tok.literal)
+			return tok
+		} else if is_digit(l.ch) {
+			tok.type = TokenType.INT
+			tok.literal = lexer_read_number(l)
+			return tok
+		} else {
+			tok = token_new(.ILLEGAL, l.ch)
+		}
+	}
+	lexer_read_char(l)
+	return tok
+}
+
+lexer_read_char :: proc(l: ^Lexer) {
+	if l.read_pos >= len(l.input) {
+		l.ch = 0
+	} else {
+		reader: strings.Reader
+		strings.reader_init(&reader, l.input[l.read_pos:])
+		rr, size, err := strings.reader_read_rune(&reader)
+		if err != nil {
+			fmt.eprintln("error reading rune")
+			l.ch = 0
+			return
+		}
+		l.ch = rr
+		l.pos = l.read_pos
+		l.read_pos += size
+	}
+}
+
+lexer_skip_whitespace :: proc(l: ^Lexer) {
+	for l.ch == ' ' || l.ch == '\t' || l.ch == '\n' || l.ch == '\r' {
+		lexer_read_char(l)
+	}
+}
+
+lexer_read_ident :: proc(l: ^Lexer) -> string {
+	start := l.pos
+	for is_letter(l.ch) {
+		lexer_read_char(l)
+	}
+	return l.input[start:l.pos]
+}
+
+lexer_read_string :: proc(l: ^Lexer) -> string {
+	start := l.pos + 1
+	for {
+		lexer_read_char(l)
+		if is_string(l.ch) || l.ch == 0 {
+			break
+		}
+	}
+	return l.input[start:l.pos]
+}
+
+lexer_read_number :: proc(l: ^Lexer) -> string {
+	start := l.pos
+	for is_digit(l.ch) {
+		lexer_read_char(l)
+	}
+	return l.input[start:l.pos]
+}
+
+is_letter :: proc(ch: rune) -> bool {
+	return 'a' <= ch && ch <= 'z' || 'A' <= ch && ch <= 'Z' || ch == '_'
+}
+
+is_digit :: proc(ch: rune) -> bool {
+	return '0' <= ch && ch <= '9'
+}
+
+is_string :: proc(ch: rune) -> bool {
+	return ch == '"' || ch == '\'' || ch == '`'
+}
