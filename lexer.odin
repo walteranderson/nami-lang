@@ -2,7 +2,9 @@ package main
 
 import "core:fmt"
 import "core:mem"
+import "core:os"
 import "core:strings"
+import "core:unicode/utf8"
 
 Lexer :: struct {
 	input:     string,
@@ -33,6 +35,34 @@ lexer_next_token :: proc(l: ^Lexer) -> Token {
 		tok = token_new(.R_BRACE, l.ch, l.allocator)
 	case ';':
 		tok = token_new(.SEMI_COLON, l.ch, l.allocator)
+	case '<':
+		tok = token_new(.LT, l.ch, l.allocator)
+	case '>':
+		tok = token_new(.GT, l.ch, l.allocator)
+	case '+':
+		tok = token_new(.PLUS, l.ch, l.allocator)
+	case '-':
+		tok = token_new(.MINUS, l.ch, l.allocator)
+	case '*':
+		tok = token_new(.STAR, l.ch, l.allocator)
+	case '/':
+		tok = token_new(.SLASH, l.ch, l.allocator)
+	case '=':
+		if lexer_peek_char(l) == '=' {
+			tok.type = .EQ
+			ch := l.ch
+			lexer_read_char(l)
+			tok.literal = utf8.runes_to_string([]rune{ch, l.ch}, l.allocator)
+		}
+	case '!':
+		if lexer_peek_char(l) == '=' {
+			tok.type = .NOT_EQ
+			ch := l.ch
+			lexer_read_char(l)
+			tok.literal = utf8.runes_to_string([]rune{ch, l.ch}, l.allocator)
+		} else {
+			tok = token_new(.BANG, l.ch, l.allocator)
+		}
 	case 0:
 		tok.type = TokenType.EOF
 		tok.literal = ""
@@ -72,6 +102,14 @@ lexer_read_char :: proc(l: ^Lexer) {
 		l.pos = l.read_pos
 		l.read_pos += size
 	}
+}
+
+lexer_peek_char :: proc(l: ^Lexer) -> rune {
+	if l.read_pos >= len(l.input) {
+		return 0
+	}
+	r, _ := utf8.decode_rune_in_string(l.input[l.read_pos:])
+	return r
 }
 
 lexer_skip_whitespace :: proc(l: ^Lexer) {

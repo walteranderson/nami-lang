@@ -6,15 +6,27 @@ import "core:unicode/utf8"
 TokenType :: enum {
 	ILLEGAL,
 	EOF,
+	//
+	STRING,
+	INT,
+	IDENT,
+	//
 	L_PAREN,
 	R_PAREN,
 	L_BRACE,
 	R_BRACE,
-	STRING,
-	INT,
-	IDENT,
-	FUNC,
 	SEMI_COLON,
+	EQ,
+	NOT_EQ,
+	LT,
+	GT,
+	PLUS,
+	MINUS,
+	BANG,
+	STAR,
+	SLASH,
+	//
+	FUNC,
 }
 
 Token :: struct {
