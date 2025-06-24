@@ -7,6 +7,7 @@ import "core:testing"
 test_tokens :: proc(t: ^testing.T) {
 	input := `
 	fn main() {}
+	[]
 	"Hello";
 	==
 	!=
@@ -26,6 +27,8 @@ test_tokens :: proc(t: ^testing.T) {
 		Token{type = .R_PAREN, literal = ")"},
 		Token{type = .L_BRACE, literal = "{"},
 		Token{type = .R_BRACE, literal = "}"},
+		Token{type = .L_BRACKET, literal = "["},
+		Token{type = .R_BRACKET, literal = "]"},
 		Token{type = .STRING, literal = "Hello"},
 		Token{type = .SEMI_COLON, literal = ";"},
 		Token{type = .EQ, literal = "=="},

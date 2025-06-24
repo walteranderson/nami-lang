@@ -34,6 +34,10 @@ lexer_next_token :: proc(l: ^Lexer) -> Token {
 		tok = token_new(.L_BRACE, l.ch, l.allocator)
 	case '}':
 		tok = token_new(.R_BRACE, l.ch, l.allocator)
+	case '[':
+		tok = token_new(.L_BRACKET, l.ch, l.allocator)
+	case ']':
+		tok = token_new(.R_BRACKET, l.ch, l.allocator)
 	case ';':
 		tok = token_new(.SEMI_COLON, l.ch, l.allocator)
 	case '<':
