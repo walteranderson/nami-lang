@@ -8,13 +8,9 @@ import "core:testing"
 @(test)
 test_main_func :: proc(t: ^testing.T) {
 	arena: vmem.Arena
-	arena_err := vmem.arena_init_growing(&arena)
-	if arena_err != nil {
-		fmt.eprintfln("Error allocating arena")
-		os.exit(1)
-	}
+	allocator, err := arena_init(&arena)
+	testing.expect(t, err == nil, "Error allocating arena")
 	defer vmem.arena_free_all(&arena)
-	allocator := vmem.arena_allocator(&arena)
 
 	l: Lexer
 	lexer_init(&l, allocator, "fn main() {}")
@@ -29,13 +25,9 @@ test_main_func :: proc(t: ^testing.T) {
 @(test)
 test_no_main_func :: proc(t: ^testing.T) {
 	arena: vmem.Arena
-	arena_err := vmem.arena_init_growing(&arena)
-	if arena_err != nil {
-		fmt.eprintfln("Error allocating arena")
-		os.exit(1)
-	}
+	allocator, err := arena_init(&arena)
+	testing.expect(t, err == nil, "Error allocating arena")
 	defer vmem.arena_free_all(&arena)
-	allocator := vmem.arena_allocator(&arena)
 
 	l: Lexer
 	lexer_init(&l, allocator, "fn foo() {}")
