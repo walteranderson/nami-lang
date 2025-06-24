@@ -15,6 +15,7 @@ test_tokens :: proc(t: ^testing.T) {
 	< >
 	+ -
 	* / !
+	こんにちは
 	`
 
 
@@ -38,6 +39,7 @@ test_tokens :: proc(t: ^testing.T) {
 		Token{type = .STAR, literal = "*"},
 		Token{type = .SLASH, literal = "/"},
 		Token{type = .BANG, literal = "!"},
+		Token{type = .IDENT, literal = "こんにちは"},
 	}
 
 	arena: vmem.Arena

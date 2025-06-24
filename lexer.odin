@@ -4,6 +4,7 @@ import "core:fmt"
 import "core:mem"
 import "core:os"
 import "core:strings"
+import "core:unicode"
 import "core:unicode/utf8"
 
 Lexer :: struct {
@@ -70,11 +71,11 @@ lexer_next_token :: proc(l: ^Lexer) -> Token {
 		if is_string(l.ch) {
 			tok.type = TokenType.STRING
 			tok.literal = lexer_read_string(l)
-		} else if is_letter(l.ch) {
+		} else if unicode.is_letter(l.ch) {
 			tok.literal = lexer_read_ident(l)
 			tok.type = ident_lookup(tok.literal)
 			return tok
-		} else if is_digit(l.ch) {
+		} else if unicode.is_digit(l.ch) {
 			tok.type = TokenType.INT
 			tok.literal = lexer_read_number(l)
 			return tok
@@ -120,7 +121,7 @@ lexer_skip_whitespace :: proc(l: ^Lexer) {
 
 lexer_read_ident :: proc(l: ^Lexer) -> string {
 	start := l.pos
-	for is_letter(l.ch) {
+	for unicode.is_letter(l.ch) {
 		lexer_read_char(l)
 	}
 	return l.input[start:l.pos]
@@ -139,18 +140,10 @@ lexer_read_string :: proc(l: ^Lexer) -> string {
 
 lexer_read_number :: proc(l: ^Lexer) -> string {
 	start := l.pos
-	for is_digit(l.ch) {
+	for unicode.is_digit(l.ch) {
 		lexer_read_char(l)
 	}
 	return l.input[start:l.pos]
-}
-
-is_letter :: proc(ch: rune) -> bool {
-	return 'a' <= ch && ch <= 'z' || 'A' <= ch && ch <= 'Z' || ch == '_'
-}
-
-is_digit :: proc(ch: rune) -> bool {
-	return '0' <= ch && ch <= '9'
 }
 
 is_string :: proc(ch: rune) -> bool {
