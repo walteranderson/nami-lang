@@ -5,19 +5,54 @@ import "core:fmt"
 import "core:mem"
 
 Parser :: struct {
-	lexer:     ^Lexer,
-	program:   ^Program,
-	allocator: mem.Allocator,
-	cur:       Token,
-	peek:      Token,
-	errors:    [dynamic]string,
-	has_main:  bool,
+	lexer:      ^Lexer,
+	program:    ^Program,
+	allocator:  mem.Allocator,
+	cur:        Token,
+	peek:       Token,
+	errors:     [dynamic]string,
+	has_main:   bool,
+	prefix_fns: map[TokenType]PrefixParseFns,
+	infix_fns:  map[TokenType]InfixParseFns,
+}
+
+PrefixParseFns :: proc(p: ^Parser) -> Expr
+InfixParseFns :: proc(p: ^Parser, expr: Expr) -> Expr
+
+Precedence :: enum {
+	LOWEST,
+	EQUALS, // ==
+	LESSGREATER, // < or >
+	SUM, // +
+	PRODUCT, // *
+	PREFIX, // -X or !X
+	CALL, // myFunc(X)
+	INDEX, // array[index]
+}
+
+precedences: map[TokenType]Precedence
+
+precedences_init :: proc(allocator: mem.Allocator) {
+	using Precedence, TokenType
+	precedences = make(map[TokenType]Precedence, allocator)
+	precedences[EQ] = EQUALS
+}
+
+get_precedence :: proc(tt: TokenType) -> Precedence {
+	if val, ok := precedences[tt]; ok {
+		return val
+	}
+	return .LOWEST
 }
 
 parser_init :: proc(p: ^Parser, l: ^Lexer, allocator: mem.Allocator) {
 	p.lexer = l
 	p.allocator = allocator
 	p.errors = make([dynamic]string, allocator)
+	precedences_init(allocator)
+
+	p.prefix_fns[.STRING] = parser_parse_string
+
 	parser_next_token(p)
 	parser_next_token(p)
 }
@@ -56,6 +91,9 @@ parser_parse_expr_stmt :: proc(p: ^Parser) -> ^ExprStmt {
 }
 
 parser_parse_expr :: proc(p: ^Parser) -> Expr {
+	// if prefixFn, ok := p.prefix_fns[p.cur.type]; !ok {
+	// }
+
 	#partial switch (p.cur.type) {
 	case .STRING:
 		return parser_parse_string(p)
@@ -68,7 +106,7 @@ parser_parse_expr :: proc(p: ^Parser) -> Expr {
 	return nil
 }
 
-parser_parse_string :: proc(p: ^Parser) -> ^StringLiteral {
+parser_parse_string :: proc(p: ^Parser) -> Expr {
 	str := ast_new(StringLiteral, p.cur, p.allocator)
 	str.value = p.cur.literal
 	return str

@@ -3,8 +3,7 @@ package main
 import "core:mem"
 
 Node :: struct {
-	tok:     Token,
-	derived: AnyNode,
+	tok: Token,
 }
 
 Program :: struct {
@@ -66,7 +65,6 @@ Expr :: union {
 
 ast_new :: proc($T: typeid, tok: Token, allocator: mem.Allocator) -> ^T {
 	n, _ := new(T, allocator)
-	n.derived = n
 	n.tok = tok
 	return n
 }
