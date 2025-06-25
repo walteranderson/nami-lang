@@ -9,6 +9,7 @@ test_tokens :: proc(t: ^testing.T) {
 	fn main() {}
 	[]
 	"Hello";
+	,
 	==
 	!=
 	5
@@ -31,6 +32,7 @@ test_tokens :: proc(t: ^testing.T) {
 		Token{type = .R_BRACKET, literal = "]"},
 		Token{type = .STRING, literal = "Hello"},
 		Token{type = .SEMI_COLON, literal = ";"},
+		Token{type = .COMMA, literal = ","},
 		Token{type = .EQ, literal = "=="},
 		Token{type = .NOT_EQ, literal = "!="},
 		Token{type = .INT, literal = "5"},

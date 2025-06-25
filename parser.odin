@@ -51,6 +51,7 @@ parser_init :: proc(p: ^Parser, l: ^Lexer, allocator: mem.Allocator) {
 	p.errors = make([dynamic]string, allocator)
 	precedences_init(allocator)
 
+	p.prefix_fns = make(map[TokenType]PrefixParseFns, allocator)
 	p.prefix_fns[.STRING] = parser_parse_string
 
 	parser_next_token(p)

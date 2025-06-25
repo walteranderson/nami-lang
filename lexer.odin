@@ -52,6 +52,8 @@ lexer_next_token :: proc(l: ^Lexer) -> Token {
 		tok = token_new(.STAR, l.ch, l.allocator)
 	case '/':
 		tok = token_new(.SLASH, l.ch, l.allocator)
+	case ',':
+		tok = token_new(.COMMA, l.ch, l.allocator)
 	case '=':
 		if lexer_peek_char(l) == '=' {
 			tok.type = .EQ

@@ -18,6 +18,7 @@ TokenType :: enum {
 	L_BRACKET,
 	R_BRACKET,
 	SEMI_COLON,
+	COMMA,
 	EQ,
 	NOT_EQ,
 	LT,
