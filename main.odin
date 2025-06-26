@@ -42,7 +42,7 @@ main :: proc() {
 		return
 	}
 
-	fmt.println(program)
+	print_ast(program, 0)
 
 	qbe: Qbe
 	qbe_init(&qbe, program)
