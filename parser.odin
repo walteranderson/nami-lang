@@ -4,6 +4,9 @@ import "core:fmt"
 import "core:mem"
 import "core:strconv"
 
+PrefixParseFns :: proc(p: ^Parser) -> Expr
+InfixParseFns :: proc(p: ^Parser, expr: Expr) -> Expr
+
 Parser :: struct {
 	lexer:      ^Lexer,
 	allocator:  mem.Allocator,
@@ -13,9 +16,6 @@ Parser :: struct {
 	prefix_fns: map[TokenType]PrefixParseFns,
 	infix_fns:  map[TokenType]InfixParseFns,
 }
-
-PrefixParseFns :: proc(p: ^Parser) -> Expr
-InfixParseFns :: proc(p: ^Parser, expr: Expr) -> Expr
 
 Precedence :: enum {
 	LOWEST,
@@ -57,15 +57,15 @@ parser_init :: proc(p: ^Parser, lexer: ^Lexer, allocator: mem.Allocator) {
 	p.lexer = lexer
 	p.allocator = allocator
 	p.errors = make([dynamic]string, p.allocator)
-	p.prefix_fns = make(map[TokenType]PrefixParseFns, p.allocator)
-	p.infix_fns = make(map[TokenType]InfixParseFns, p.allocator)
 	precedences_init(p.allocator)
 
+	p.prefix_fns = make(map[TokenType]PrefixParseFns, p.allocator)
 	p.prefix_fns[.INT] = parser_parse_int
 	p.prefix_fns[.STRING] = parser_parse_string
 	p.prefix_fns[.IDENT] = parser_parse_ident
 	p.prefix_fns[.FUNC] = parser_parse_func
 
+	p.infix_fns = make(map[TokenType]InfixParseFns, p.allocator)
 	p.infix_fns[.PLUS] = parser_parse_infix_expr
 	p.infix_fns[.MINUS] = parser_parse_infix_expr
 	p.infix_fns[.STAR] = parser_parse_infix_expr
@@ -84,8 +84,8 @@ parser_parse_program :: proc(p: ^Parser) -> ^Program {
 	program := new(Program, p.allocator)
 	program.stmts = make([dynamic]Statement, p.allocator)
 	for !parser_cur_token_is(p, .EOF) {
-		stmt := parser_parse_stmt(p)
-		if stmt != nil {
+		fmt.println("parsing statement")
+		if stmt := parser_parse_stmt(p); stmt != nil {
 			append(&program.stmts, stmt)
 		}
 		parser_next_token(p)
@@ -109,7 +109,7 @@ parser_parse_expr :: proc(p: ^Parser, precedence: Precedence) -> Expr {
 		return nil
 	}
 	left := prefix_fn(p)
-	for parser_peek_token_is(p, .SEMI_COLON) && precedence < get_precedence(p.peek.type) {
+	for !parser_peek_token_is(p, .SEMI_COLON) && precedence < get_precedence(p.peek.type) {
 		infix_fn, ok := p.infix_fns[p.peek.type]
 		if !ok {
 			return left
@@ -137,13 +137,27 @@ parser_parse_call_expr :: proc(p: ^Parser, left: Expr) -> Expr {
 	expr := new(CallExpr, p.allocator)
 	expr.tok = p.cur
 	expr.func = left
-	expr.args = parser_parse_expr_list(p)
+	expr.args = parser_parse_expr_list(p, .R_PAREN)
 	return expr
 }
 
-parser_parse_expr_list :: proc(p: ^Parser) -> [dynamic]Expr {
-	// TODO
-	return nil
+parser_parse_expr_list :: proc(p: ^Parser, end: TokenType) -> [dynamic]Expr {
+	list := make([dynamic]Expr, p.allocator)
+	if parser_peek_token_is(p, end) {
+		parser_next_token(p)
+		return list
+	}
+	parser_next_token(p)
+	append(&list, parser_parse_expr(p, .LOWEST))
+	for parser_peek_token_is(p, .COMMA) {
+		parser_next_token(p) // comma
+		parser_next_token(p)
+		append(&list, parser_parse_expr(p, .LOWEST))
+	}
+	if !parser_expect_peek(p, .R_PAREN) {
+		return nil
+	}
+	return list
 }
 
 parser_parse_expr_stmt :: proc(p: ^Parser) -> Statement {
@@ -156,7 +170,14 @@ parser_parse_expr_stmt :: proc(p: ^Parser) -> Statement {
 parser_parse_return_stmt :: proc(p: ^Parser) -> Statement {
 	stmt := new(ReturnStatement, p.allocator)
 	stmt.tok = p.cur
+
+	parser_next_token(p)
 	stmt.value = parser_parse_expr(p, .LOWEST)
+
+	if !parser_cur_token_is(p, .SEMI_COLON) {
+		parser_next_token(p)
+	}
+
 	return stmt
 }
 
@@ -172,6 +193,9 @@ parser_parse_func :: proc(p: ^Parser) -> Expr {
 		return nil
 	}
 	func.args = parser_parse_func_args(p)
+	if !parser_expect_peek(p, .L_BRACE) {
+		return nil
+	}
 	func.body = parser_parse_block_stmt(p)
 	return func
 }
@@ -180,6 +204,7 @@ parser_parse_block_stmt :: proc(p: ^Parser) -> ^BlockStatement {
 	block := new(BlockStatement, p.allocator)
 	block.tok = p.cur
 	block.stmts = make([dynamic]Statement, p.allocator)
+	parser_next_token(p)
 	for !parser_peek_token_is(p, .R_BRACE) && !parser_peek_token_is(p, .EOF) {
 		stmt := parser_parse_stmt(p)
 		if stmt != nil {
