@@ -18,6 +18,9 @@ test_tokens :: proc(t: ^testing.T) {
 	+ -
 	* / !
 	こんにちは
+    true
+    false
+    return
 	`
 
 
@@ -45,6 +48,9 @@ test_tokens :: proc(t: ^testing.T) {
 		Token{type = .SLASH, literal = "/"},
 		Token{type = .BANG, literal = "!"},
 		Token{type = .IDENT, literal = "こんにちは"},
+		Token{type = .TRUE, literal = "true"},
+		Token{type = .FALSE, literal = "false"},
+		Token{type = .RETURN, literal = "return"},
 	}
 
 	arena: vmem.Arena

@@ -1,70 +1,105 @@
 package main
 
-import "core:mem"
-
-Node :: struct {
-	tok: Token,
+StringLiteral :: struct {
+	tok:   Token,
+	value: string,
 }
 
-Program :: struct {
-	using node: Node,
-	stmts:      [dynamic]Stmt,
+IntLiteral :: struct {
+	tok:   Token,
+	value: int,
 }
 
-Function :: struct {
-	using node: Node,
-	name:       string,
-	// params
-	body:       ^BlockStmt,
+Identifier :: struct {
+	tok:   Token,
+	value: string,
 }
 
-BlockStmt :: struct {
-	using node: Node,
-	stmts:      [dynamic]Stmt,
+Boolean :: struct {
+	tok:   Token,
+	value: bool,
+}
+
+PrefixExpr :: struct {
+	tok:   Token,
+	op:    string,
+	right: Expr,
+}
+
+InfixExpr :: struct {
+	tok:   Token,
+	left:  Expr,
+	op:    string,
+	right: Expr,
 }
 
 CallExpr :: struct {
-	using node: Node,
-	callee:     string,
-	args:       [dynamic]Expr,
+	tok:  Token,
+	func: Expr,
+	args: [dynamic]Expr,
 }
 
-StringLiteral :: struct {
-	using node: Node,
-	value:      string,
+/////////
+
+Program :: struct {
+	stmts: [dynamic]Statement,
 }
 
-ExprStmt :: struct {
-	using node: Node,
-	expr:       Expr,
+Function :: struct {
+	tok:  Token,
+	args: [dynamic]Expr,
+	body: ^BlockStatement,
 }
 
-AnyNode :: union {
-	// root
-	^Program,
-	// statements
-	^BlockStmt,
-	^Function,
-	^ExprStmt,
-	// expressions
-	^CallExpr,
-	^StringLiteral,
+ReturnStatement :: struct {
+	tok:   Token,
+	value: Expr,
 }
 
-Stmt :: union {
-	^BlockStmt,
-	^Function,
-	^ExprStmt,
+ExprStatement :: struct {
+	tok:   Token,
+	value: Expr,
 }
+
+BlockStatement :: struct {
+	tok:   Token,
+	stmts: [dynamic]Statement,
+}
+
+Assignment :: struct {}
+
+///////
 
 Expr :: union {
-	^CallExpr,
 	^StringLiteral,
+	^IntLiteral,
+	^Identifier,
+	^Boolean,
+	^PrefixExpr,
+	^InfixExpr,
+	^CallExpr,
 }
 
+Statement :: union {
+	^Program,
+	^Function,
+	^ReturnStatement,
+	^ExprStatement,
+	^BlockStatement,
+}
 
-ast_new :: proc($T: typeid, tok: Token, allocator: mem.Allocator) -> ^T {
-	n, _ := new(T, allocator)
-	n.tok = tok
-	return n
+Node :: union {
+	^StringLiteral,
+	^IntLiteral,
+	^Identifier,
+	^Boolean,
+	^PrefixExpr,
+	^InfixExpr,
+	^CallExpr,
+	//
+	^Program,
+	^Function,
+	^ReturnStatement,
+	^ExprStatement,
+	^BlockStatement,
 }

@@ -19,6 +19,8 @@ TokenType :: enum {
 	R_BRACKET,
 	SEMI_COLON,
 	COMMA,
+	NEWLINE,
+	//
 	EQ,
 	NOT_EQ,
 	LT,
@@ -30,6 +32,9 @@ TokenType :: enum {
 	SLASH,
 	//
 	FUNC,
+	TRUE,
+	FALSE,
+	RETURN,
 }
 
 Token :: struct {
@@ -44,8 +49,14 @@ token_new :: proc(type: TokenType, ch: rune, allocator: mem.Allocator) -> Token 
 ident_lookup :: proc(ident: string) -> TokenType {
 	switch ident {
 	case "fn":
-		return TokenType.FUNC
+		return .FUNC
+	case "true":
+		return .TRUE
+	case "false":
+		return .FALSE
+	case "return":
+		return .RETURN
 	case:
-		return TokenType.IDENT
+		return .IDENT
 	}
 }

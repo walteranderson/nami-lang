@@ -33,7 +33,7 @@ main :: proc() {
 	parser: Parser
 	parser_init(&parser, &lexer, allocator)
 
-	program := parser_parse(&parser)
+	program := parser_parse_program(&parser)
 	if len(parser.errors) > 0 {
 		fmt.eprintln("Parser errors:")
 		for err in parser.errors {
@@ -42,24 +42,24 @@ main :: proc() {
 		return
 	}
 
-	qbe: Qbe
-	qbe_init(&qbe, program)
-
-	qbe_generate(&qbe)
-	if len(qbe.errors) > 0 {
-		fmt.println("QBE codegen errors:")
-		for err in qbe.errors {
-			fmt.eprintln("-", err)
-		}
-		return
-	}
-
-	program_name := extract_base_name(file_name)
-	err := qbe_compile(&qbe, program_name)
-	if err != nil {
-		fmt.eprintln("Error compiling qbe: %v", err)
-		return
-	}
+	// qbe: Qbe
+	// qbe_init(&qbe, program)
+	//
+	// qbe_generate(&qbe)
+	// if len(qbe.errors) > 0 {
+	// 	fmt.println("QBE codegen errors:")
+	// 	for err in qbe.errors {
+	// 		fmt.eprintln("-", err)
+	// 	}
+	// 	return
+	// }
+	//
+	// program_name := extract_base_name(file_name)
+	// err := qbe_compile(&qbe, program_name)
+	// if err != nil {
+	// 	fmt.eprintln("Error compiling qbe: %v", err)
+	// 	return
+	// }
 }
 
 read_entire_file :: proc(file_name: string, allocator: mem.Allocator) -> string {
