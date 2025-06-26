@@ -47,7 +47,8 @@ Program :: struct {
 
 Function :: struct {
 	tok:  Token,
-	args: [dynamic]Expr,
+	name: ^Identifier,
+	args: [dynamic]^Identifier,
 	body: ^BlockStatement,
 }
 
@@ -78,11 +79,11 @@ Expr :: union {
 	^PrefixExpr,
 	^InfixExpr,
 	^CallExpr,
+	^Function,
 }
 
 Statement :: union {
 	^Program,
-	^Function,
 	^ReturnStatement,
 	^ExprStatement,
 	^BlockStatement,
@@ -96,9 +97,9 @@ Node :: union {
 	^PrefixExpr,
 	^InfixExpr,
 	^CallExpr,
+	^Function,
 	//
 	^Program,
-	^Function,
 	^ReturnStatement,
 	^ExprStatement,
 	^BlockStatement,

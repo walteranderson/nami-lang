@@ -19,7 +19,6 @@ TokenType :: enum {
 	R_BRACKET,
 	SEMI_COLON,
 	COMMA,
-	NEWLINE,
 	//
 	EQ,
 	NOT_EQ,

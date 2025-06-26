@@ -54,8 +54,6 @@ lexer_next_token :: proc(l: ^Lexer) -> Token {
 		tok = token_new(.SLASH, l.ch, l.allocator)
 	case ',':
 		tok = token_new(.COMMA, l.ch, l.allocator)
-	case '\n':
-		tok = token_new(.NEWLINE, l.ch, l.allocator)
 	case '=':
 		if lexer_peek_char(l) == '=' {
 			tok.type = .EQ
@@ -122,7 +120,7 @@ lexer_peek_char :: proc(l: ^Lexer) -> rune {
 }
 
 lexer_skip_whitespace :: proc(l: ^Lexer) {
-	for l.ch == ' ' || l.ch == '\t' || l.ch == '\r' {
+	for l.ch == ' ' || l.ch == '\t' || l.ch == '\r' || l.ch == '\n' {
 		lexer_read_char(l)
 	}
 }

@@ -1,15 +1,3 @@
-fn main() {
-  print(add(one, two))
-}
-
-fn one() {
-  return 1
-}
-
-fn two() {
-  return 2
-}
-
-fn add(a, b) {
-  return a + b
+fn add(a, b, c) {
+  return a + b + c;
 }
