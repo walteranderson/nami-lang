@@ -84,7 +84,6 @@ parser_parse_program :: proc(p: ^Parser) -> ^Program {
 	program := new(Program, p.allocator)
 	program.stmts = make([dynamic]Statement, p.allocator)
 	for !parser_cur_token_is(p, .EOF) {
-		fmt.println("parsing statement")
 		if stmt := parser_parse_stmt(p); stmt != nil {
 			append(&program.stmts, stmt)
 		}
@@ -136,7 +135,14 @@ parser_parse_infix_expr :: proc(p: ^Parser, left: Expr) -> Expr {
 parser_parse_call_expr :: proc(p: ^Parser, left: Expr) -> Expr {
 	expr := new(CallExpr, p.allocator)
 	expr.tok = p.cur
-	expr.func = left
+
+	ident, ok := left.(^Identifier)
+	if !ok {
+		parser_error(p, "expected call expression identifier, got %v", left)
+		return nil
+	}
+	expr.func = ident
+
 	expr.args = parser_parse_expr_list(p, .R_PAREN)
 	return expr
 }
@@ -164,6 +170,9 @@ parser_parse_expr_stmt :: proc(p: ^Parser) -> Statement {
 	stmt := new(ExprStatement, p.allocator)
 	stmt.tok = p.cur
 	stmt.value = parser_parse_expr(p, .LOWEST)
+	if parser_peek_token_is(p, .SEMI_COLON) {
+		parser_next_token(p)
+	}
 	return stmt
 }
 
@@ -204,8 +213,10 @@ parser_parse_block_stmt :: proc(p: ^Parser) -> ^BlockStatement {
 	block := new(BlockStatement, p.allocator)
 	block.tok = p.cur
 	block.stmts = make([dynamic]Statement, p.allocator)
+
 	parser_next_token(p)
-	for !parser_peek_token_is(p, .R_BRACE) && !parser_peek_token_is(p, .EOF) {
+
+	for !parser_cur_token_is(p, .R_BRACE) && !parser_cur_token_is(p, .EOF) {
 		stmt := parser_parse_stmt(p)
 		if stmt != nil {
 			append(&block.stmts, stmt)

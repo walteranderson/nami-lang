@@ -34,7 +34,20 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 		qbe_gen_expr(qbe, s.value)
 		return
 	}
+	if s, ok := stmt.(^ReturnStatement); ok {
+		qbe_gen_return_stmt(qbe, s.value)
+		return
+	}
 	qbe_error(qbe, "unexpected statement: %v", stmt)
+}
+
+qbe_gen_return_stmt :: proc(qbe: ^Qbe, value: Expr) {
+	v, ok := value.(^IntLiteral)
+	if !ok {
+		qbe_error(qbe, "unsupported return expr, got %s", value)
+		return
+	}
+	qbe_emit(qbe, "ret %d\n", v.value)
 }
 
 qbe_gen_func :: proc(qbe: ^Qbe, stmt: ^Function) {
@@ -48,8 +61,6 @@ qbe_gen_func :: proc(qbe: ^Qbe, stmt: ^Function) {
 		qbe_emit(qbe, "\t")
 		qbe_gen_stmt(qbe, stmt)
 	}
-
-	qbe_emit(qbe, "\tret 0\n")
 	qbe_emit(qbe, "}}\n")
 }
 
@@ -63,6 +74,8 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) {
 		qbe_gen_func(qbe, v)
 	case ^Identifier:
 		qbe_gen_ident(qbe, v)
+	case ^IntLiteral:
+	case ^Boolean:
 	}
 }
 
@@ -89,10 +102,7 @@ qbe_gen_call_expr :: proc(qbe: ^Qbe, e: ^CallExpr) {
 		}
 	}
 
-	// TODO: this feels brittle
-	qbe_emit(qbe, "call $")
-	qbe_gen_expr(qbe, e.func)
-	qbe_emit(qbe, "(")
+	qbe_emit(qbe, "call $%s(", e.func.value)
 
 	for l, i in labels {
 		qbe_emit(qbe, "l %s", l)

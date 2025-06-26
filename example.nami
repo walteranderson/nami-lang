@@ -1,3 +1,4 @@
 fn main() {
-  printf("hello world\n")
+  puts("Hello");
+  return 69;
 }

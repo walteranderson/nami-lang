@@ -35,7 +35,7 @@ InfixExpr :: struct {
 
 CallExpr :: struct {
 	tok:  Token,
-	func: Expr,
+	func: ^Identifier,
 	args: [dynamic]Expr,
 }
 
