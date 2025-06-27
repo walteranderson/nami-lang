@@ -43,7 +43,7 @@ main :: proc() {
 		for err in parser.errors {
 			log(.ERROR, err)
 		}
-		return
+		os.exit(1)
 	}
 
 	if opt.ast {
@@ -60,14 +60,14 @@ main :: proc() {
 		for err in qbe.errors {
 			log(.ERROR, err)
 		}
-		return
+		os.exit(1)
 	}
 
 	program_name := extract_base_name(opt.file_name)
 	err := qbe_compile(&qbe, program_name)
 	if err != nil {
 		log(.ERROR, "Error compiling qbe: %v", err)
-		return
+		os.exit(1)
 	}
 }
 
