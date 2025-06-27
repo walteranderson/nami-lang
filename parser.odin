@@ -65,6 +65,11 @@ parser_init :: proc(p: ^Parser, lexer: ^Lexer, allocator: mem.Allocator) {
 	p.prefix_fns[.STRING] = parser_parse_string
 	p.prefix_fns[.IDENT] = parser_parse_ident
 	p.prefix_fns[.FUNC] = parser_parse_func
+	p.prefix_fns[.TRUE] = parser_parse_bool
+	p.prefix_fns[.FALSE] = parser_parse_bool
+	p.prefix_fns[.BANG] = parser_parse_prefix_expr
+	p.prefix_fns[.MINUS] = parser_parse_prefix_expr
+	p.prefix_fns[.L_PAREN] = parser_parse_grouped_expr
 
 	p.infix_fns = make(map[TokenType]InfixParseFns, p.allocator)
 	p.infix_fns[.PLUS] = parser_parse_infix_expr
@@ -124,6 +129,24 @@ parser_parse_expr :: proc(p: ^Parser, precedence: Precedence) -> Expr {
 	return left
 }
 
+parser_parse_grouped_expr :: proc(p: ^Parser) -> Expr {
+	parser_next_token(p)
+	expr := parser_parse_expr(p, .LOWEST)
+	if !parser_expect_peek(p, .R_PAREN) {
+		return nil
+	}
+	return expr
+}
+
+parser_parse_prefix_expr :: proc(p: ^Parser) -> Expr {
+	expr := new(PrefixExpr, p.allocator)
+	expr.tok = p.cur
+	expr.op = p.cur.literal
+	parser_next_token(p)
+	expr.right = parser_parse_expr(p, .PREFIX)
+	return expr
+}
+
 parser_parse_infix_expr :: proc(p: ^Parser, left: Expr) -> Expr {
 	infix := new(InfixExpr, p.allocator)
 	infix.tok = p.cur
@@ -179,6 +202,13 @@ parser_parse_expr_stmt :: proc(p: ^Parser) -> Statement {
 		parser_next_token(p)
 	}
 	return stmt
+}
+
+parser_parse_bool :: proc(p: ^Parser) -> Expr {
+	expr := new(Boolean, p.allocator)
+	expr.tok = p.cur
+	expr.value = parser_cur_token_is(p, .TRUE)
+	return expr
 }
 
 parser_parse_return_stmt :: proc(p: ^Parser) -> Statement {

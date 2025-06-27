@@ -151,9 +151,7 @@ print_ast :: proc(node: Node, indent_level: int) {
 		}
 	case ^InfixExpr:
 		fmt.printf("%sInfixExpr: %s\n", indent, n.op)
-		fmt.printf("%s  Left:\n", indent)
 		print_expr(n.left, indent_level + 1)
-		fmt.printf("%s  Right:\n", indent)
 		print_expr(n.right, indent_level + 1)
 	case ^PrefixExpr:
 		fmt.printf("%sPrefixExpr: %s\n", indent, n.op)
