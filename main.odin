@@ -1,16 +1,21 @@
 package main
 
+import "core:flags"
 import "core:fmt"
 import "core:mem"
 import vmem "core:mem/virtual"
 import "core:os"
 import "core:strings"
 
+Options :: struct {
+	file_name: string `args:"pos=0,required" usage:"Path to file, ex: ./example.nami"`,
+	ast:       bool `usage:"Prints the AST"`,
+}
+
 main :: proc() {
-	if len(os.args) <= 1 {
-		fmt.eprintfln("Usage: nami <input.nami>")
-		os.exit(1)
-	}
+	opt: Options
+	style: flags.Parsing_Style = .Unix
+	flags.parse_or_exit(&opt, os.args, style)
 
 	arena: vmem.Arena
 	allocator, arena_err := arena_init(&arena)
@@ -20,10 +25,9 @@ main :: proc() {
 	}
 	defer vmem.arena_free_all(&arena)
 
-	file_name := os.args[1]
-	file_contents := read_entire_file(file_name, allocator)
+	file_contents := read_entire_file(opt.file_name, allocator)
 	if len(file_contents) == 0 {
-		log(.ERROR, "Error reading file: %s", file_name)
+		log(.ERROR, "Error reading file: %s", opt.file_name)
 		os.exit(1)
 	}
 
@@ -42,7 +46,10 @@ main :: proc() {
 		return
 	}
 
-	print_ast(program, 0)
+	if opt.ast {
+		print_ast(program, 0)
+		os.exit(0)
+	}
 
 	qbe: Qbe
 	qbe_init(&qbe, program)
@@ -56,7 +63,7 @@ main :: proc() {
 		return
 	}
 
-	program_name := extract_base_name(file_name)
+	program_name := extract_base_name(opt.file_name)
 	err := qbe_compile(&qbe, program_name)
 	if err != nil {
 		log(.ERROR, "Error compiling qbe: %v", err)

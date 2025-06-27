@@ -3,6 +3,7 @@ package main
 import "core:fmt"
 import "core:mem"
 import "core:strconv"
+import "core:time"
 
 PrefixParseFns :: proc(p: ^Parser) -> Expr
 InfixParseFns :: proc(p: ^Parser, expr: Expr) -> Expr
@@ -81,6 +82,9 @@ parser_init :: proc(p: ^Parser, lexer: ^Lexer, allocator: mem.Allocator) {
 }
 
 parser_parse_program :: proc(p: ^Parser) -> ^Program {
+	start := time.now()
+	log(.INFO, "Parsing program")
+
 	program := new(Program, p.allocator)
 	program.stmts = make([dynamic]Statement, p.allocator)
 	for !parser_cur_token_is(p, .EOF) {
@@ -89,6 +93,7 @@ parser_parse_program :: proc(p: ^Parser) -> ^Program {
 		}
 		parser_next_token(p)
 	}
+	log(.INFO, "Parsing complete: %v", time.diff(start, time.now()))
 	return program
 }
 
