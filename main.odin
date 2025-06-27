@@ -15,7 +15,7 @@ main :: proc() {
 	arena: vmem.Arena
 	allocator, arena_err := arena_init(&arena)
 	if arena_err != nil {
-		fmt.eprintfln("Error allocating arena")
+		log(.ERROR, "Error allocating arena: %v", arena_err)
 		os.exit(1)
 	}
 	defer vmem.arena_free_all(&arena)
@@ -23,7 +23,7 @@ main :: proc() {
 	file_name := os.args[1]
 	file_contents := read_entire_file(file_name, allocator)
 	if len(file_contents) == 0 {
-		fmt.eprintfln("Error reading file: %s", file_name)
+		log(.ERROR, "Error reading file: %s", file_name)
 		os.exit(1)
 	}
 
@@ -35,9 +35,9 @@ main :: proc() {
 
 	program := parser_parse_program(parser)
 	if len(parser.errors) > 0 {
-		fmt.eprintln("Parser errors:")
+		log(.ERROR, "Parser errors:")
 		for err in parser.errors {
-			fmt.eprintln("-", err)
+			log(.ERROR, err)
 		}
 		return
 	}
@@ -49,9 +49,9 @@ main :: proc() {
 
 	qbe_generate(&qbe)
 	if len(qbe.errors) > 0 {
-		fmt.println("QBE codegen errors:")
+		log(.ERROR, "QBE codegen errors:")
 		for err in qbe.errors {
-			fmt.eprintln("-", err)
+			log(.ERROR, err)
 		}
 		return
 	}
@@ -59,7 +59,7 @@ main :: proc() {
 	program_name := extract_base_name(file_name)
 	err := qbe_compile(&qbe, program_name)
 	if err != nil {
-		fmt.eprintln("Error compiling qbe: %v", err)
+		log(.ERROR, "Error compiling qbe: %v", err)
 		return
 	}
 }
@@ -92,4 +92,14 @@ arena_init :: proc(arena: ^vmem.Arena) -> (allocator: mem.Allocator, err: mem.Al
 	vmem.arena_init_growing(arena) or_return
 	allocator = vmem.arena_allocator(arena)
 	return
+}
+
+LogLevel :: enum {
+	INFO,
+	ERROR,
+}
+
+log :: proc(level: LogLevel, msg: string, args: ..any) {
+	fmt.printf("[%s] ", level)
+	fmt.printfln(msg, ..args)
 }

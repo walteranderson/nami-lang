@@ -133,7 +133,7 @@ qbe_compile :: proc(qbe: ^Qbe, program_name: string) -> (err: os.Error) {
 	os.write_entire_file(qbe_file, transmute([]byte)(content)) or_return
 
 	qbe_cmd := []string{"qbe", "-o", asm_file, qbe_file}
-	fmt.printfln("CMD: %v", qbe_cmd)
+	log(.INFO, "CMD: %v", qbe_cmd)
 
 	qbe_desc := os.Process_Desc {
 		command = qbe_cmd,
@@ -144,7 +144,7 @@ qbe_compile :: proc(qbe: ^Qbe, program_name: string) -> (err: os.Error) {
 	_ = os.process_start(qbe_desc) or_return
 
 	cc_cmd := []string{"cc", "-o", program_name, asm_file}
-	fmt.printfln("CMD: %v", cc_cmd)
+	log(.INFO, "CMD: %v", cc_cmd)
 
 	cc_desc := os.Process_Desc {
 		command = cc_cmd,
