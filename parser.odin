@@ -54,8 +54,11 @@ get_precedence :: proc(tt: TokenType) -> Precedence {
 	return .LOWEST
 }
 
-parser_init :: proc(p: ^Parser, lexer: ^Lexer, allocator: mem.Allocator) {
+parser_init :: proc(p: ^Parser, file_contents: string, allocator: mem.Allocator) {
+	lexer := new(Lexer, allocator)
+	lexer_init(lexer, file_contents)
 	p.lexer = lexer
+
 	p.allocator = allocator
 	p.errors = make([dynamic]string, p.allocator)
 	precedences_init(p.allocator)

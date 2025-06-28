@@ -31,11 +31,8 @@ main :: proc() {
 		os.exit(1)
 	}
 
-	lexer := new(Lexer, allocator)
-	lexer_init(lexer, allocator, file_contents)
-
 	parser := new(Parser, allocator)
-	parser_init(parser, lexer, allocator)
+	parser_init(parser, file_contents, allocator)
 
 	program := parser_parse_program(parser)
 	if len(parser.errors) > 0 {

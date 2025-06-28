@@ -8,16 +8,14 @@ import "core:unicode"
 import "core:unicode/utf8"
 
 Lexer :: struct {
-	input:     string,
-	pos:       int,
-	read_pos:  int,
-	ch:        rune,
-	allocator: mem.Allocator,
+	input:    string,
+	pos:      int,
+	read_pos: int,
+	ch:       rune,
 }
 
-lexer_init :: proc(l: ^Lexer, allocator: mem.Allocator, input: string) {
+lexer_init :: proc(l: ^Lexer, input: string) {
 	l.input = input
-	l.allocator = allocator
 	lexer_read_char(l)
 }
 
@@ -27,48 +25,63 @@ lexer_next_token :: proc(l: ^Lexer) -> Token {
 
 	switch (l.ch) {
 	case '(':
-		tok = token_new(.L_PAREN, l.ch, l.allocator)
+		tok.type = .L_PAREN
+		tok.literal = l.input[l.pos:l.pos + 1]
 	case ')':
-		tok = token_new(.R_PAREN, l.ch, l.allocator)
+		tok.type = .R_PAREN
+		tok.literal = l.input[l.pos:l.pos + 1]
 	case '{':
-		tok = token_new(.L_BRACE, l.ch, l.allocator)
+		tok.type = .L_BRACE
+		tok.literal = l.input[l.pos:l.pos + 1]
 	case '}':
-		tok = token_new(.R_BRACE, l.ch, l.allocator)
+		tok.type = .R_BRACE
+		tok.literal = l.input[l.pos:l.pos + 1]
 	case '[':
-		tok = token_new(.L_BRACKET, l.ch, l.allocator)
+		tok.type = .L_BRACKET
+		tok.literal = l.input[l.pos:l.pos + 1]
 	case ']':
-		tok = token_new(.R_BRACKET, l.ch, l.allocator)
+		tok.type = .R_BRACKET
+		tok.literal = l.input[l.pos:l.pos + 1]
 	case ';':
-		tok = token_new(.SEMI_COLON, l.ch, l.allocator)
+		tok.type = .SEMI_COLON
+		tok.literal = l.input[l.pos:l.pos + 1]
 	case '<':
-		tok = token_new(.LT, l.ch, l.allocator)
+		tok.type = .LT
+		tok.literal = l.input[l.pos:l.pos + 1]
 	case '>':
-		tok = token_new(.GT, l.ch, l.allocator)
+		tok.type = .GT
+		tok.literal = l.input[l.pos:l.pos + 1]
 	case '+':
-		tok = token_new(.PLUS, l.ch, l.allocator)
+		tok.type = .PLUS
+		tok.literal = l.input[l.pos:l.pos + 1]
 	case '-':
-		tok = token_new(.MINUS, l.ch, l.allocator)
+		tok.type = .MINUS
+		tok.literal = l.input[l.pos:l.pos + 1]
 	case '*':
-		tok = token_new(.STAR, l.ch, l.allocator)
+		tok.type = .STAR
+		tok.literal = l.input[l.pos:l.pos + 1]
 	case '/':
-		tok = token_new(.SLASH, l.ch, l.allocator)
+		tok.type = .SLASH
+		tok.literal = l.input[l.pos:l.pos + 1]
 	case ',':
-		tok = token_new(.COMMA, l.ch, l.allocator)
+		tok.type = .COMMA
+		tok.literal = l.input[l.pos:l.pos + 1]
 	case '=':
 		if lexer_peek_char(l) == '=' {
 			tok.type = .EQ
-			ch := l.ch
+			pos := l.pos
 			lexer_read_char(l)
-			tok.literal = utf8.runes_to_string([]rune{ch, l.ch}, l.allocator)
+			tok.literal = l.input[pos:l.pos + 1]
 		}
 	case '!':
 		if lexer_peek_char(l) == '=' {
 			tok.type = .NOT_EQ
-			ch := l.ch
+			pos := l.pos
 			lexer_read_char(l)
-			tok.literal = utf8.runes_to_string([]rune{ch, l.ch}, l.allocator)
+			tok.literal = l.input[pos:l.pos + 1]
 		} else {
-			tok = token_new(.BANG, l.ch, l.allocator)
+			tok.type = .BANG
+			tok.literal = l.input[l.pos:l.pos + 1]
 		}
 	case 0:
 		tok.type = TokenType.EOF
@@ -86,7 +99,8 @@ lexer_next_token :: proc(l: ^Lexer) -> Token {
 			tok.literal = lexer_read_number(l)
 			return tok
 		} else {
-			tok = token_new(.ILLEGAL, l.ch, l.allocator)
+			tok.type = .ILLEGAL
+			tok.literal = l.input[l.pos:l.pos + 1]
 		}
 	}
 	lexer_read_char(l)
