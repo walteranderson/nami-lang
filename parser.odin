@@ -140,7 +140,7 @@ parser_parse_reassign_stmt :: proc(p: ^Parser) -> Statement {
 }
 
 parser_parse_var_decl :: proc(p: ^Parser) -> Statement {
-	decl := new(VarDecl, p.allocator)
+	decl := new(AssignStatement, p.allocator)
 	decl.tok = p.cur
 	name := parser_parse_ident(p).(^Identifier)
 	decl.name = name
