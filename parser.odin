@@ -112,7 +112,7 @@ parser_parse_stmt :: proc(p: ^Parser) -> Statement {
 
 	if parser_cur_token_is(p, .IDENT) {
 		if parser_peek_token_is(p, .COLON) {
-			return parser_parse_var_decl(p)
+			return parser_parse_assign_stmt(p)
 		} else if parser_peek_token_is(p, .ASSIGN) {
 			return parser_parse_reassign_stmt(p)
 		}
@@ -139,7 +139,7 @@ parser_parse_reassign_stmt :: proc(p: ^Parser) -> Statement {
 	return stmt
 }
 
-parser_parse_var_decl :: proc(p: ^Parser) -> Statement {
+parser_parse_assign_stmt :: proc(p: ^Parser) -> Statement {
 	decl := new(AssignStatement, p.allocator)
 	decl.tok = p.cur
 	name := parser_parse_ident(p).(^Identifier)
@@ -148,9 +148,16 @@ parser_parse_var_decl :: proc(p: ^Parser) -> Statement {
 	if !parser_expect_peek(p, .COLON) {
 		return nil
 	}
+
+	if !parser_peek_token_is(p, .ASSIGN) {
+		parser_next_token(p)
+		decl.declared_type = parser_parse_type_annotation(p)
+	}
+
 	if !parser_expect_peek(p, .ASSIGN) {
 		return nil
 	}
+
 	parser_next_token(p)
 	decl.value = parser_parse_expr(p, .LOWEST)
 	if parser_peek_token_is(p, .SEMI_COLON) {
@@ -286,11 +293,25 @@ parser_parse_func :: proc(p: ^Parser) -> Expr {
 		return nil
 	}
 	func.args = parser_parse_func_args(p)
+
+	if !parser_peek_token_is(p, .L_BRACE) {
+		parser_next_token(p)
+		func.declared_return_type = parser_parse_type_annotation(p)
+	}
+
 	if !parser_expect_peek(p, .L_BRACE) {
 		return nil
 	}
+
 	func.body = parser_parse_block_stmt(p)
 	return func
+}
+
+parser_parse_type_annotation :: proc(p: ^Parser) -> ^TypeAnnotation {
+	t := new(TypeAnnotation, p.allocator)
+	t.tok = p.cur
+	t.name = p.cur.literal
+	return t
 }
 
 parser_parse_block_stmt :: proc(p: ^Parser) -> ^BlockStatement {

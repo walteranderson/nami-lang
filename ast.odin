@@ -49,10 +49,11 @@ Program :: struct {
 }
 
 Function :: struct {
-	tok:  Token,
-	name: ^Identifier,
-	args: [dynamic]^Identifier,
-	body: ^BlockStatement,
+	tok:                  Token,
+	name:                 ^Identifier,
+	args:                 [dynamic]^Identifier,
+	body:                 ^BlockStatement,
+	declared_return_type: ^TypeAnnotation,
 }
 
 ReturnStatement :: struct {
@@ -77,9 +78,25 @@ ReassignStatement :: struct {
 }
 
 AssignStatement :: struct {
-	tok:   Token,
-	name:  ^Identifier,
-	value: Expr,
+	tok:           Token,
+	name:          ^Identifier,
+	value:         Expr,
+	declared_type: ^TypeAnnotation,
+}
+
+///////
+
+Type :: enum {
+	Invalid,
+	Void,
+	Bool,
+	Int,
+	String,
+}
+
+TypeAnnotation :: struct {
+	tok:  Token,
+	name: string,
 }
 
 ///////
@@ -152,6 +169,9 @@ print_ast :: proc(node: Node, indent_level: int) {
 				print_ast(cast(Node)arg, indent_level + 2)
 			}
 		}
+		if n.declared_return_type != nil {
+			fmt.printf("%s  ReturnType: %s\n", indent, n.declared_return_type.name)
+		}
 		print_ast(cast(Node)n.body, indent_level + 1)
 	case ^CallExpr:
 		fmt.printf("%sCallExpr: %s\n", indent, n.func.value)
@@ -173,6 +193,9 @@ print_ast :: proc(node: Node, indent_level: int) {
 	case ^AssignStatement:
 		fmt.printf("%sAssignStatement:\n", indent)
 		print_expr(n.name, indent_level + 1)
+		if n.declared_type != nil {
+			fmt.printf("%s  Type: %s\n", indent, n.declared_type.name)
+		}
 		print_expr(n.value, indent_level + 1)
 	case ^ReassignStatement:
 		fmt.printf("%sReassignStatement:\n", indent)

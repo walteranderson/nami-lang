@@ -1,3 +1,5 @@
-greeting := "hello";
-
-greeting = "foo";
+fn main() int {
+    greeting: string = "hello";
+    foo := true;
+    return 0;
+}
