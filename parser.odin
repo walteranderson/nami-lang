@@ -106,12 +106,58 @@ parser_parse_program :: proc(p: ^Parser) -> ^Program {
 }
 
 parser_parse_stmt :: proc(p: ^Parser) -> Statement {
-	#partial switch p.cur.type {
-	case .RETURN:
+	if parser_cur_token_is(p, .RETURN) {
 		return parser_parse_return_stmt(p)
-	case:
-		return parser_parse_expr_stmt(p)
 	}
+
+	if parser_cur_token_is(p, .IDENT) {
+		if parser_peek_token_is(p, .COLON) {
+			return parser_parse_var_decl(p)
+		} else if parser_peek_token_is(p, .ASSIGN) {
+			return parser_parse_reassign_stmt(p)
+		}
+	}
+
+	return parser_parse_expr_stmt(p)
+}
+
+parser_parse_reassign_stmt :: proc(p: ^Parser) -> Statement {
+	stmt := new(ReassignStatement, p.allocator)
+	stmt.tok = p.cur
+	name := parser_parse_ident(p).(^Identifier)
+	stmt.name = name
+
+	if !parser_expect_peek(p, .ASSIGN) {
+		return nil
+	}
+	parser_next_token(p)
+	stmt.value = parser_parse_expr(p, .LOWEST)
+	if parser_peek_token_is(p, .SEMI_COLON) {
+		parser_next_token(p)
+	}
+
+	return stmt
+}
+
+parser_parse_var_decl :: proc(p: ^Parser) -> Statement {
+	decl := new(VarDecl, p.allocator)
+	decl.tok = p.cur
+	name := parser_parse_ident(p).(^Identifier)
+	decl.name = name
+
+	if !parser_expect_peek(p, .COLON) {
+		return nil
+	}
+	if !parser_expect_peek(p, .ASSIGN) {
+		return nil
+	}
+	parser_next_token(p)
+	decl.value = parser_parse_expr(p, .LOWEST)
+	if parser_peek_token_is(p, .SEMI_COLON) {
+		parser_next_token(p)
+	}
+
+	return decl
 }
 
 parser_parse_expr :: proc(p: ^Parser, precedence: Precedence) -> Expr {

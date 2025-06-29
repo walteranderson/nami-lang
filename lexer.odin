@@ -42,6 +42,9 @@ lexer_next_token :: proc(l: ^Lexer) -> Token {
 	case ']':
 		tok.type = .R_BRACKET
 		tok.literal = l.input[l.pos:l.pos + 1]
+	case ':':
+		tok.type = .COLON
+		tok.literal = l.input[l.pos:l.pos + 1]
 	case ';':
 		tok.type = .SEMI_COLON
 		tok.literal = l.input[l.pos:l.pos + 1]
@@ -72,6 +75,9 @@ lexer_next_token :: proc(l: ^Lexer) -> Token {
 			pos := l.pos
 			lexer_read_char(l)
 			tok.literal = l.input[pos:l.pos + 1]
+		} else {
+			tok.type = .ASSIGN
+			tok.literal = l.input[l.pos:l.pos + 1]
 		}
 	case '!':
 		if lexer_peek_char(l) == '=' {

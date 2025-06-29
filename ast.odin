@@ -70,7 +70,17 @@ BlockStatement :: struct {
 	stmts: [dynamic]Statement,
 }
 
-Assignment :: struct {}
+ReassignStatement :: struct {
+	tok:   Token,
+	name:  ^Identifier,
+	value: Expr,
+}
+
+VarDecl :: struct {
+	tok:   Token,
+	name:  ^Identifier,
+	value: Expr,
+}
 
 ///////
 
@@ -90,6 +100,8 @@ Statement :: union {
 	^ReturnStatement,
 	^ExprStatement,
 	^BlockStatement,
+	^VarDecl,
+	^ReassignStatement,
 }
 
 Node :: union {
@@ -106,6 +118,8 @@ Node :: union {
 	^ReturnStatement,
 	^ExprStatement,
 	^BlockStatement,
+	^VarDecl,
+	^ReassignStatement,
 }
 
 print_ast :: proc(node: Node, indent_level: int) {
@@ -156,6 +170,14 @@ print_ast :: proc(node: Node, indent_level: int) {
 	case ^PrefixExpr:
 		fmt.printf("%sPrefixExpr: %s\n", indent, n.op)
 		print_expr(n.right, indent_level + 1)
+	case ^VarDecl:
+		fmt.printf("%sVarDecl:\n", indent)
+		print_expr(n.name, indent_level + 1)
+		print_expr(n.value, indent_level + 1)
+	case ^ReassignStatement:
+		fmt.printf("%sReassignStatement:\n", indent)
+		print_expr(n.name, indent_level + 1)
+		print_expr(n.value, indent_level + 1)
 	case ^Boolean:
 		fmt.printf("%sBoolean: %t\n", indent, n.value)
 	case ^Identifier:
@@ -176,6 +198,10 @@ print_statement :: proc(stmt: Statement, indent_level: int) {
 	case ^ExprStatement:
 		print_ast(cast(Node)s, indent_level)
 	case ^BlockStatement:
+		print_ast(cast(Node)s, indent_level)
+	case ^VarDecl:
+		print_ast(cast(Node)s, indent_level)
+	case ^ReassignStatement:
 		print_ast(cast(Node)s, indent_level)
 	}
 }

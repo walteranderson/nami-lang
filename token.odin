@@ -10,6 +10,7 @@ TokenType :: enum {
 	STRING,
 	INT,
 	IDENT,
+	ASSIGN,
 	//
 	L_PAREN,
 	R_PAREN,
@@ -17,6 +18,7 @@ TokenType :: enum {
 	R_BRACE,
 	L_BRACKET,
 	R_BRACKET,
+	COLON,
 	SEMI_COLON,
 	COMMA,
 	//
