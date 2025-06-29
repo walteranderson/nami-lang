@@ -261,10 +261,11 @@ parser_parse_expr_stmt :: proc(p: ^Parser) -> Statement {
 }
 
 parser_parse_bool :: proc(p: ^Parser) -> Expr {
-	expr := new(Boolean, p.allocator)
-	expr.tok = p.cur
-	expr.value = parser_cur_token_is(p, .TRUE)
-	return expr
+	b := new(Boolean, p.allocator)
+	b.resolved_type = .Bool
+	b.tok = p.cur
+	b.value = parser_cur_token_is(p, .TRUE)
+	return b
 }
 
 parser_parse_return_stmt :: proc(p: ^Parser) -> Statement {
@@ -359,6 +360,7 @@ parser_parse_ident :: proc(p: ^Parser) -> Expr {
 
 parser_parse_int :: proc(p: ^Parser) -> Expr {
 	num := new(IntLiteral, p.allocator)
+	num.resolved_type = .Int
 	num.tok = p.cur
 	num.value = strconv.atoi(p.cur.literal)
 	return num
@@ -366,6 +368,7 @@ parser_parse_int :: proc(p: ^Parser) -> Expr {
 
 parser_parse_string :: proc(p: ^Parser) -> Expr {
 	str := new(StringLiteral, p.allocator)
+	str.resolved_type = .String
 	str.tok = p.cur
 	str.value = p.cur.literal
 	return str

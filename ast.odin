@@ -3,43 +3,48 @@ package main
 import "core:fmt"
 import "core:strings"
 
+Node :: struct {
+	tok:           Token,
+	resolved_type: Type,
+}
+
 StringLiteral :: struct {
-	tok:   Token,
-	value: string,
+	using node: Node,
+	value:      string,
 }
 
 IntLiteral :: struct {
-	tok:   Token,
-	value: int,
+	using node: Node,
+	value:      int,
 }
 
 Identifier :: struct {
-	tok:   Token,
-	value: string,
+	using node: Node,
+	value:      string,
 }
 
 Boolean :: struct {
-	tok:   Token,
-	value: bool,
+	using node: Node,
+	value:      bool,
 }
 
 PrefixExpr :: struct {
-	tok:   Token,
-	op:    string,
-	right: Expr,
+	using node: Node,
+	op:         string,
+	right:      Expr,
 }
 
 InfixExpr :: struct {
-	tok:   Token,
-	left:  Expr,
-	op:    string,
-	right: Expr,
+	using node: Node,
+	left:       Expr,
+	op:         string,
+	right:      Expr,
 }
 
 CallExpr :: struct {
-	tok:  Token,
-	func: ^Identifier,
-	args: [dynamic]Expr,
+	using node: Node,
+	func:       ^Identifier,
+	args:       [dynamic]Expr,
 }
 
 /////////
@@ -49,7 +54,7 @@ Program :: struct {
 }
 
 Function :: struct {
-	tok:                  Token,
+	using node:           Node,
 	name:                 ^Identifier,
 	args:                 [dynamic]^Identifier,
 	body:                 ^BlockStatement,
@@ -57,28 +62,28 @@ Function :: struct {
 }
 
 ReturnStatement :: struct {
-	tok:   Token,
-	value: Expr,
+	using node: Node,
+	value:      Expr,
 }
 
 ExprStatement :: struct {
-	tok:   Token,
-	value: Expr,
+	using node: Node,
+	value:      Expr,
 }
 
 BlockStatement :: struct {
-	tok:   Token,
-	stmts: [dynamic]Statement,
+	using node: Node,
+	stmts:      [dynamic]Statement,
 }
 
 ReassignStatement :: struct {
-	tok:   Token,
-	name:  ^Identifier,
-	value: Expr,
+	using node: Node,
+	name:       ^Identifier,
+	value:      Expr,
 }
 
 AssignStatement :: struct {
-	tok:           Token,
+	using node:    Node,
 	name:          ^Identifier,
 	value:         Expr,
 	declared_type: ^TypeAnnotation,
@@ -121,7 +126,7 @@ Statement :: union {
 	^ReassignStatement,
 }
 
-Node :: union {
+AnyNode :: union {
 	^StringLiteral,
 	^IntLiteral,
 	^Identifier,
@@ -139,7 +144,7 @@ Node :: union {
 	^ReassignStatement,
 }
 
-print_ast :: proc(node: Node, indent_level: int) {
+print_ast :: proc(node: AnyNode, indent_level: int) {
 	indent := strings.repeat("  ", indent_level)
 	switch n in node {
 	case ^Program:
@@ -166,13 +171,13 @@ print_ast :: proc(node: Node, indent_level: int) {
 		} else {
 			fmt.printf("\n")
 			for arg in n.args {
-				print_ast(cast(Node)arg, indent_level + 2)
+				print_ast(cast(AnyNode)arg, indent_level + 2)
 			}
 		}
 		if n.declared_return_type != nil {
 			fmt.printf("%s  ReturnType: %s\n", indent, n.declared_return_type.name)
 		}
-		print_ast(cast(Node)n.body, indent_level + 1)
+		print_ast(cast(AnyNode)n.body, indent_level + 1)
 	case ^CallExpr:
 		fmt.printf("%sCallExpr: %s\n", indent, n.func.value)
 		fmt.printf("%s  Args:\n", indent)
@@ -215,37 +220,37 @@ print_ast :: proc(node: Node, indent_level: int) {
 print_statement :: proc(stmt: Statement, indent_level: int) {
 	switch s in stmt {
 	case ^Program:
-		print_ast(cast(Node)s, indent_level)
+		print_ast(cast(AnyNode)s, indent_level)
 	case ^ReturnStatement:
-		print_ast(cast(Node)s, indent_level)
+		print_ast(cast(AnyNode)s, indent_level)
 	case ^ExprStatement:
-		print_ast(cast(Node)s, indent_level)
+		print_ast(cast(AnyNode)s, indent_level)
 	case ^BlockStatement:
-		print_ast(cast(Node)s, indent_level)
+		print_ast(cast(AnyNode)s, indent_level)
 	case ^AssignStatement:
-		print_ast(cast(Node)s, indent_level)
+		print_ast(cast(AnyNode)s, indent_level)
 	case ^ReassignStatement:
-		print_ast(cast(Node)s, indent_level)
+		print_ast(cast(AnyNode)s, indent_level)
 	}
 }
 
 print_expr :: proc(expr: Expr, indent_level: int) {
 	switch e in expr {
 	case ^StringLiteral:
-		print_ast(cast(Node)e, indent_level)
+		print_ast(cast(AnyNode)e, indent_level)
 	case ^IntLiteral:
-		print_ast(cast(Node)e, indent_level)
+		print_ast(cast(AnyNode)e, indent_level)
 	case ^Identifier:
-		print_ast(cast(Node)e, indent_level)
+		print_ast(cast(AnyNode)e, indent_level)
 	case ^Boolean:
-		print_ast(cast(Node)e, indent_level)
+		print_ast(cast(AnyNode)e, indent_level)
 	case ^PrefixExpr:
-		print_ast(cast(Node)e, indent_level)
+		print_ast(cast(AnyNode)e, indent_level)
 	case ^InfixExpr:
-		print_ast(cast(Node)e, indent_level)
+		print_ast(cast(AnyNode)e, indent_level)
 	case ^CallExpr:
-		print_ast(cast(Node)e, indent_level)
+		print_ast(cast(AnyNode)e, indent_level)
 	case ^Function:
-		print_ast(cast(Node)e, indent_level)
+		print_ast(cast(AnyNode)e, indent_level)
 	}
 }
