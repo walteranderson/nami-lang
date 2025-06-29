@@ -332,19 +332,40 @@ parser_parse_block_stmt :: proc(p: ^Parser) -> ^BlockStatement {
 	return block
 }
 
-parser_parse_func_args :: proc(p: ^Parser) -> [dynamic]^Identifier {
-	args := make([dynamic]^Identifier, p.allocator)
+parser_parse_func_args :: proc(p: ^Parser) -> [dynamic]^FunctionArg {
+	args := make([dynamic]^FunctionArg, p.allocator)
 	if parser_peek_token_is(p, .R_PAREN) {
 		parser_next_token(p)
 		return args
 	}
+
 	parser_next_token(p)
-	append(&args, parser_parse_ident(p).(^Identifier))
+	arg := new(FunctionArg, p.allocator)
+	arg.ident = parser_parse_ident(p).(^Identifier)
+
+	if parser_peek_token_is(p, .COLON) {
+		parser_next_token(p) // colon
+		parser_next_token(p)
+		arg.declared_type = parser_parse_type_annotation(p)
+	}
+
+	append(&args, arg)
+
 	for parser_peek_token_is(p, .COMMA) {
 		parser_next_token(p) // comma
 		parser_next_token(p)
-		append(&args, parser_parse_ident(p).(^Identifier))
+		arg := new(FunctionArg, p.allocator)
+		arg.ident = parser_parse_ident(p).(^Identifier)
+
+		if parser_peek_token_is(p, .COLON) {
+			parser_next_token(p) // colon
+			parser_next_token(p)
+			arg.declared_type = parser_parse_type_annotation(p)
+		}
+
+		append(&args, arg)
 	}
+
 	if !parser_expect_peek(p, .R_PAREN) {
 		return nil
 	}

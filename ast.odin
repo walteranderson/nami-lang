@@ -56,9 +56,14 @@ Program :: struct {
 Function :: struct {
 	using node:           Node,
 	name:                 ^Identifier,
-	args:                 [dynamic]^Identifier,
+	args:                 [dynamic]^FunctionArg,
 	body:                 ^BlockStatement,
 	declared_return_type: ^TypeAnnotation,
+}
+
+FunctionArg :: struct {
+	ident:         ^Identifier,
+	declared_type: ^TypeAnnotation,
 }
 
 ReturnStatement :: struct {
@@ -115,6 +120,7 @@ Expr :: union {
 	^InfixExpr,
 	^CallExpr,
 	^Function,
+	^FunctionArg,
 }
 
 Statement :: union {
@@ -135,6 +141,7 @@ AnyNode :: union {
 	^InfixExpr,
 	^CallExpr,
 	^Function,
+	^FunctionArg,
 	//
 	^Program,
 	^ReturnStatement,
@@ -178,6 +185,11 @@ print_ast :: proc(node: AnyNode, indent_level: int) {
 			fmt.printf("%s  ReturnType: %s\n", indent, n.declared_return_type.name)
 		}
 		print_ast(cast(AnyNode)n.body, indent_level + 1)
+	case ^FunctionArg:
+		fmt.printf("%sFunctionArg: %s\n", indent, n.ident.value)
+		if n.declared_type != nil {
+			fmt.printf("%s  Type: %s\n", indent, n.declared_type.name)
+		}
 	case ^CallExpr:
 		fmt.printf("%sCallExpr: %s\n", indent, n.func.value)
 		fmt.printf("%s  Args:\n", indent)
@@ -251,6 +263,8 @@ print_expr :: proc(expr: Expr, indent_level: int) {
 	case ^CallExpr:
 		print_ast(cast(AnyNode)e, indent_level)
 	case ^Function:
+		print_ast(cast(AnyNode)e, indent_level)
+	case ^FunctionArg:
 		print_ast(cast(AnyNode)e, indent_level)
 	}
 }
