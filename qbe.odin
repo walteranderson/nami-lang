@@ -40,8 +40,11 @@ qbe_generate :: proc(qbe: ^Qbe) {
 qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 	switch s in stmt {
 	case ^AssignStatement:
-		reg := qbe_gen_expr(qbe, s.value)
-		qbe_add_symbol(qbe, s.name.value, reg)
+		reg_ptr := qbe_new_temp_reg(qbe)
+		qbe_emit(qbe, "  %s =l alloc4 4\n", reg_ptr)
+		qbe_add_symbol(qbe, s.name.value, reg_ptr)
+		reg_value := qbe_gen_expr(qbe, s.value)
+		qbe_emit(qbe, "  storew %s, %s\n", reg_value, reg_ptr)
 	case ^ReassignStatement:
 	//
 	case ^ExprStatement:
@@ -65,7 +68,25 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> string {
 	switch v in expr {
 	case ^InfixExpr:
-	//
+		lhs_reg := qbe_gen_expr(qbe, v.left)
+		rhs_reg := qbe_gen_expr(qbe, v.right)
+		op_str := ""
+		switch v.op {
+		case "+":
+			op_str = "add"
+		case "-":
+			op_str = "sub"
+		case "*":
+			op_str = "mul"
+		case "/":
+			op_str = "div"
+		case:
+			qbe_error(qbe, "Unsupported operator: %s", v.op)
+			return ""
+		}
+		reg := qbe_new_temp_reg(qbe)
+		qbe_emit(qbe, "  %s =w %s %s, %s\n", reg, op_str, lhs_reg, rhs_reg)
+		return reg
 	case ^PrefixExpr:
 	//
 	case ^CallExpr:
@@ -73,7 +94,19 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> string {
 	case ^StringLiteral:
 	//
 	case ^Function:
-		return qbe_gen_func(qbe, v)
+		qbe_push_scope(qbe)
+		qbe.current_func_temp_count = 0
+		if v.name.value == "main" {
+			qbe_emit(qbe, "export function w $main(")
+		} else {
+			qbe_emit(qbe, "function w $%s(", v.name.value)
+		}
+		// TODO: args
+		qbe_emit(qbe, ") {{\n")
+		qbe_emit(qbe, "@start\n")
+		qbe_gen_stmt(qbe, v.body)
+		qbe_emit(qbe, "}}\n")
+		return fmt.tprintf("$%s", v.name.value)
 	case ^FunctionArg:
 	//
 	case ^Identifier:
@@ -86,36 +119,11 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> string {
 		qbe_emit(qbe, "  %s =w loadw %s\n", reg, ident_reg)
 		return reg
 	case ^IntLiteral:
-		reg_name := qbe_new_temp_reg(qbe)
-		qbe_emit(qbe, "  %s =l alloc4 4\n", reg_name)
-		qbe_emit(qbe, "  storew %d, %s\n", v.value, reg_name)
-		return reg_name
+		return fmt.tprintf("%d", v.value)
 	case ^Boolean:
 	//
 	}
 	return ""
-}
-
-qbe_gen_func :: proc(qbe: ^Qbe, fn: ^Function) -> string {
-	qbe_push_scope(qbe)
-	qbe.current_func_temp_count = 0
-
-	if fn.name.value == "main" {
-		qbe_emit(qbe, "export function w $main(")
-	} else {
-		qbe_emit(qbe, "function w $%s(", fn.name.value)
-	}
-
-	// TODO: args
-	qbe_emit(qbe, ") {{\n")
-
-	qbe_emit(qbe, "@start\n")
-
-	qbe_gen_stmt(qbe, fn.body)
-
-	qbe_emit(qbe, "}}\n")
-
-	return fmt.tprintf("$%s", fn.name.value)
 }
 
 qbe_new_temp_reg :: proc(qbe: ^Qbe) -> string {

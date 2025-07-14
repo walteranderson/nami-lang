@@ -1,4 +1,4 @@
 fn main() int {
-	foo := 69;
+	foo := (1 + 1) * 2;
 	return foo;
 }
