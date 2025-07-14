@@ -1,4 +1,4 @@
 fn main() int {
-	foo := (1 + 1) * 2;
-	return foo;
+    printf("Result: %s\n", "hello");
+	return 0;
 }

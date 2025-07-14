@@ -11,7 +11,9 @@ Qbe :: struct {
 	program:                 ^Program,
 	errors:                  [dynamic]string,
 	strs:                    map[string]string,
+	str_count:               int,
 	symbols:                 [dynamic]map[string]string,
+	functions:               map[string]string,
 	current_func_temp_count: int,
 }
 
@@ -31,8 +33,8 @@ qbe_generate :: proc(qbe: ^Qbe) {
 	}
 
 	if len(qbe.strs) > 0 {
-		for content, label in qbe.strs {
-			qbe_emit(qbe, "data %s = {{ b \"%s\" }}\n", label, content)
+		for key, &value in qbe.strs {
+			qbe_emit(qbe, "data %s = {{ b \"%s\" }}\n", key, value)
 		}
 	}
 }
@@ -90,9 +92,40 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> string {
 	case ^PrefixExpr:
 	//
 	case ^CallExpr:
-	//
+		args_reg := make([dynamic]string, qbe.allocator)
+		for arg in v.args {
+			reg := qbe_gen_expr(qbe, arg)
+			if reg != "" {
+				append(&args_reg, reg)
+			}
+		}
+		ret_reg := qbe_new_temp_reg(qbe)
+		qbe_emit(qbe, "  %s =w call $%s(", ret_reg, v.func.value)
+		for arg, i in args_reg {
+			// TODO: assuming "l" aka only strings.
+			qbe_emit(qbe, "l %s", arg)
+			if i + 1 < len(args_reg) {
+				qbe_emit(qbe, ", ")
+			}
+		}
+		qbe_emit(qbe, ")\n")
 	case ^StringLiteral:
-	//
+		qbe.str_count += 1
+
+		label_sb: strings.Builder
+		strings.builder_init(&label_sb, qbe.allocator)
+		defer strings.builder_destroy(&label_sb)
+		fmt.sbprintf(&label_sb, "$str_%d", qbe.str_count)
+		label := strings.to_string(label_sb)
+
+		val_sb: strings.Builder
+		strings.builder_init(&val_sb, qbe.allocator)
+		defer strings.builder_destroy(&val_sb)
+		fmt.sbprintf(&val_sb, "%s\\00", v.value)
+		val := strings.to_string(val_sb)
+
+		qbe.strs[label] = val
+		return label
 	case ^Function:
 		qbe_push_scope(qbe)
 		qbe.current_func_temp_count = 0
