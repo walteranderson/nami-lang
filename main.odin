@@ -49,7 +49,7 @@ main :: proc() {
 	}
 
 	qbe: Qbe
-	qbe_init(&qbe, program)
+	qbe_init(&qbe, program, allocator)
 
 	qbe_generate(&qbe)
 	if len(qbe.errors) > 0 {
