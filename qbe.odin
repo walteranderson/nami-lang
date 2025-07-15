@@ -107,6 +107,10 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> QbeResult {
 	case ^InfixExpr:
 		lhs := qbe_gen_expr(qbe, v.left)
 		rhs := qbe_gen_expr(qbe, v.right)
+		if lhs.type == .Invalid || rhs.type == .Invalid {
+			return QbeResult{"", .Invalid}
+		}
+
 		op_str := ""
 		switch v.op {
 		case "+":
@@ -121,22 +125,60 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> QbeResult {
 			qbe_error(qbe, "Unsupported operator: %s", v.op)
 			return QbeResult{"", .Invalid}
 		}
+
+		res_type: QbeType
+		if lhs.type == .Word && rhs.type == .Word {
+			res_type = .Word
+		} else if lhs.type == .Long && rhs.type == .Long {
+			res_type = .Long
+		} else {
+			qbe_error(
+				qbe,
+				"type mismatch for operator %s: cannot operate on %s and %s",
+				op_str,
+				lhs.type,
+				rhs.type,
+			)
+			return QbeResult{"", .Invalid}
+		}
+
 		reg := qbe_new_temp_reg(qbe)
-		qbe_emit(qbe, "  %s =w %s %s, %s\n", reg, op_str, lhs.value, rhs.value)
-		return QbeResult{reg, .Word}
+		qbe_emit(
+			qbe,
+			"  %s =%s %s %s, %s\n",
+			reg,
+			qbe_type_to_string(res_type),
+			op_str,
+			lhs.value,
+			rhs.value,
+		)
+		return QbeResult{reg, res_type}
 
 	case ^PrefixExpr:
 	//
 	case ^CallExpr:
+		// TODO: expand this further to be less hard-coded
+		ret_type: QbeType
+		if v.func.value == "printf" {
+			ret_type = .Long
+		} else if v.func.value == "main" {
+			ret_type = .Word
+		} else {
+			ret_type = .Word
+		}
+
 		args_reg := make([dynamic]QbeResult, qbe.allocator)
+		defer delete(args_reg)
 		for arg in v.args {
 			reg := qbe_gen_expr(qbe, arg)
-			if reg.type != .Invalid {
-				append(&args_reg, reg)
+			if reg.type == .Invalid {
+				return QbeResult{"", .Invalid}
 			}
+			append(&args_reg, reg)
 		}
+
 		ret_reg := qbe_new_temp_reg(qbe)
-		qbe_emit(qbe, "  %s =w call $%s(", ret_reg, v.func.value)
+		qbe_emit(qbe, "  %s =%s call $%s(", ret_reg, qbe_type_to_string(ret_type), v.func.value)
 		for arg, i in args_reg {
 			qbe_emit(qbe, "%s %s", qbe_type_to_string(arg.type), arg.value)
 			if i + 1 < len(args_reg) {
@@ -144,7 +186,7 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> QbeResult {
 			}
 		}
 		qbe_emit(qbe, ")\n")
-		return QbeResult{ret_reg, .Long}
+		return QbeResult{ret_reg, ret_type}
 
 	case ^StringLiteral:
 		qbe.str_count += 1
@@ -164,19 +206,9 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> QbeResult {
 		qbe.strs[label] = val
 		return QbeResult{label, .Long}
 	case ^Function:
-		qbe_push_scope(qbe)
-		qbe.current_func_temp_count = 0
-		if v.name.value == "main" {
-			qbe_emit(qbe, "export function w $main(")
-		} else {
-			qbe_emit(qbe, "function w $%s(", v.name.value)
-		}
-		// TODO: args
-		qbe_emit(qbe, ") {{\n")
-		qbe_emit(qbe, "@start\n")
-		qbe_gen_stmt(qbe, v.body)
-		qbe_emit(qbe, "}}\n")
-		return QbeResult{fmt.tprintf("$%s", v.name.value), .Long}
+		// TODO: move function definition generation in a previous pass-through
+		// and make this just return the function name symbol
+		return qbe_gen_func_def(qbe, v)
 
 	case ^FunctionArg:
 	//
@@ -197,6 +229,24 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> QbeResult {
 	//
 	}
 	return QbeResult{"", .Invalid}
+}
+
+qbe_gen_func_def :: proc(qbe: ^Qbe, func: ^Function) -> QbeResult {
+	qbe_push_scope(qbe)
+	qbe.current_func_temp_count = 0
+	if func.name.value == "main" {
+		qbe_emit(qbe, "export function w $main(")
+	} else {
+		qbe_emit(qbe, "function w $%s(", func.name.value)
+	}
+	// TODO: args
+	qbe_emit(qbe, ") {{\n")
+	qbe_emit(qbe, "@start\n")
+	qbe_gen_stmt(qbe, func.body)
+	qbe_emit(qbe, "}}\n")
+	label := fmt.tprintf("$%s", func.name.value)
+	qbe_add_symbol(qbe, func.name.value, label)
+	return QbeResult{label, .Long}
 }
 
 qbe_new_temp_reg :: proc(qbe: ^Qbe) -> string {
