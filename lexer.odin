@@ -64,8 +64,13 @@ lexer_next_token :: proc(l: ^Lexer) -> Token {
 		tok.type = .STAR
 		tok.literal = l.input[l.pos:l.pos + 1]
 	case '/':
-		tok.type = .SLASH
-		tok.literal = l.input[l.pos:l.pos + 1]
+		if lexer_peek_char(l) == '/' {
+			lexer_skip_line(l)
+			return lexer_next_token(l)
+		} else {
+			tok.type = .SLASH
+			tok.literal = l.input[l.pos:l.pos + 1]
+		}
 	case ',':
 		tok.type = .COMMA
 		tok.literal = l.input[l.pos:l.pos + 1]
@@ -137,6 +142,12 @@ lexer_peek_char :: proc(l: ^Lexer) -> rune {
 	}
 	r, _ := utf8.decode_rune_in_string(l.input[l.read_pos:])
 	return r
+}
+
+lexer_skip_line :: proc(l: ^Lexer) {
+	for l.ch != '\n' {
+		lexer_read_char(l)
+	}
 }
 
 lexer_skip_whitespace :: proc(l: ^Lexer) {
