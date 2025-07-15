@@ -17,6 +17,41 @@ Qbe :: struct {
 	current_func_temp_count: int,
 }
 
+QbeType :: enum {
+	Invalid,
+	Word, // 32-bit integer
+	Long, // 64-bit integer or pointer/address
+	Byte, // 8-bit integer
+	Half, // 16-bit integer
+	Float, // Single-precision float
+	Double, // Double-precision float
+}
+
+qbe_type_to_string :: proc(type: QbeType) -> string {
+	switch type {
+	case .Word:
+		return "w"
+	case .Long:
+		return "l"
+	case .Byte:
+		return "b"
+	case .Half:
+		return "h"
+	case .Float:
+		return "s"
+	case .Double:
+		return "d"
+	case .Invalid:
+		return ""
+	}
+	return ""
+}
+
+QbeResult :: struct {
+	value: string,
+	type:  QbeType,
+}
+
 qbe_init :: proc(qbe: ^Qbe, program: ^Program, allocator: mem.Allocator) {
 	qbe.program = program
 	qbe.allocator = allocator
@@ -45,8 +80,8 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 		reg_ptr := qbe_new_temp_reg(qbe)
 		qbe_emit(qbe, "  %s =l alloc4 4\n", reg_ptr)
 		qbe_add_symbol(qbe, s.name.value, reg_ptr)
-		reg_value := qbe_gen_expr(qbe, s.value)
-		qbe_emit(qbe, "  storew %s, %s\n", reg_value, reg_ptr)
+		res := qbe_gen_expr(qbe, s.value)
+		qbe_emit(qbe, "  store%s %s, %s\n", res.type, res.value, reg_ptr)
 	case ^ReassignStatement:
 	//
 	case ^ExprStatement:
@@ -57,8 +92,8 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 		}
 	case ^ReturnStatement:
 		if s.value != nil {
-			expr_reg := qbe_gen_expr(qbe, s.value)
-			qbe_emit(qbe, "  ret %s\n", expr_reg)
+			res := qbe_gen_expr(qbe, s.value)
+			qbe_emit(qbe, "  ret %s\n", res.value)
 		} else {
 			qbe_emit(qbe, "  ret\n")
 		}
@@ -67,11 +102,11 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 	}
 }
 
-qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> string {
+qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> QbeResult {
 	switch v in expr {
 	case ^InfixExpr:
-		lhs_reg := qbe_gen_expr(qbe, v.left)
-		rhs_reg := qbe_gen_expr(qbe, v.right)
+		lhs := qbe_gen_expr(qbe, v.left)
+		rhs := qbe_gen_expr(qbe, v.right)
 		op_str := ""
 		switch v.op {
 		case "+":
@@ -84,31 +119,33 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> string {
 			op_str = "div"
 		case:
 			qbe_error(qbe, "Unsupported operator: %s", v.op)
-			return ""
+			return QbeResult{"", .Invalid}
 		}
 		reg := qbe_new_temp_reg(qbe)
-		qbe_emit(qbe, "  %s =w %s %s, %s\n", reg, op_str, lhs_reg, rhs_reg)
-		return reg
+		qbe_emit(qbe, "  %s =w %s %s, %s\n", reg, op_str, lhs.value, rhs.value)
+		return QbeResult{reg, .Word}
+
 	case ^PrefixExpr:
 	//
 	case ^CallExpr:
-		args_reg := make([dynamic]string, qbe.allocator)
+		args_reg := make([dynamic]QbeResult, qbe.allocator)
 		for arg in v.args {
 			reg := qbe_gen_expr(qbe, arg)
-			if reg != "" {
+			if reg.type != .Invalid {
 				append(&args_reg, reg)
 			}
 		}
 		ret_reg := qbe_new_temp_reg(qbe)
 		qbe_emit(qbe, "  %s =w call $%s(", ret_reg, v.func.value)
 		for arg, i in args_reg {
-			// TODO: assuming "l" aka only strings.
-			qbe_emit(qbe, "l %s", arg)
+			qbe_emit(qbe, "%s %s", qbe_type_to_string(arg.type), arg.value)
 			if i + 1 < len(args_reg) {
 				qbe_emit(qbe, ", ")
 			}
 		}
 		qbe_emit(qbe, ")\n")
+		return QbeResult{ret_reg, .Long}
+
 	case ^StringLiteral:
 		qbe.str_count += 1
 
@@ -125,7 +162,7 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> string {
 		val := strings.to_string(val_sb)
 
 		qbe.strs[label] = val
-		return label
+		return QbeResult{label, .Long}
 	case ^Function:
 		qbe_push_scope(qbe)
 		qbe.current_func_temp_count = 0
@@ -139,24 +176,27 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> string {
 		qbe_emit(qbe, "@start\n")
 		qbe_gen_stmt(qbe, v.body)
 		qbe_emit(qbe, "}}\n")
-		return fmt.tprintf("$%s", v.name.value)
+		return QbeResult{fmt.tprintf("$%s", v.name.value), .Long}
+
 	case ^FunctionArg:
 	//
 	case ^Identifier:
 		ident_reg, found := qbe_lookup_symbol(qbe, v.value)
 		if !found {
 			qbe_error(qbe, "undefined identifier: %s", v.value)
-			return ""
+			return QbeResult{"", .Invalid}
 		}
 		reg := qbe_new_temp_reg(qbe)
 		qbe_emit(qbe, "  %s =w loadw %s\n", reg, ident_reg)
-		return reg
+		return QbeResult{reg, .Long}
+
 	case ^IntLiteral:
-		return fmt.tprintf("%d", v.value)
+		return QbeResult{fmt.tprintf("%d", v.value), .Word}
+
 	case ^Boolean:
 	//
 	}
-	return ""
+	return QbeResult{"", .Invalid}
 }
 
 qbe_new_temp_reg :: proc(qbe: ^Qbe) -> string {
