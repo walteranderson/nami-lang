@@ -163,12 +163,18 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> QbeResult {
 			neg_reg := qbe_new_temp_reg(qbe)
 			qbe_emit(qbe, "  %s =%s neg %s\n", neg_reg, qbe_type_to_string(rhs.type), reg)
 			return QbeResult{neg_reg, rhs.type}
-
 		case "!":
+			rhs := qbe_gen_expr(qbe, v.right)
+			reg := qbe_new_temp_reg(qbe)
+			qbe_emit(qbe, "  %s =%s copy %s\n", reg, qbe_type_to_string(rhs.type), rhs.value)
+			not_reg := qbe_new_temp_reg(qbe)
+			qbe_emit(qbe, "  %s =%s xor %s, 1\n", not_reg, qbe_type_to_string(rhs.type), reg)
+			return QbeResult{not_reg, rhs.type}
 		case:
 			qbe_error(qbe, "Unsupported prefix operator: %s", v.op)
 			return QbeResult{"", .Invalid}
 		}
+
 	case ^CallExpr:
 		// TODO: expand this further to be less hard-coded
 		ret_type: QbeType
