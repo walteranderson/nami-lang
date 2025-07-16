@@ -38,7 +38,7 @@ main :: proc() {
 	if len(parser.errors) > 0 {
 		log(.ERROR, "Parser errors:")
 		for err in parser.errors {
-			log(.ERROR, err)
+			log(.ERROR, "%s:%d:%d: %s", opt.file_name, err.line, err.col, err.msg)
 		}
 		os.exit(1)
 	}

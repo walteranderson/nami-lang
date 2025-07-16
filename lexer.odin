@@ -12,6 +12,8 @@ Lexer :: struct {
 	pos:      int,
 	read_pos: int,
 	ch:       rune,
+	line:     int,
+	col:      int,
 }
 
 lexer_init :: proc(l: ^Lexer, input: string) {
@@ -22,6 +24,8 @@ lexer_init :: proc(l: ^Lexer, input: string) {
 lexer_next_token :: proc(l: ^Lexer) -> Token {
 	lexer_skip_whitespace(l)
 	tok: Token
+	tok.line = l.line
+	tok.col = l.col
 
 	switch (l.ch) {
 	case '(':
@@ -133,6 +137,12 @@ lexer_read_char :: proc(l: ^Lexer) {
 		l.ch = rr
 		l.pos = l.read_pos
 		l.read_pos += size
+		if l.ch == '\r' || l.ch == '\n' {
+			l.line += 1
+			l.col = 0
+		} else {
+			l.col += size
+		}
 	}
 }
 

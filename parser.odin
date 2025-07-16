@@ -13,9 +13,15 @@ Parser :: struct {
 	allocator:  mem.Allocator,
 	cur:        Token,
 	peek:       Token,
-	errors:     [dynamic]string,
+	errors:     [dynamic]ParseError,
 	prefix_fns: map[TokenType]PrefixParseFns,
 	infix_fns:  map[TokenType]InfixParseFns,
+}
+
+ParseError :: struct {
+	msg:  string,
+	line: int,
+	col:  int,
 }
 
 Precedence :: enum {
@@ -60,7 +66,7 @@ parser_init :: proc(p: ^Parser, file_contents: string, allocator: mem.Allocator)
 	p.lexer = lexer
 
 	p.allocator = allocator
-	p.errors = make([dynamic]string, p.allocator)
+	p.errors = make([dynamic]ParseError, p.allocator)
 	precedences_init(p.allocator)
 
 	p.prefix_fns = make(map[TokenType]PrefixParseFns, p.allocator)
@@ -409,7 +415,8 @@ parser_peek_token_is :: proc(p: ^Parser, type: TokenType) -> bool {
 }
 
 parser_error :: proc(p: ^Parser, ft: string, args: ..any) {
-	append(&p.errors, fmt.tprintf(ft, ..args))
+	msg := fmt.tprintf(ft, ..args)
+	append(&p.errors, ParseError{msg = msg, line = p.cur.line, col = p.cur.col})
 }
 
 parser_expect_peek :: proc(p: ^Parser, type: TokenType) -> bool {
