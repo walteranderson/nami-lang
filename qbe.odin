@@ -155,7 +155,20 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> QbeResult {
 		return QbeResult{reg, res_type}
 
 	case ^PrefixExpr:
-	//
+		switch v.op {
+		case "-":
+			rhs := qbe_gen_expr(qbe, v.right)
+			reg := qbe_new_temp_reg(qbe)
+			qbe_emit(qbe, "  %s =%s copy %s\n", reg, qbe_type_to_string(rhs.type), rhs.value)
+			neg_reg := qbe_new_temp_reg(qbe)
+			qbe_emit(qbe, "  %s =%s neg %s\n", neg_reg, qbe_type_to_string(rhs.type), reg)
+			return QbeResult{neg_reg, rhs.type}
+
+		case "!":
+		case:
+			qbe_error(qbe, "Unsupported prefix operator: %s", v.op)
+			return QbeResult{"", .Invalid}
+		}
 	case ^CallExpr:
 		// TODO: expand this further to be less hard-coded
 		ret_type: QbeType
@@ -226,7 +239,8 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> QbeResult {
 		return QbeResult{fmt.tprintf("%d", v.value), .Word}
 
 	case ^Boolean:
-	//
+		return QbeResult{v.value ? "1" : "0", .Word}
+
 	}
 	return QbeResult{"", .Invalid}
 }

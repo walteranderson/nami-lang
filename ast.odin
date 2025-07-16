@@ -30,7 +30,7 @@ Boolean :: struct {
 
 PrefixExpr :: struct {
 	using node: Node,
-	op:         string,
+	op:         string, // ! or -
 	right:      Expr,
 }
 

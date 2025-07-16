@@ -1,5 +1,4 @@
 fn main() {
-	foo: string = "world";
-	printf("Hello, %s", foo);
+    foo := -10;
     return 0;
 }
