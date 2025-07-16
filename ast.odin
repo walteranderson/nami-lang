@@ -62,6 +62,7 @@ Function :: struct {
 }
 
 FunctionArg :: struct {
+	using node:    Node,
 	ident:         ^Identifier,
 	declared_type: ^TypeAnnotation,
 }
@@ -99,6 +100,7 @@ AssignStatement :: struct {
 Type :: enum {
 	Invalid,
 	Void,
+	Any,
 	Bool,
 	Int,
 	String,
