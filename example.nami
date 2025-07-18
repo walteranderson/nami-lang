@@ -1,5 +1,10 @@
+fn test() {
+  printf("test func!\n");
+  return 0;
+}
+
 fn main() {
-  foo := (1 + 2) * 3;
-  printf("Hello: %d\n", foo);
-  return foo;
+  test();
+  printf("main\n");
+  return 0;
 }
