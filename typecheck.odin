@@ -9,6 +9,7 @@ TypeChecker :: struct {
 	allocator: mem.Allocator,
 	program:   ^Program,
 	symbols:   [dynamic]map[string]Type,
+	has_main:  bool,
 }
 
 tc_init :: proc(tc: ^TypeChecker, p: ^Program, allocator: mem.Allocator) {
@@ -21,37 +22,46 @@ tc_check_program :: proc(tc: ^TypeChecker) {
 	for stmt in tc.program.stmts {
 		tc_check_stmt(tc, stmt)
 	}
+
+	if !tc.has_main {
+		tc_error(tc, "Missing main function")
+	}
 }
 
-tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) {
+tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) -> Type {
 	switch s in stmt {
 	case ^Program:
 		tc_error(tc, "Unexpected program statement")
+		return .Invalid
 	case ^ExprStatement:
-		tc_check_expr(tc, s.value)
+		return tc_check_expr(tc, s.value)
 	case ^BlockStatement:
+		last_type: Type
 		for stmt in s.stmts {
-			tc_check_stmt(tc, stmt)
+			last_type = tc_check_stmt(tc, stmt)
 		}
+		return last_type
 	case ^ReturnStatement:
-	//
+		expr_type := tc_check_expr(tc, s.value)
+		s.resolved_type = expr_type
+		return s.resolved_type
 	case ^AssignStatement:
 		_, found := tc_lookup_symbol(tc, s.name.value)
 		if found {
 			tc_error(tc, "Symbol already declared: %s", s.name.value)
 			s.resolved_type = .Invalid
-			return
+			return s.resolved_type
 		}
 		expr_type := tc_check_expr(tc, s.value)
 		if s.declared_type == nil {
 			s.resolved_type = expr_type
-			return
+			return s.resolved_type
 		}
 		declared_type := tc_check_type_annotation(tc, s.declared_type)
 		if declared_type == .Invalid {
 			tc_error(tc, "Invalid type - %s", s.declared_type.name)
 			s.resolved_type = .Invalid
-			return
+			return s.resolved_type
 		}
 		if declared_type != expr_type {
 			tc_error(
@@ -61,13 +71,15 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) {
 				expr_type,
 			)
 			s.resolved_type = .Invalid
-			return
+			return s.resolved_type
 		}
 		tc_add_symbol(tc, s.name.value, s.resolved_type)
+		return s.resolved_type
 
 	case ^ReassignStatement:
 	//
 	}
+	return .Invalid
 }
 
 tc_check_expr :: proc(tc: ^TypeChecker, expr: Expr) -> Type {
@@ -85,9 +97,12 @@ tc_check_expr :: proc(tc: ^TypeChecker, expr: Expr) -> Type {
 	// lookup function in symbol table to get return type
 	// or check against builtins (put in some kind of structure, aka printf)
 	case ^Function:
+		if e.name.value == "main" {
+			tc.has_main = true
+		}
 		// TODO: check args
 		// TODO: check return statement
-		tc_check_stmt(tc, e.body)
+		return tc_check_stmt(tc, e.body)
 	case ^InfixExpr:
 		lhs_type := tc_check_expr(tc, e.left)
 		rhs_type := tc_check_expr(tc, e.right)
