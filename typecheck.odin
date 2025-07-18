@@ -2,11 +2,13 @@ package main
 
 import "core:fmt"
 import "core:mem"
+import "core:strings"
 
 TypeChecker :: struct {
 	errs:      [dynamic]string,
 	allocator: mem.Allocator,
 	program:   ^Program,
+	symbols:   [dynamic]map[string]Type,
 }
 
 tc_init :: proc(tc: ^TypeChecker, p: ^Program, allocator: mem.Allocator) {
@@ -27,10 +29,43 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) {
 		tc_error(tc, "Unexpected program statement")
 		return
 	case ^ExprStatement:
+	//
 	case ^BlockStatement:
+	//
 	case ^ReturnStatement:
+	//
 	case ^AssignStatement:
+		_, found := tc_lookup_symbol(tc, s.name.value)
+		if found {
+			tc_error(tc, "Symbol already declared: %s", s.name.value)
+			s.resolved_type = .Invalid
+			return
+		}
+		expr_type := tc_check_expr(tc, s.value)
+		if s.declared_type == nil {
+			s.resolved_type = expr_type
+			return
+		}
+		declared_type := tc_check_type_annotation(tc, s.declared_type)
+		if declared_type == .Invalid {
+			tc_error(tc, "Invalid type - %s", s.declared_type.name)
+			s.resolved_type = .Invalid
+			return
+		}
+		if declared_type != expr_type {
+			tc_error(
+				tc,
+				"Type mismatch: declared type: %s - expression type: %s",
+				declared_type,
+				expr_type,
+			)
+			s.resolved_type = .Invalid
+			return
+		}
+		tc_add_symbol(tc, s.name.value, s.resolved_type)
+
 	case ^ReassignStatement:
+	//
 	}
 }
 
@@ -70,6 +105,13 @@ tc_check_expr :: proc(tc: ^TypeChecker, expr: Expr) -> Type {
 		e.resolved_type = rhs_type
 		return e.resolved_type
 	case ^Identifier:
+		symbol_type, found := tc_lookup_symbol(tc, e.value)
+		if !found {
+			tc_error(tc, "Identifier not found: %s", e.value)
+			return .Invalid
+		}
+		e.resolved_type = symbol_type
+		return e.resolved_type
 	case ^FunctionArg:
 		e.resolved_type = tc_check_type_annotation(tc, e.declared_type)
 		return e.resolved_type
@@ -99,4 +141,37 @@ tc_check_type_annotation :: proc(tc: ^TypeChecker, a: ^TypeAnnotation) -> Type {
 
 tc_error :: proc(tc: ^TypeChecker, ft: string, args: ..any) {
 	append(&tc.errs, fmt.tprintf(ft, ..args))
+}
+
+tc_add_symbol :: proc(tc: ^TypeChecker, name: string, type: Type) {
+	if len(tc.symbols) <= 0 {
+		tc_error(tc, "can't add symbol to an empty stack")
+		return
+	}
+	name_copy := strings.clone(name, tc.allocator)
+	tc.symbols[len(tc.symbols) - 1][name_copy] = type
+}
+
+tc_lookup_symbol :: proc(tc: ^TypeChecker, name: string) -> (Type, bool) {
+	for i := len(tc.symbols) - 1; i >= 0; i -= 1 {
+		scope := tc.symbols[i]
+		if val, ok := scope[name]; ok {
+			return val, true
+		}
+	}
+	return .Invalid, false
+}
+
+tc_symbols_pop_scope :: proc(tc: ^TypeChecker) {
+	if len(tc.symbols) <= 0 {
+		tc_error(tc, "attemping to pop scope from empty symbols table")
+		return
+	}
+	popped := pop(&tc.symbols)
+	delete(popped)
+}
+
+tc_symbols_push_scope :: proc(tc: ^TypeChecker) {
+	scope := make(map[string]Type, tc.allocator)
+	append(&tc.symbols, scope)
 }

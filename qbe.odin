@@ -81,7 +81,7 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 		qbe_emit(qbe, "  %s =l alloc4 4\n", reg_ptr)
 		qbe_add_symbol(qbe, s.name.value, reg_ptr)
 		res := qbe_gen_expr(qbe, s.value)
-		qbe_emit(qbe, "  store%s %s, %s\n", res.type, res.value, reg_ptr)
+		qbe_emit(qbe, "  store%s %s, %s\n", qbe_type_to_string(res.type), res.value, reg_ptr)
 	case ^ReassignStatement:
 	//
 	case ^ExprStatement:

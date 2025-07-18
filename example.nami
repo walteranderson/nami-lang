@@ -1,3 +1,5 @@
 fn main() {
+	foo: string = "world";
+	printf("Hello, %s", foo);
     return 0;
 }
