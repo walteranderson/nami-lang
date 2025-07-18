@@ -1,6 +1,6 @@
 fn test() {
   printf("test func!\n");
-  return 0;
+  return;
 }
 
 fn main() {

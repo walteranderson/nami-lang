@@ -279,8 +279,13 @@ parser_parse_return_stmt :: proc(p: ^Parser) -> Statement {
 	stmt.tok = p.cur
 
 	parser_next_token(p)
-	stmt.value = parser_parse_expr(p, .LOWEST)
 
+	// empty return with no expr
+	if parser_cur_token_is(p, .SEMI_COLON) {
+		return stmt
+	}
+
+	stmt.value = parser_parse_expr(p, .LOWEST)
 	if !parser_cur_token_is(p, .SEMI_COLON) {
 		parser_next_token(p)
 	}

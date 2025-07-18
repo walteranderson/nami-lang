@@ -196,10 +196,11 @@ print_ast :: proc(node: AnyNode, indent_level: int) {
 		}
 	case ^CallExpr:
 		fmt.printf("%sCallExpr: %s\n", indent, n.func.value)
-		fmt.printf("%s  Args:\n", indent)
+		fmt.printf("%s  Args:", indent)
 		if len(n.args) == 0 {
 			fmt.printf(" []\n")
 		} else {
+			fmt.printf("\n")
 			for arg in n.args {
 				print_expr(arg, indent_level + 2)
 			}
