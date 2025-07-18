@@ -104,6 +104,8 @@ Type :: enum {
 	Bool,
 	Int,
 	String,
+	// TODO: add
+	// Function,
 }
 
 TypeAnnotation :: struct {

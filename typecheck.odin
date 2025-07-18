@@ -27,11 +27,12 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) {
 	switch s in stmt {
 	case ^Program:
 		tc_error(tc, "Unexpected program statement")
-		return
 	case ^ExprStatement:
-	//
+		tc_check_expr(tc, s.value)
 	case ^BlockStatement:
-	//
+		for stmt in s.stmts {
+			tc_check_stmt(tc, stmt)
+		}
 	case ^ReturnStatement:
 	//
 	case ^AssignStatement:
@@ -84,11 +85,19 @@ tc_check_expr :: proc(tc: ^TypeChecker, expr: Expr) -> Type {
 	// lookup function in symbol table to get return type
 	// or check against builtins (put in some kind of structure, aka printf)
 	case ^Function:
-	//
+		// TODO: check args
+		// TODO: check return statement
+		tc_check_stmt(tc, e.body)
 	case ^InfixExpr:
 		lhs_type := tc_check_expr(tc, e.left)
 		rhs_type := tc_check_expr(tc, e.right)
 		if lhs_type == .Invalid || rhs_type == .Invalid {
+			tc_error(
+				tc,
+				"infix expression contains invalid left: %s, right: %s",
+				lhs_type,
+				rhs_type,
+			)
 			return .Invalid
 		}
 		if lhs_type != rhs_type {

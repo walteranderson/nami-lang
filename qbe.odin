@@ -12,13 +12,14 @@ Qbe :: struct {
 	errors:                  [dynamic]string,
 	strs:                    map[string]string,
 	str_count:               int,
-	symbols:                 [dynamic]map[string]string,
+	symbols:                 [dynamic]QbeSymbolTable,
 	functions:               map[string]string,
 	current_func_temp_count: int,
 }
 
 QbeType :: enum {
 	Invalid,
+	Void,
 	Word, // 32-bit integer
 	Long, // 64-bit integer or pointer/address
 	Byte, // 8-bit integer
@@ -27,30 +28,27 @@ QbeType :: enum {
 	Double, // Double-precision float
 }
 
-qbe_type_to_string :: proc(type: QbeType) -> string {
-	switch type {
-	case .Word:
-		return "w"
-	case .Long:
-		return "l"
-	case .Byte:
-		return "b"
-	case .Half:
-		return "h"
-	case .Float:
-		return "s"
-	case .Double:
-		return "d"
-	case .Invalid:
-		return ""
-	}
-	return ""
-}
-
 QbeResult :: struct {
 	value: string,
 	type:  QbeType,
 }
+
+SymbolKind :: enum {
+	Local,
+	Global,
+	Func,
+	FuncArg,
+}
+
+QbeSymbolEntry :: struct {
+	name:      string,
+	register:  string,
+	lang_type: Type,
+	qbe_type:  QbeType,
+	kind:      SymbolKind,
+}
+
+QbeSymbolTable :: map[string]^QbeSymbolEntry
 
 qbe_init :: proc(qbe: ^Qbe, program: ^Program, allocator: mem.Allocator) {
 	qbe.program = program
@@ -58,7 +56,7 @@ qbe_init :: proc(qbe: ^Qbe, program: ^Program, allocator: mem.Allocator) {
 	qbe.errors = make([dynamic]string, 0, allocator)
 	strings.builder_init(&qbe.sb, allocator)
 
-	qbe.symbols = make([dynamic]map[string]string, 0, allocator)
+	qbe.symbols = make([dynamic]QbeSymbolTable, 0, allocator)
 	qbe_push_scope(qbe)
 }
 
@@ -77,11 +75,17 @@ qbe_generate :: proc(qbe: ^Qbe) {
 qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 	switch s in stmt {
 	case ^AssignStatement:
-		reg_ptr := qbe_new_temp_reg(qbe)
-		qbe_emit(qbe, "  %s =l alloc4 4\n", reg_ptr)
-		qbe_add_symbol(qbe, s.name.value, reg_ptr)
-		res := qbe_gen_expr(qbe, s.value)
-		qbe_emit(qbe, "  store%s %s, %s\n", qbe_type_to_string(res.type), res.value, reg_ptr)
+		if len(qbe.symbols) == 1 {
+			// kind = .Global
+			// qbe_emit(qbe, "data export %s = { B %d { 0 } }\n", qbe_name, type_size)
+		} else {
+			reg_ptr := qbe_new_temp_reg(qbe)
+			qbe_add_symbol(qbe, s.name.value, reg_ptr, s.resolved_type, .Local)
+			res := qbe_gen_expr(qbe, s.value)
+			size := 4 // TODO: lang_type_to_size
+			qbe_emit(qbe, "  %s =l alloc%d %d\n", reg_ptr, size, size)
+			qbe_emit(qbe, "  store%s %s, %s\n", qbe_type_to_string(res.type), res.value, reg_ptr)
+		}
 	case ^ReassignStatement:
 	//
 	case ^ExprStatement:
@@ -232,14 +236,15 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> QbeResult {
 	case ^FunctionArg:
 	//
 	case ^Identifier:
-		ident_reg, found := qbe_lookup_symbol(qbe, v.value)
+		ident, found := qbe_lookup_symbol(qbe, v.value)
 		if !found {
 			qbe_error(qbe, "undefined identifier: %s", v.value)
 			return QbeResult{"", .Invalid}
 		}
 		reg := qbe_new_temp_reg(qbe)
-		qbe_emit(qbe, "  %s =w loadw %s\n", reg, ident_reg)
-		return QbeResult{reg, .Long}
+		type := qbe_type_to_string(ident.qbe_type)
+		qbe_emit(qbe, "  %s =%s load%s %s\n", reg, type, type, ident.register)
+		return QbeResult{reg, ident.qbe_type}
 
 	case ^IntLiteral:
 		return QbeResult{fmt.tprintf("%d", v.value), .Word}
@@ -264,9 +269,10 @@ qbe_gen_func_def :: proc(qbe: ^Qbe, func: ^Function) -> QbeResult {
 	qbe_emit(qbe, "@start\n")
 	qbe_gen_stmt(qbe, func.body)
 	qbe_emit(qbe, "}}\n")
-	label := fmt.tprintf("$%s", func.name.value)
-	qbe_add_symbol(qbe, func.name.value, label)
-	return QbeResult{label, .Long}
+	register := fmt.tprintf("$%s", func.name.value)
+	// TODO: replace .Void with proper function type
+	qbe_add_symbol(qbe, func.name.value, register, .Void, .Func)
+	return QbeResult{register, .Long}
 }
 
 qbe_new_temp_reg :: proc(qbe: ^Qbe) -> string {
@@ -284,7 +290,7 @@ qbe_error :: proc(qbe: ^Qbe, ft: string, args: ..any) {
 }
 
 qbe_push_scope :: proc(qbe: ^Qbe) {
-	scope := make(map[string]string, qbe.allocator)
+	scope := make(map[string]^QbeSymbolEntry, qbe.allocator)
 	append(&qbe.symbols, scope)
 }
 
@@ -297,24 +303,28 @@ qbe_pop_scope :: proc(qbe: ^Qbe) {
 	delete(popped)
 }
 
-qbe_add_symbol :: proc(qbe: ^Qbe, name: string, reg: string) {
+qbe_add_symbol :: proc(qbe: ^Qbe, name: string, register: string, type: Type, kind: SymbolKind) {
 	if len(qbe.symbols) <= 0 {
 		qbe_error(qbe, "can't add symbols to an empty stack")
 		return
 	}
-	name_cpy := strings.clone(name, qbe.allocator)
-	reg_cpy := strings.clone(reg, qbe.allocator)
-	qbe.symbols[len(qbe.symbols) - 1][name_cpy] = reg_cpy
+	entry := new(QbeSymbolEntry, qbe.allocator)
+	entry.name = strings.clone(name, qbe.allocator)
+	entry.register = strings.clone(register, qbe.allocator)
+	entry.lang_type = type
+	entry.qbe_type = qbe_lang_type_to_qbe_type(type)
+	entry.kind = kind
+	qbe.symbols[len(qbe.symbols) - 1][entry.name] = entry
 }
 
-qbe_lookup_symbol :: proc(qbe: ^Qbe, name: string) -> (string, bool) {
+qbe_lookup_symbol :: proc(qbe: ^Qbe, name: string) -> (^QbeSymbolEntry, bool) {
 	for i := len(qbe.symbols) - 1; i >= 0; i -= 1 {
 		scope := qbe.symbols[i]
 		if val, ok := scope[name]; ok {
 			return val, true
 		}
 	}
-	return "", false
+	return nil, false
 }
 
 qbe_compile :: proc(qbe: ^Qbe, program_name: string) -> (err: os.Error) {
@@ -347,4 +357,45 @@ qbe_compile :: proc(qbe: ^Qbe, program_name: string) -> (err: os.Error) {
 	_ = os.process_start(cc_desc) or_return
 
 	return nil
+}
+
+qbe_lang_type_to_qbe_type :: proc(type: Type) -> QbeType {
+	switch type {
+	case .String:
+		return .Long
+	case .Int:
+		return .Word
+	case .Bool:
+		return .Word
+	case .Any:
+		// TODO: how to handle any types?
+		return .Long
+	case .Void:
+		return .Void
+	case .Invalid:
+		return .Invalid
+	}
+	return .Invalid
+}
+
+qbe_type_to_string :: proc(type: QbeType) -> string {
+	switch type {
+	case .Word:
+		return "w"
+	case .Long:
+		return "l"
+	case .Byte:
+		return "b"
+	case .Half:
+		return "h"
+	case .Float:
+		return "s"
+	case .Double:
+		return "d"
+	case .Void:
+		return ""
+	case .Invalid:
+		return ""
+	}
+	return ""
 }

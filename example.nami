@@ -1,3 +1,5 @@
 fn main() {
-    return true;
+  foo := (1 + 2) * 3;
+  printf("Hello: %d\n", foo);
+  return foo;
 }

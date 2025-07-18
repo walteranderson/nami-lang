@@ -43,16 +43,16 @@ main :: proc() {
 		os.exit(1)
 	}
 
-	// tc := new(TypeChecker, allocator)
-	// tc_init(tc, program, allocator)
-	// tc_check_program(tc)
-	// if len(tc.errs) != 0 {
-	// 	log(.ERROR, "Type errors:")
-	// 	for err in tc.errs {
-	// 		log(.ERROR, err)
-	// 	}
-	// 	os.exit(1)
-	// }
+	tc := new(TypeChecker, allocator)
+	tc_init(tc, program, allocator)
+	tc_check_program(tc)
+	if len(tc.errs) != 0 {
+		log(.ERROR, "Type errors:")
+		for err in tc.errs {
+			log(.ERROR, err)
+		}
+		os.exit(1)
+	}
 
 	if opt.ast {
 		print_ast(program, 0)
