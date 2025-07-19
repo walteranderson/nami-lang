@@ -59,6 +59,7 @@ FunctionStatement :: struct {
 	args:                 [dynamic]^FunctionArg,
 	body:                 ^BlockStatement,
 	declared_return_type: ^TypeAnnotation,
+	resolved_return_type: Type,
 }
 
 FunctionArg :: struct {
@@ -186,8 +187,9 @@ print_ast :: proc(node: AnyNode, indent_level: int) {
 			}
 		}
 		if n.declared_return_type != nil {
-			fmt.printf("%s  ReturnType: %s\n", indent, n.declared_return_type.name)
+			fmt.printf("%s  DeclaredReturnType: %s\n", indent, n.declared_return_type.name)
 		}
+		fmt.printf("%s  ResolvedReturnType: %s\n", indent, n.resolved_return_type)
 		print_ast(cast(AnyNode)n.body, indent_level + 1)
 	case ^FunctionArg:
 		fmt.printf("%sFunctionArg: %s\n", indent, n.ident.value)
@@ -218,9 +220,7 @@ print_ast :: proc(node: AnyNode, indent_level: int) {
 		if n.declared_type != nil {
 			fmt.printf("%s  DeclaredType: %s\n", indent, n.declared_type.name)
 		}
-		if n.resolved_type != nil {
-			fmt.printf("%s  ResolvedType: %s\n", indent, n.resolved_type)
-		}
+		fmt.printf("%s  ResolvedType: %s\n", indent, n.resolved_type)
 		print_expr(n.value, indent_level + 1)
 	case ^ReassignStatement:
 		fmt.printf("%sReassignStatement:\n", indent)

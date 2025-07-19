@@ -107,6 +107,7 @@ parser_parse_program :: proc(p: ^Parser) -> ^Program {
 		}
 		parser_next_token(p)
 	}
+
 	log(.INFO, "Parsing complete: %v", time.diff(start, time.now()))
 	return program
 }

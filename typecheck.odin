@@ -3,6 +3,7 @@ package main
 import "core:fmt"
 import "core:mem"
 import "core:strings"
+import "core:time"
 
 TypeChecker :: struct {
 	errs:      [dynamic]string,
@@ -20,6 +21,8 @@ tc_init :: proc(tc: ^TypeChecker, p: ^Program, allocator: mem.Allocator) {
 }
 
 tc_check_program :: proc(tc: ^TypeChecker) {
+	start := time.now()
+	log(.INFO, "Typechecking program")
 	for stmt in tc.program.stmts {
 		tc_check_stmt(tc, stmt)
 	}
@@ -27,10 +30,12 @@ tc_check_program :: proc(tc: ^TypeChecker) {
 	if !tc.has_main {
 		tc_error(tc, "Missing main function")
 	}
+
+	log(.INFO, "Typechecking complete: %v", time.diff(start, time.now()))
 }
 
 tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) -> Type {
-	switch s in stmt {
+	#partial switch s in stmt {
 	case ^Program:
 		tc_error(tc, "Unexpected program statement")
 		return .Invalid
@@ -39,20 +44,49 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) -> Type {
 	case ^FunctionStatement:
 		tc_symbols_push_scope(tc)
 		if s.name.value == "main" {
-			tc.has_main = true
+			if tc.has_main {
+				tc_error(tc, "Main function already declared")
+			} else {
+				tc.has_main = true
+			}
 		}
-		// TODO: check args
-		// TODO: check return statement
-		return tc_check_stmt(tc, s.body)
-	case ^FunctionArg:
-		s.resolved_type = tc_check_type_annotation(tc, s.declared_type)
-		return s.resolved_type
-	case ^BlockStatement:
-		last_type: Type
-		for stmt in s.stmts {
-			last_type = tc_check_stmt(tc, stmt)
+
+		for arg in s.args {
+			arg.resolved_type = tc_check_type_annotation(tc, arg.declared_type)
 		}
-		return last_type
+
+		if s.body == nil {
+			tc_error(tc, "Missing function body")
+			return .Invalid
+		}
+
+		return_type := tc_check_type_annotation(tc, s.declared_return_type)
+
+		for stmt in s.body.stmts {
+			stmt_type := tc_check_stmt(tc, stmt)
+
+			if _, ok := stmt.(^ReturnStatement); ok {
+				if return_type == .Any {
+					// Assuming that if you don't specify the return type, use the first one you find. 
+					return_type = stmt_type
+				} else if return_type != stmt_type {
+					tc_error(tc, "Expected return type %s, got %s", return_type, stmt_type)
+					return_type = .Invalid
+				}
+			}
+		}
+		s.resolved_return_type = return_type
+
+
+	// case ^FunctionArg:
+	// 	s.resolved_type = tc_check_type_annotation(tc, s.declared_type)
+	// 	return s.resolved_type
+	// case ^BlockStatement:
+	// 	last_type: Type
+	// 	for stmt in s.stmts {
+	// 		last_type = tc_check_stmt(tc, stmt)
+	// 	}
+	// 	return last_type
 	case ^ReturnStatement:
 		expr_type := tc_check_expr(tc, s.value)
 		s.resolved_type = expr_type
@@ -90,6 +124,8 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) -> Type {
 				)
 				s.resolved_type = .Invalid
 				return s.resolved_type
+			} else {
+				s.resolved_type = expr_type
 			}
 		}
 

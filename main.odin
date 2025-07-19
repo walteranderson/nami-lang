@@ -6,6 +6,7 @@ import "core:mem"
 import vmem "core:mem/virtual"
 import "core:os"
 import "core:strings"
+import "core:time"
 
 Options :: struct {
 	file_name: string `args:"pos=0,required" usage:"Path to file, ex: ./example.nami"`,
@@ -14,6 +15,7 @@ Options :: struct {
 }
 
 main :: proc() {
+	start := time.now()
 	opt: Options
 	style: flags.Parsing_Style = .Unix
 	flags.parse_or_exit(&opt, os.args, style)
@@ -86,6 +88,8 @@ main :: proc() {
 		log(.ERROR, "Error compiling qbe: %v", err)
 		os.exit(1)
 	}
+
+	log(.INFO, "Finished: total time: %v", time.diff(start, time.now()))
 }
 
 print_tokens :: proc(p: ^Parser, file_name: string) {
