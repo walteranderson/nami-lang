@@ -53,28 +53,35 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) -> Type {
 			s.resolved_type = .Invalid
 			return s.resolved_type
 		}
-		expr_type := tc_check_expr(tc, s.value)
-		if s.declared_type == nil {
-			s.resolved_type = expr_type
-			tc_add_symbol(tc, s.name.value, expr_type)
-			return s.resolved_type
+
+		declared_type: Type = .Any
+		if s.declared_type != nil {
+			declared_type = tc_check_type_annotation(tc, s.declared_type)
+			if declared_type == .Invalid {
+				tc_error(tc, "Invalid type - %s", s.declared_type.name)
+				s.resolved_type = .Invalid
+				return s.resolved_type
+			}
 		}
-		declared_type := tc_check_type_annotation(tc, s.declared_type)
-		if declared_type == .Invalid {
-			tc_error(tc, "Invalid type - %s", s.declared_type.name)
-			s.resolved_type = .Invalid
-			return s.resolved_type
+
+		if s.value == nil {
+			s.resolved_type = declared_type
+		} else {
+			expr_type := tc_check_expr(tc, s.value)
+			if declared_type == .Any {
+				s.resolved_type = expr_type
+			} else if declared_type != expr_type {
+				tc_error(
+					tc,
+					"Type mismatch - declared type: %s, expression type: %s",
+					declared_type,
+					expr_type,
+				)
+				s.resolved_type = .Invalid
+				return s.resolved_type
+			}
 		}
-		if declared_type != expr_type {
-			tc_error(
-				tc,
-				"Type mismatch - declared type: %s, expression type: %s",
-				declared_type,
-				expr_type,
-			)
-			s.resolved_type = .Invalid
-			return s.resolved_type
-		}
+
 		tc_add_symbol(tc, s.name.value, s.resolved_type)
 		return s.resolved_type
 

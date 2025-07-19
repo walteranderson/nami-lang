@@ -81,10 +81,26 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 		} else {
 			reg_ptr := qbe_new_temp_reg(qbe)
 			qbe_add_symbol(qbe, s.name.value, reg_ptr, s.resolved_type, .Local)
-			res := qbe_gen_expr(qbe, s.value)
 			size := 4 // TODO: lang_type_to_size
 			qbe_emit(qbe, "  %s =l alloc%d %d\n", reg_ptr, size, size)
-			qbe_emit(qbe, "  store%s %s, %s\n", qbe_type_to_string(res.type), res.value, reg_ptr)
+			if s.value == nil {
+				qbe_emit(
+					qbe,
+					"  store%s %d, %s\n",
+					qbe_type_to_string(qbe_lang_type_to_qbe_type(s.resolved_type)),
+					0,
+					reg_ptr,
+				)
+			} else {
+				res := qbe_gen_expr(qbe, s.value)
+				qbe_emit(
+					qbe,
+					"  store%s %s, %s\n",
+					qbe_type_to_string(res.type),
+					res.value,
+					reg_ptr,
+				)
+			}
 		}
 	case ^ReassignStatement:
 		entry, found := qbe_lookup_symbol(qbe, s.name.value)

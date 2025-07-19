@@ -146,10 +146,9 @@ parser_parse_reassign_stmt :: proc(p: ^Parser) -> Statement {
 }
 
 parser_parse_assign_stmt :: proc(p: ^Parser) -> Statement {
-	decl := new(AssignStatement, p.allocator)
-	decl.tok = p.cur
-	name := parser_parse_ident(p).(^Identifier)
-	decl.name = name
+	stmt := new(AssignStatement, p.allocator)
+	stmt.tok = p.cur
+	stmt.name = parser_parse_ident(p).(^Identifier)
 
 	if !parser_expect_peek(p, .COLON) {
 		return nil
@@ -157,20 +156,21 @@ parser_parse_assign_stmt :: proc(p: ^Parser) -> Statement {
 
 	if !parser_peek_token_is(p, .ASSIGN) {
 		parser_next_token(p)
-		decl.declared_type = parser_parse_type_annotation(p)
+		stmt.declared_type = parser_parse_type_annotation(p)
 	}
 
-	if !parser_expect_peek(p, .ASSIGN) {
-		return nil
-	}
-
-	parser_next_token(p)
-	decl.value = parser_parse_expr(p, .LOWEST)
-	if parser_peek_token_is(p, .SEMI_COLON) {
+	if parser_peek_token_is(p, .ASSIGN) {
+		parser_next_token(p)
+		parser_next_token(p)
+		stmt.value = parser_parse_expr(p, .LOWEST)
+		if parser_peek_token_is(p, .SEMI_COLON) {
+			parser_next_token(p)
+		}
+	} else {
 		parser_next_token(p)
 	}
 
-	return decl
+	return stmt
 }
 
 parser_parse_expr :: proc(p: ^Parser, precedence: Precedence) -> Expr {

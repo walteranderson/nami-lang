@@ -1,6 +1,6 @@
 Typechecker
 - [ ] return stmt
-- [ ] reassign
+- [X] reassign
 - [ ] call expr
 - [ ] func args / check func return
 - [ ] more robust infix support for more types
@@ -8,7 +8,7 @@ Typechecker
 
 QBE
 - [ ] optional return
-- [ ] reassign stmt
+- [X] reassign stmt
 - [ ] function args
 - [ ] add a proper function lang type
 - [ ] how to handle any type?
