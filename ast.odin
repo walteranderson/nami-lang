@@ -216,7 +216,10 @@ print_ast :: proc(node: AnyNode, indent_level: int) {
 		fmt.printf("%sAssignStatement:\n", indent)
 		print_expr(n.name, indent_level + 1)
 		if n.declared_type != nil {
-			fmt.printf("%s  Type: %s\n", indent, n.declared_type.name)
+			fmt.printf("%s  DeclaredType: %s\n", indent, n.declared_type.name)
+		}
+		if n.resolved_type != nil {
+			fmt.printf("%s  ResolvedType: %s\n", indent, n.resolved_type)
 		}
 		print_expr(n.value, indent_level + 1)
 	case ^ReassignStatement:

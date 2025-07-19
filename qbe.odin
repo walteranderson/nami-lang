@@ -87,7 +87,19 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 			qbe_emit(qbe, "  store%s %s, %s\n", qbe_type_to_string(res.type), res.value, reg_ptr)
 		}
 	case ^ReassignStatement:
-	//
+		entry, found := qbe_lookup_symbol(qbe, s.name.value)
+		if !found {
+			qbe_error(qbe, "%s is not defined", s.name.value)
+			return
+		}
+		res := qbe_gen_expr(qbe, s.value)
+		qbe_emit(
+			qbe,
+			"  store%s %s, %s\n",
+			qbe_type_to_string(res.type),
+			res.value,
+			entry.register,
+		)
 	case ^ExprStatement:
 		qbe_gen_expr(qbe, s.value)
 	case ^BlockStatement:

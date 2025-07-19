@@ -16,6 +16,7 @@ tc_init :: proc(tc: ^TypeChecker, p: ^Program, allocator: mem.Allocator) {
 	tc.program = p
 	tc.allocator = allocator
 	tc.errs = make([dynamic]string, allocator)
+	tc_symbols_push_scope(tc)
 }
 
 tc_check_program :: proc(tc: ^TypeChecker) {
@@ -55,6 +56,7 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) -> Type {
 		expr_type := tc_check_expr(tc, s.value)
 		if s.declared_type == nil {
 			s.resolved_type = expr_type
+			tc_add_symbol(tc, s.name.value, expr_type)
 			return s.resolved_type
 		}
 		declared_type := tc_check_type_annotation(tc, s.declared_type)
@@ -66,7 +68,7 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) -> Type {
 		if declared_type != expr_type {
 			tc_error(
 				tc,
-				"Type mismatch: declared type: %s - expression type: %s",
+				"Type mismatch - declared type: %s, expression type: %s",
 				declared_type,
 				expr_type,
 			)
@@ -77,7 +79,24 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) -> Type {
 		return s.resolved_type
 
 	case ^ReassignStatement:
-	//
+		sym_type, found := tc_lookup_symbol(tc, s.name.value)
+		if !found {
+			tc_error(tc, "%s is not defined", s.name.value)
+			return .Invalid
+		}
+		expr_type := tc_check_expr(tc, s.value)
+		if sym_type != expr_type {
+			tc_error(
+				tc,
+				"Type mismatch - %s is type %s, cannot reassign to %s",
+				s.name.value,
+				sym_type,
+				expr_type,
+			)
+			return .Invalid
+		}
+		s.resolved_type = sym_type
+		return s.resolved_type
 	}
 	return .Invalid
 }
@@ -97,6 +116,7 @@ tc_check_expr :: proc(tc: ^TypeChecker, expr: Expr) -> Type {
 	// lookup function in symbol table to get return type
 	// or check against builtins (put in some kind of structure, aka printf)
 	case ^Function:
+		tc_symbols_push_scope(tc)
 		if e.name.value == "main" {
 			tc.has_main = true
 		}

@@ -51,6 +51,9 @@ main :: proc() {
 		for err in tc.errs {
 			log(.ERROR, err)
 		}
+		if opt.ast {
+			print_ast(program, 0)
+		}
 		os.exit(1)
 	}
 
