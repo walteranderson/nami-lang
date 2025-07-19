@@ -78,14 +78,61 @@ qbe_generate :: proc(qbe: ^Qbe) {
 }
 
 qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
-	switch s in stmt {
+	#partial switch s in stmt {
 	case ^FunctionStatement:
-		// TODO: move function definition generation in a previous pass-through
-		// and make this just return the function name symbol
-		qbe_gen_func_def(qbe, s)
+		qbe_push_scope(qbe)
+		qbe.current_func_temp_count = 0
+		is_main := false
+		if s.name.value == "main" {
+			is_main = true
+			qbe_emit(qbe, "export function w $main(")
+		} else {
+			qbe_emit(qbe, "function w $%s(", s.name.value)
+		}
 
-	case ^FunctionArg:
-	//
+		for arg, idx in s.args {
+			reg := qbe_new_temp_reg(qbe)
+			qbe_add_symbol(qbe, arg.ident.value, reg, arg.resolved_type, .FuncArg)
+			qbe_emit(
+				qbe,
+				"%s %s",
+				qbe_type_to_string(qbe_lang_type_to_qbe_type(arg.resolved_type)),
+				reg,
+			)
+			if idx + 1 < len(s.args) {
+				qbe_emit(qbe, ", ")
+			}
+		}
+
+		qbe_emit(qbe, ") {{\n")
+		qbe_emit(qbe, "@start\n")
+		has_return := false
+		for st in s.body.stmts {
+			if _, ok := st.(^ReturnStatement); ok {
+				has_return = true
+			}
+			qbe_gen_stmt(qbe, st)
+		}
+		if !has_return {
+			if is_main {
+				qbe_emit(qbe, "  ret 0\n")
+			} else {
+				qbe_emit(qbe, "  ret\n")
+			}
+		}
+		qbe_emit(qbe, "}}\n")
+		register := fmt.tprintf("$%s", s.name.value)
+
+		qbe_add_symbol(qbe, s.name.value, register, s.resolved_return_type, .Func)
+
+	case ^ReturnStatement:
+		if s.value != nil {
+			res := qbe_gen_expr(qbe, s.value)
+			qbe_emit(qbe, "  ret %s\n", res.value)
+		} else {
+			qbe_emit(qbe, "  ret\n")
+		}
+
 	case ^AssignStatement:
 		if len(qbe.symbols) == 1 {
 			// kind = .Global
@@ -130,19 +177,11 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 		)
 	case ^ExprStatement:
 		qbe_gen_expr(qbe, s.value)
-	case ^BlockStatement:
-		for st in s.stmts {
-			qbe_gen_stmt(qbe, st)
-		}
-	case ^ReturnStatement:
-		if s.value != nil {
-			res := qbe_gen_expr(qbe, s.value)
-			qbe_emit(qbe, "  ret %s\n", res.value)
-		} else {
-			qbe_emit(qbe, "  ret\n")
-		}
+
 	case ^Program:
 		qbe_error(qbe, "Unexpected program")
+	case:
+		log(.ERROR, "QBE generating statement unreachable: %+v", stmt)
 	}
 }
 
@@ -274,10 +313,17 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> QbeResult {
 			qbe_error(qbe, "undefined identifier: %s", v.value)
 			return QbeResult{"", .Invalid}
 		}
-		reg := qbe_new_temp_reg(qbe)
-		type := qbe_type_to_string(ident.qbe_type)
-		qbe_emit(qbe, "  %s =%s load%s %s\n", reg, type, type, ident.register)
-		return QbeResult{reg, ident.qbe_type}
+		switch ident.kind {
+		case .Local:
+			reg := qbe_new_temp_reg(qbe)
+			type := qbe_type_to_string(ident.qbe_type)
+			qbe_emit(qbe, "  %s =%s load%s %s\n", reg, type, type, ident.register)
+			return QbeResult{reg, ident.qbe_type}
+		case .FuncArg:
+			return QbeResult{ident.register, ident.qbe_type}
+		case .Func:
+		case .Global:
+		}
 
 	case ^IntLiteral:
 		return QbeResult{fmt.tprintf("%d", v.value), .Word}
@@ -287,25 +333,6 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> QbeResult {
 
 	}
 	return QbeResult{"", .Invalid}
-}
-
-qbe_gen_func_def :: proc(qbe: ^Qbe, func: ^FunctionStatement) -> QbeResult {
-	qbe_push_scope(qbe)
-	qbe.current_func_temp_count = 0
-	if func.name.value == "main" {
-		qbe_emit(qbe, "export function w $main(")
-	} else {
-		qbe_emit(qbe, "function w $%s(", func.name.value)
-	}
-	// TODO: args
-	qbe_emit(qbe, ") {{\n")
-	qbe_emit(qbe, "@start\n")
-	qbe_gen_stmt(qbe, func.body)
-	qbe_emit(qbe, "}}\n")
-	register := fmt.tprintf("$%s", func.name.value)
-	// TODO: replace .Void with proper function type
-	qbe_add_symbol(qbe, func.name.value, register, .Void, .Func)
-	return QbeResult{register, .Long}
 }
 
 qbe_new_temp_reg :: proc(qbe: ^Qbe) -> string {

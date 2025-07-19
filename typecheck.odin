@@ -53,6 +53,7 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) -> Type {
 
 		for arg in s.args {
 			arg.resolved_type = tc_check_type_annotation(tc, arg.declared_type)
+			tc_add_symbol(tc, arg.ident.value, arg.resolved_type)
 		}
 
 		if s.body == nil {
@@ -63,6 +64,10 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) -> Type {
 		return_type := tc_check_type_annotation(tc, s.declared_return_type)
 
 		for stmt in s.body.stmts {
+			if _, ok := stmt.(^FunctionStatement); ok {
+				tc_error(tc, "nested functions not allowed")
+			}
+
 			stmt_type := tc_check_stmt(tc, stmt)
 
 			if _, ok := stmt.(^ReturnStatement); ok {
@@ -75,22 +80,22 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) -> Type {
 				}
 			}
 		}
+
+		// functions default to void if no type is given
+		if return_type == .Any {
+			return_type = .Void
+		}
 		s.resolved_return_type = return_type
 
+		// TODO: what type do functions return? should i add a function type?
+		// returning invalid because this shouldn't logically happen
+		return .Invalid
 
-	// case ^FunctionArg:
-	// 	s.resolved_type = tc_check_type_annotation(tc, s.declared_type)
-	// 	return s.resolved_type
-	// case ^BlockStatement:
-	// 	last_type: Type
-	// 	for stmt in s.stmts {
-	// 		last_type = tc_check_stmt(tc, stmt)
-	// 	}
-	// 	return last_type
 	case ^ReturnStatement:
 		expr_type := tc_check_expr(tc, s.value)
 		s.resolved_type = expr_type
 		return s.resolved_type
+
 	case ^AssignStatement:
 		_, found := tc_lookup_symbol(tc, s.name.value)
 		if found {
@@ -152,6 +157,7 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) -> Type {
 		s.resolved_type = sym_type
 		return s.resolved_type
 	}
+	log(.ERROR, "Unreachable typechecking statement: %+v", stmt)
 	return .Invalid
 }
 
