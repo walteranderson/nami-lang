@@ -1,10 +1,4 @@
 fn main() int {
-    foo: string;
-    foo = "hello";
-
-    bar: int;
-    bar = 69;
-
-    printf("foo=%s, bar=%d\n", foo, bar);
+    printf("Hello, %s\n", "world");
     return 0;
 }

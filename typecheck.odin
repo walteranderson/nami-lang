@@ -36,6 +36,17 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) -> Type {
 		return .Invalid
 	case ^ExprStatement:
 		return tc_check_expr(tc, s.value)
+	case ^FunctionStatement:
+		tc_symbols_push_scope(tc)
+		if s.name.value == "main" {
+			tc.has_main = true
+		}
+		// TODO: check args
+		// TODO: check return statement
+		return tc_check_stmt(tc, s.body)
+	case ^FunctionArg:
+		s.resolved_type = tc_check_type_annotation(tc, s.declared_type)
+		return s.resolved_type
 	case ^BlockStatement:
 		last_type: Type
 		for stmt in s.stmts {
@@ -122,14 +133,6 @@ tc_check_expr :: proc(tc: ^TypeChecker, expr: Expr) -> Type {
 	case ^CallExpr:
 	// lookup function in symbol table to get return type
 	// or check against builtins (put in some kind of structure, aka printf)
-	case ^Function:
-		tc_symbols_push_scope(tc)
-		if e.name.value == "main" {
-			tc.has_main = true
-		}
-		// TODO: check args
-		// TODO: check return statement
-		return tc_check_stmt(tc, e.body)
 	case ^InfixExpr:
 		lhs_type := tc_check_expr(tc, e.left)
 		rhs_type := tc_check_expr(tc, e.right)
@@ -162,9 +165,6 @@ tc_check_expr :: proc(tc: ^TypeChecker, expr: Expr) -> Type {
 			return .Invalid
 		}
 		e.resolved_type = symbol_type
-		return e.resolved_type
-	case ^FunctionArg:
-		e.resolved_type = tc_check_type_annotation(tc, e.declared_type)
 		return e.resolved_type
 
 	}

@@ -53,7 +53,7 @@ Program :: struct {
 	stmts: [dynamic]Statement,
 }
 
-Function :: struct {
+FunctionStatement :: struct {
 	using node:           Node,
 	name:                 ^Identifier,
 	args:                 [dynamic]^FunctionArg,
@@ -123,8 +123,6 @@ Expr :: union {
 	^PrefixExpr,
 	^InfixExpr,
 	^CallExpr,
-	^Function,
-	^FunctionArg,
 }
 
 Statement :: union {
@@ -134,6 +132,8 @@ Statement :: union {
 	^BlockStatement,
 	^AssignStatement,
 	^ReassignStatement,
+	^FunctionStatement,
+	^FunctionArg,
 }
 
 AnyNode :: union {
@@ -144,8 +144,6 @@ AnyNode :: union {
 	^PrefixExpr,
 	^InfixExpr,
 	^CallExpr,
-	^Function,
-	^FunctionArg,
 	//
 	^Program,
 	^ReturnStatement,
@@ -153,6 +151,8 @@ AnyNode :: union {
 	^BlockStatement,
 	^AssignStatement,
 	^ReassignStatement,
+	^FunctionStatement,
+	^FunctionArg,
 }
 
 print_ast :: proc(node: AnyNode, indent_level: int) {
@@ -174,8 +174,8 @@ print_ast :: proc(node: AnyNode, indent_level: int) {
 		for stmt in n.stmts {
 			print_statement(stmt, indent_level + 1)
 		}
-	case ^Function:
-		fmt.printf("%sFunction: %s\n", indent, n.name.value)
+	case ^FunctionStatement:
+		fmt.printf("%sFunctionStatement: %s\n", indent, n.name.value)
 		fmt.printf("%s  Args:", indent)
 		if len(n.args) == 0 {
 			fmt.printf(" []\n")
@@ -251,6 +251,10 @@ print_statement :: proc(stmt: Statement, indent_level: int) {
 		print_ast(cast(AnyNode)s, indent_level)
 	case ^ReassignStatement:
 		print_ast(cast(AnyNode)s, indent_level)
+	case ^FunctionStatement:
+		print_ast(cast(AnyNode)s, indent_level)
+	case ^FunctionArg:
+		print_ast(cast(AnyNode)s, indent_level)
 	}
 }
 
@@ -269,10 +273,6 @@ print_expr :: proc(expr: Expr, indent_level: int) {
 	case ^InfixExpr:
 		print_ast(cast(AnyNode)e, indent_level)
 	case ^CallExpr:
-		print_ast(cast(AnyNode)e, indent_level)
-	case ^Function:
-		print_ast(cast(AnyNode)e, indent_level)
-	case ^FunctionArg:
 		print_ast(cast(AnyNode)e, indent_level)
 	}
 }

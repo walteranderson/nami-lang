@@ -73,7 +73,7 @@ parser_init :: proc(p: ^Parser, file_contents: string, allocator: mem.Allocator)
 	p.prefix_fns[.INT] = parser_parse_int
 	p.prefix_fns[.STRING] = parser_parse_string
 	p.prefix_fns[.IDENT] = parser_parse_ident
-	p.prefix_fns[.FUNC] = parser_parse_func
+	// p.prefix_fns[.FUNC] = parser_parse_func
 	p.prefix_fns[.TRUE] = parser_parse_bool
 	p.prefix_fns[.FALSE] = parser_parse_bool
 	p.prefix_fns[.BANG] = parser_parse_prefix_expr
@@ -114,6 +114,10 @@ parser_parse_program :: proc(p: ^Parser) -> ^Program {
 parser_parse_stmt :: proc(p: ^Parser) -> Statement {
 	if parser_cur_token_is(p, .RETURN) {
 		return parser_parse_return_stmt(p)
+	}
+
+	if parser_cur_token_is(p, .FUNC) {
+		return parser_parse_func(p)
 	}
 
 	if parser_cur_token_is(p, .IDENT) {
@@ -293,8 +297,8 @@ parser_parse_return_stmt :: proc(p: ^Parser) -> Statement {
 	return stmt
 }
 
-parser_parse_func :: proc(p: ^Parser) -> Expr {
-	func := new(Function, p.allocator)
+parser_parse_func :: proc(p: ^Parser) -> Statement {
+	func := new(FunctionStatement, p.allocator)
 	func.tok = p.cur
 	if !parser_expect_peek(p, .IDENT) {
 		return nil

@@ -18,6 +18,7 @@ Lexer :: struct {
 
 lexer_init :: proc(l: ^Lexer, input: string) {
 	l.input = input
+	l.line = 1
 	lexer_read_char(l)
 }
 

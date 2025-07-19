@@ -10,6 +10,7 @@ import "core:strings"
 Options :: struct {
 	file_name: string `args:"pos=0,required" usage:"Path to file, ex: ./example.nami"`,
 	ast:       bool `usage:"Prints the AST"`,
+	tokens:    bool `usage:"Prints out tokens"`,
 }
 
 main :: proc() {
@@ -33,6 +34,11 @@ main :: proc() {
 
 	parser := new(Parser, allocator)
 	parser_init(parser, file_contents, allocator)
+
+	if opt.tokens {
+		print_tokens(parser, opt.file_name)
+		os.exit(0)
+	}
 
 	program := parser_parse_program(parser)
 	if len(parser.errors) > 0 {
@@ -79,6 +85,21 @@ main :: proc() {
 	if err != nil {
 		log(.ERROR, "Error compiling qbe: %v", err)
 		os.exit(1)
+	}
+}
+
+print_tokens :: proc(p: ^Parser, file_name: string) {
+	for !parser_cur_token_is(p, .EOF) {
+		log(
+			.INFO,
+			"%s:%d:%d - type=%s, literal=%s",
+			file_name,
+			p.cur.line,
+			p.cur.col,
+			p.cur.type,
+			p.cur.literal,
+		)
+		parser_next_token(p)
 	}
 }
 

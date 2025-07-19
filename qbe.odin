@@ -74,6 +74,13 @@ qbe_generate :: proc(qbe: ^Qbe) {
 
 qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 	switch s in stmt {
+	case ^FunctionStatement:
+		// TODO: move function definition generation in a previous pass-through
+		// and make this just return the function name symbol
+		qbe_gen_func_def(qbe, s)
+
+	case ^FunctionArg:
+	//
 	case ^AssignStatement:
 		if len(qbe.symbols) == 1 {
 			// kind = .Global
@@ -256,13 +263,6 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> QbeResult {
 
 		qbe.strs[label] = val
 		return QbeResult{label, .Long}
-	case ^Function:
-		// TODO: move function definition generation in a previous pass-through
-		// and make this just return the function name symbol
-		return qbe_gen_func_def(qbe, v)
-
-	case ^FunctionArg:
-	//
 	case ^Identifier:
 		ident, found := qbe_lookup_symbol(qbe, v.value)
 		if !found {
@@ -284,7 +284,7 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> QbeResult {
 	return QbeResult{"", .Invalid}
 }
 
-qbe_gen_func_def :: proc(qbe: ^Qbe, func: ^Function) -> QbeResult {
+qbe_gen_func_def :: proc(qbe: ^Qbe, func: ^FunctionStatement) -> QbeResult {
 	qbe_push_scope(qbe)
 	qbe.current_func_temp_count = 0
 	if func.name.value == "main" {
