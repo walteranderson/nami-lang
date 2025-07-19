@@ -1,9 +1,10 @@
 FLAGS=-out:nami
+SRC=./src
 
 .PHONY: build
 build:
-	odin build . $(FLAGS)
+	odin build $(SRC) $(FLAGS)
 
 .PHONY: test
 test:
-	odin test . $(FLAGS)
+	odin test $(SRC) $(FLAGS)

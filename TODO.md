@@ -5,17 +5,17 @@ Parser
 - [ ] structs
 
 Typechecker
-- [ ] return stmt
+- [X] return stmt
 - [X] reassign
 - [ ] call expr
-- [ ] func args / check func return
+- [X] func args / check func return
 - [ ] more robust infix support for more types
 
 
 QBE
-- [ ] optional return
+- [X] optional return
 - [X] reassign stmt
-- [ ] function args
+- [X] function args
 - [ ] add a proper function lang type
 - [ ] how to handle any type?
 - [ ] global assignment data

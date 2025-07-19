@@ -1,4 +1,4 @@
-package main
+package nami
 
 import "core:fmt"
 import "core:mem"
