@@ -1,3 +1,9 @@
+Parser
+- [ ] if/else
+- [ ] loops
+- [ ] arrays
+- [ ] structs
+
 Typechecker
 - [ ] return stmt
 - [X] reassign
