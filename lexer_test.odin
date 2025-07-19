@@ -53,13 +53,8 @@ test_tokens :: proc(t: ^testing.T) {
 		Token{type = .RETURN, literal = "return"},
 	}
 
-	arena: vmem.Arena
-	allocator, err := arena_init(&arena)
-	testing.expect(t, err == nil, "Error allocating arena")
-	defer vmem.arena_free_all(&arena)
-
 	lexer: Lexer
-	lexer_init(&lexer, allocator, input)
+	lexer_init(&lexer, input)
 
 	i := 0
 	for {
@@ -67,9 +62,19 @@ test_tokens :: proc(t: ^testing.T) {
 		if tok.type == .EOF {
 			break
 		}
-		if !testing.expectf(t, expected[i] == tok, "expected token %v, got %v", expected[i], tok) {
+		if !testing.expectf(
+			t,
+			is_tok(tok, expected[i]),
+			"expected token %v, got %v",
+			expected[i],
+			tok,
+		) {
 			break
 		}
 		i += 1
 	}
+}
+
+is_tok :: proc(actual: Token, expected: Token) -> bool {
+	return actual.type == expected.type && actual.literal == expected.literal
 }
