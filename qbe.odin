@@ -81,7 +81,7 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 		} else {
 			reg_ptr := qbe_new_temp_reg(qbe)
 			qbe_add_symbol(qbe, s.name.value, reg_ptr, s.resolved_type, .Local)
-			size := 4 // TODO: lang_type_to_size
+			size := qbe_lang_type_to_size(s.resolved_type)
 			qbe_emit(qbe, "  %s =l alloc%d %d\n", reg_ptr, size, size)
 			if s.value == nil {
 				qbe_emit(
@@ -385,6 +385,26 @@ qbe_compile :: proc(qbe: ^Qbe, program_name: string) -> (err: os.Error) {
 	_ = os.process_start(cc_desc) or_return
 
 	return nil
+}
+
+qbe_lang_type_to_size :: proc(type: Type) -> int {
+	switch type {
+	case .String:
+		return 8
+	case .Int:
+		return 4
+	case .Bool:
+		return 4
+	case .Any:
+		// TODO
+		// assuming that if we get an "any" at this point, maybe its a pointer?
+		return 8
+	case .Void:
+		return 0
+	case .Invalid:
+		return 0
+	}
+	return 0
 }
 
 qbe_lang_type_to_qbe_type :: proc(type: Type) -> QbeType {

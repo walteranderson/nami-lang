@@ -15,3 +15,4 @@ QBE
 - [ ] global assignment data
 - [ ] call expr return type
 - [ ] forward declaration of some kind for functions
+- [X] lang_type_to_size
