@@ -21,6 +21,10 @@ test_tokens :: proc(t: ^testing.T) {
     true
     false
     return
+    string
+    int
+    bool
+    void
 	`
 
 
@@ -51,6 +55,10 @@ test_tokens :: proc(t: ^testing.T) {
 		Token{type = .TRUE, literal = "true"},
 		Token{type = .FALSE, literal = "false"},
 		Token{type = .RETURN, literal = "return"},
+		Token{type = .TYPE_STRING, literal = "string"},
+		Token{type = .TYPE_INT, literal = "int"},
+		Token{type = .TYPE_BOOL, literal = "bool"},
+		Token{type = .TYPE_VOID, literal = "void"},
 	}
 
 	lexer: Lexer
