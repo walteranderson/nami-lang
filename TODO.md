@@ -1,4 +1,4 @@
-Parser
+Lexer/Parser
 - [ ] if/else
 - [ ] loops
 - [ ] arrays
@@ -9,7 +9,8 @@ Typechecker
 - [X] reassign
 - [X] call expr
 - [X] func args / check func return
-- [ ] more robust infix support for more types
+- [X] more robust infix support for more types
+- [ ] builtin typechecking
 
 
 QBE
@@ -17,8 +18,9 @@ QBE
 - [X] reassign stmt
 - [X] function args
 - [X] add a proper function lang type
-- [ ] how to handle any type?
-- [ ] global assignment data
+- [ ] how to handle `any` type?
+- [X] global assignment data
 - [X] call expr return type
 - [ ] forward declaration of some kind for functions
 - [X] lang_type_to_size
+- [ ] builtin codegen

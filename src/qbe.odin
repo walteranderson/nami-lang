@@ -146,8 +146,64 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 
 	case ^AssignStatement:
 		if len(qbe.symbols) == 1 {
-			// kind = .Global
-			// qbe_emit(qbe, "data export %s = { B %d { 0 } }\n", qbe_name, type_size)
+			if s.resolved_type.kind != .String &&
+			   s.resolved_type.kind != .Bool &&
+			   s.resolved_type.kind != .Int {
+				qbe_error(
+					qbe,
+					"Unsupported constant - global constants can only be string, bool, or int",
+				)
+				return
+			}
+
+			symbol_sb: strings.Builder
+			strings.builder_init(&symbol_sb, qbe.allocator)
+			defer strings.builder_destroy(&symbol_sb)
+			fmt.sbprintf(&symbol_sb, "$%s", s.name.value)
+
+			symbol_register := strings.to_string(symbol_sb)
+			qbe_add_symbol(qbe, s.name.value, symbol_register, s.resolved_type.kind, .Global)
+
+			data_type: QbeType
+			if s.resolved_type.kind == .String {
+				data_type = .Byte
+				str := s.value.(^StringLiteral)
+
+				// add null termination
+				val_sb: strings.Builder
+				strings.builder_init(&val_sb, qbe.allocator)
+				defer strings.builder_destroy(&val_sb)
+				fmt.sbprintf(&val_sb, "%s\\00", str.value)
+				val := strings.to_string(val_sb)
+
+				qbe_emit(
+					qbe,
+					"data %s = {{ %s \"%s\" }}\n",
+					symbol_register,
+					qbe_type_to_string(data_type),
+					val,
+				)
+			} else if s.resolved_type.kind == .Bool {
+				data_type = qbe_lang_type_to_qbe_type(s.resolved_type.kind)
+				bol := s.value.(^Boolean)
+				qbe_emit(
+					qbe,
+					"data %s = {{ %s %d }}\n",
+					symbol_register,
+					qbe_type_to_string(data_type),
+					bol.value,
+				)
+			} else {
+				data_type = qbe_lang_type_to_qbe_type(s.resolved_type.kind)
+				lit := s.value.(^IntLiteral)
+				qbe_emit(
+					qbe,
+					"data %s = {{ %s %d }}\n",
+					symbol_register,
+					qbe_type_to_string(data_type),
+					lit.value,
+				)
+			}
 		} else {
 			reg_ptr := qbe_new_temp_reg(qbe)
 			qbe_add_symbol(qbe, s.name.value, reg_ptr, s.resolved_type.kind, .Local)
@@ -347,7 +403,16 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> QbeResult {
 		case .FuncArg:
 			return QbeResult{ident.register, ident.qbe_type}
 		case .Func:
+		// TODO: function identifier, do i want to support this?
 		case .Global:
+			if ident.qbe_type == .Long {
+				return QbeResult{ident.register, ident.qbe_type}
+			}
+			// if its not a pointer (long) then its a word and we need to load it into a temp register
+			reg := qbe_new_temp_reg(qbe)
+			type := qbe_type_to_string(ident.qbe_type)
+			qbe_emit(qbe, "  %s =%s load%s %s\n", reg, type, type, ident.register)
+			return QbeResult{reg, ident.qbe_type}
 		}
 
 	case ^IntLiteral:
@@ -463,11 +528,10 @@ qbe_lang_type_to_size :: proc(type: TypeKind) -> int {
 	case .Bool:
 		return 4
 	case .Any:
-		// TODO
-		// assuming that if we get an "any" at this point, maybe its a pointer?
+		// TODO: Any type - assuming that if we get an `any` at this point, maybe its a pointer?
 		return 8
 	case .Function:
-		// Kind of assuming that maybe in the future, this will refer to a function pointer
+		// TODO: Kind of assuming that maybe in the future, function size will refer to a function pointer
 		return 8
 	case .Void:
 		return 0
@@ -486,7 +550,7 @@ qbe_lang_type_to_qbe_type :: proc(type: TypeKind) -> QbeType {
 	case .Bool:
 		return .Word
 	case .Any:
-		// TODO: how to handle any types?
+		// TODO: how to handle `any` types?
 		return .Long
 	case .Function:
 		return .Long

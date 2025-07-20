@@ -197,7 +197,7 @@ tc_check_expr :: proc(tc: ^TypeChecker, expr: Expr) -> ^TypeInfo {
 		if !found {
 			// TODO: add better builtin support
 			if e.func.value == "printf" {
-				// TODO: do i need to support variadics now??
+				// TODO: do i need to support variadics now?? (builtins)
 				return_type := tc_make_typeinfo(tc, .Int)
 				f_typeinfo := tc_make_typeinfo(tc, .Function)
 				f_typeinfo.data = FunctionTypeInfo {

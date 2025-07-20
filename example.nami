@@ -1,5 +1,7 @@
+global_msg := "Hello from global";
+foo := 69;
+
 fn main() {
-    foo := 1 + 2 > 5;
-    printf("%d\n", foo);
+    printf("%s %d\n", global_msg, foo);
     return 0;
 }

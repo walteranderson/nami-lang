@@ -72,7 +72,6 @@ main :: proc() {
 
 	qbe: Qbe
 	qbe_init(&qbe, program, allocator)
-
 	qbe_generate(&qbe)
 	if len(qbe.errors) > 0 {
 		log(.ERROR, "QBE codegen errors:")
