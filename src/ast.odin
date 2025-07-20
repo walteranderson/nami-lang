@@ -5,7 +5,7 @@ import "core:strings"
 
 Node :: struct {
 	tok:           Token,
-	resolved_type: Type,
+	resolved_type: TypeKind,
 }
 
 StringLiteral :: struct {
@@ -60,7 +60,7 @@ FunctionStatement :: struct {
 	args:                 [dynamic]^FunctionArg,
 	body:                 ^BlockStatement,
 	declared_return_type: ^TypeAnnotation,
-	resolved_return_type: Type,
+	resolved_return_type: TypeKind,
 }
 
 FunctionArg :: struct {
@@ -99,7 +99,7 @@ AssignStatement :: struct {
 
 ///////
 
-Type :: enum {
+TypeKind :: enum {
 	Invalid,
 	Void,
 	Any,

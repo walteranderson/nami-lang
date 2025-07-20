@@ -9,7 +9,7 @@ TypeChecker :: struct {
 	errs:      [dynamic]string,
 	allocator: mem.Allocator,
 	program:   ^Program,
-	symbols:   [dynamic]map[string]Type,
+	symbols:   [dynamic]map[string]TypeKind,
 	has_main:  bool,
 }
 
@@ -102,7 +102,7 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) {
 			return
 		}
 
-		declared_type: Type = .Any
+		declared_type: TypeKind = .Any
 		if s.declared_type != nil {
 			declared_type = tc_check_type_annotation(tc, s.declared_type)
 			if declared_type == .Invalid {
@@ -159,7 +159,7 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) {
 	return
 }
 
-tc_check_expr :: proc(tc: ^TypeChecker, expr: Expr) -> Type {
+tc_check_expr :: proc(tc: ^TypeChecker, expr: Expr) -> TypeKind {
 	switch e in expr {
 	case ^Boolean:
 		e.resolved_type = .Bool
@@ -211,7 +211,7 @@ tc_check_expr :: proc(tc: ^TypeChecker, expr: Expr) -> Type {
 	return .Invalid
 }
 
-tc_check_type_annotation :: proc(tc: ^TypeChecker, a: ^TypeAnnotation) -> Type {
+tc_check_type_annotation :: proc(tc: ^TypeChecker, a: ^TypeAnnotation) -> TypeKind {
 	if a == nil {
 		return .Any
 	}
@@ -234,7 +234,7 @@ tc_error :: proc(tc: ^TypeChecker, ft: string, args: ..any) {
 	append(&tc.errs, fmt.tprintf(ft, ..args))
 }
 
-tc_add_symbol :: proc(tc: ^TypeChecker, name: string, type: Type) {
+tc_add_symbol :: proc(tc: ^TypeChecker, name: string, type: TypeKind) {
 	if len(tc.symbols) <= 0 {
 		tc_error(tc, "can't add symbol to an empty stack")
 		return
@@ -243,7 +243,7 @@ tc_add_symbol :: proc(tc: ^TypeChecker, name: string, type: Type) {
 	tc.symbols[len(tc.symbols) - 1][name_copy] = type
 }
 
-tc_lookup_symbol :: proc(tc: ^TypeChecker, name: string) -> (Type, bool) {
+tc_lookup_symbol :: proc(tc: ^TypeChecker, name: string) -> (TypeKind, bool) {
 	for i := len(tc.symbols) - 1; i >= 0; i -= 1 {
 		scope := tc.symbols[i]
 		if val, ok := scope[name]; ok {
@@ -263,6 +263,6 @@ tc_symbols_pop_scope :: proc(tc: ^TypeChecker) {
 }
 
 tc_symbols_push_scope :: proc(tc: ^TypeChecker) {
-	scope := make(map[string]Type, tc.allocator)
+	scope := make(map[string]TypeKind, tc.allocator)
 	append(&tc.symbols, scope)
 }

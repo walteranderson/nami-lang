@@ -44,7 +44,7 @@ SymbolKind :: enum {
 QbeSymbolEntry :: struct {
 	name:      string,
 	register:  string,
-	lang_type: Type,
+	lang_type: TypeKind,
 	qbe_type:  QbeType,
 	kind:      SymbolKind,
 }
@@ -364,7 +364,13 @@ qbe_pop_scope :: proc(qbe: ^Qbe) {
 	delete(popped)
 }
 
-qbe_add_symbol :: proc(qbe: ^Qbe, name: string, register: string, type: Type, kind: SymbolKind) {
+qbe_add_symbol :: proc(
+	qbe: ^Qbe,
+	name: string,
+	register: string,
+	type: TypeKind,
+	kind: SymbolKind,
+) {
 	if len(qbe.symbols) <= 0 {
 		qbe_error(qbe, "can't add symbols to an empty stack")
 		return
@@ -424,7 +430,7 @@ qbe_compile :: proc(qbe: ^Qbe, program_name: string) -> (err: os.Error) {
 	return nil
 }
 
-qbe_lang_type_to_size :: proc(type: Type) -> int {
+qbe_lang_type_to_size :: proc(type: TypeKind) -> int {
 	switch type {
 	case .String:
 		return 8
@@ -444,7 +450,7 @@ qbe_lang_type_to_size :: proc(type: Type) -> int {
 	return 0
 }
 
-qbe_lang_type_to_qbe_type :: proc(type: Type) -> QbeType {
+qbe_lang_type_to_qbe_type :: proc(type: TypeKind) -> QbeType {
 	switch type {
 	case .String:
 		return .Long
