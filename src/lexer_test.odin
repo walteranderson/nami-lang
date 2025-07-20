@@ -25,6 +25,7 @@ test_tokens :: proc(t: ^testing.T) {
     int
     bool
     void
+    get_ident
 	`
 
 
@@ -59,6 +60,7 @@ test_tokens :: proc(t: ^testing.T) {
 		Token{type = .TYPE_INT, literal = "int"},
 		Token{type = .TYPE_BOOL, literal = "bool"},
 		Token{type = .TYPE_VOID, literal = "void"},
+		Token{type = .IDENT, literal = "get_ident"},
 	}
 
 	lexer: Lexer

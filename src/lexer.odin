@@ -169,7 +169,7 @@ lexer_skip_whitespace :: proc(l: ^Lexer) {
 
 lexer_read_ident :: proc(l: ^Lexer) -> string {
 	start := l.pos
-	for unicode.is_letter(l.ch) {
+	for unicode.is_letter(l.ch) || l.ch == '_' {
 		lexer_read_char(l)
 	}
 	return l.input[start:l.pos]
