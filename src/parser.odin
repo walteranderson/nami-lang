@@ -300,6 +300,7 @@ parser_parse_return_stmt :: proc(p: ^Parser) -> Statement {
 
 parser_parse_func :: proc(p: ^Parser) -> Statement {
 	func := new(FunctionStatement, p.allocator)
+	func.resolved_type = .Function
 	func.tok = p.cur
 	if !parser_expect_peek(p, .IDENT) {
 		return nil

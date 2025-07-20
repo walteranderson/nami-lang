@@ -106,8 +106,7 @@ TypeKind :: enum {
 	Bool,
 	Int,
 	String,
-	// TODO: add
-	// Function,
+	Function,
 }
 
 TypeAnnotation :: struct {

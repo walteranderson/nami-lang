@@ -44,11 +44,13 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) {
 	case ^FunctionStatement:
 		tc_symbols_push_scope(tc)
 		defer tc_symbols_pop_scope(tc)
+		is_main := false
 		if s.name.value == "main" {
 			if tc.has_main {
 				tc_error(tc, "Main function already declared")
 			} else {
 				tc.has_main = true
+				is_main = true
 			}
 		}
 
@@ -84,7 +86,12 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) {
 
 		// functions default to void if no type is given
 		if return_type == .Any {
-			return_type = .Void
+			if is_main {
+				// except for the main function, the assumed type is int
+				return_type = .Int
+			} else {
+				return_type = .Void
+			}
 		}
 		s.resolved_return_type = return_type
 		return

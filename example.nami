@@ -1,4 +1,9 @@
+fn test() {
+    printf("Hello\n");
+}
+
 fn add(a: int, b: int) int {
+    test();
     return a + b;
 }
 

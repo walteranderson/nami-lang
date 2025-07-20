@@ -86,10 +86,18 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 		is_main := false
 		if s.name.value == "main" {
 			is_main = true
-			qbe_emit(qbe, "export function w $main(")
-		} else {
-			qbe_emit(qbe, "function w $%s(", s.name.value)
+			qbe_emit(qbe, "export ")
 		}
+
+		qbe_emit(qbe, "function ")
+		if s.resolved_return_type != .Void {
+			qbe_emit(
+				qbe,
+				"%s ",
+				qbe_type_to_string(qbe_lang_type_to_qbe_type(s.resolved_return_type)),
+			)
+		}
+		qbe_emit(qbe, "$%s(", s.name.value)
 
 		for arg, idx in s.args {
 			reg := qbe_new_temp_reg(qbe)
@@ -442,6 +450,9 @@ qbe_lang_type_to_size :: proc(type: TypeKind) -> int {
 		// TODO
 		// assuming that if we get an "any" at this point, maybe its a pointer?
 		return 8
+	case .Function:
+		// Kind of assuming that maybe in the future, this will refer to a function pointer
+		return 8
 	case .Void:
 		return 0
 	case .Invalid:
@@ -460,6 +471,8 @@ qbe_lang_type_to_qbe_type :: proc(type: TypeKind) -> QbeType {
 		return .Word
 	case .Any:
 		// TODO: how to handle any types?
+		return .Long
+	case .Function:
 		return .Long
 	case .Void:
 		return .Void
