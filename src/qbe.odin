@@ -89,12 +89,14 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 			qbe_emit(qbe, "export ")
 		}
 
+		func_typeinfo := s.resolved_type.data.(FunctionTypeInfo)
+
 		qbe_emit(qbe, "function ")
-		if s.resolved_return_type.kind != .Void {
+		if func_typeinfo.return_type.kind != .Void {
 			qbe_emit(
 				qbe,
 				"%s ",
-				qbe_type_to_string(qbe_lang_type_to_qbe_type(s.resolved_return_type.kind)),
+				qbe_type_to_string(qbe_lang_type_to_qbe_type(func_typeinfo.return_type.kind)),
 			)
 		}
 		qbe_emit(qbe, "$%s(", s.name.value)
@@ -132,7 +134,7 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 		qbe_emit(qbe, "}}\n")
 		register := fmt.tprintf("$%s", s.name.value)
 
-		qbe_add_symbol(qbe, s.name.value, register, s.resolved_return_type.kind, .Func)
+		qbe_add_symbol(qbe, s.name.value, register, func_typeinfo.return_type.kind, .Func)
 
 	case ^ReturnStatement:
 		if s.value != nil {

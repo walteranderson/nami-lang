@@ -42,8 +42,6 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) {
 		tc_check_expr(tc, s.value)
 		return
 	case ^FunctionStatement:
-		tc_symbols_push_scope(tc)
-		defer tc_symbols_pop_scope(tc)
 		is_main := false
 		if s.name.value == "main" {
 			if tc.has_main {
@@ -53,6 +51,8 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) {
 				is_main = true
 			}
 		}
+
+		tc_symbols_push_scope(tc)
 
 		for arg in s.args {
 			arg.resolved_type = tc_make_typeinfo(
@@ -64,6 +64,7 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) {
 
 		if s.body == nil {
 			tc_error(tc, "Missing function body")
+			tc_symbols_pop_scope(tc)
 			return
 		}
 
@@ -96,7 +97,17 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) {
 				return_type = .Void
 			}
 		}
-		s.resolved_return_type = tc_make_typeinfo(tc, return_type)
+		tc_symbols_pop_scope(tc)
+
+		param_types: [dynamic]^TypeInfo
+		for param in s.args {
+			append(&param_types, param.resolved_type)
+		}
+		s.resolved_type = tc_make_typeinfo(tc, .Function)
+		s.resolved_type.data = FunctionTypeInfo {
+			param_types = param_types,
+			return_type = tc_make_typeinfo(tc, return_type),
+		}
 		return
 
 	case ^ReturnStatement:
