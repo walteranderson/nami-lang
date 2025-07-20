@@ -50,7 +50,8 @@ CallExpr :: struct {
 /////////
 
 Program :: struct {
-	stmts: [dynamic]Statement,
+	using node: Node,
+	stmts:      [dynamic]Statement,
 }
 
 FunctionStatement :: struct {
