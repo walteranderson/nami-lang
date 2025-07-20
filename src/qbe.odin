@@ -81,6 +81,7 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 	#partial switch s in stmt {
 	case ^FunctionStatement:
 		qbe_push_scope(qbe)
+		defer qbe_pop_scope(qbe)
 		qbe.current_func_temp_count = 0
 		is_main := false
 		if s.name.value == "main" {

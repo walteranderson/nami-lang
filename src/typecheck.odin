@@ -43,6 +43,7 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) -> Type {
 		return tc_check_expr(tc, s.value)
 	case ^FunctionStatement:
 		tc_symbols_push_scope(tc)
+		defer tc_symbols_pop_scope(tc)
 		if s.name.value == "main" {
 			if tc.has_main {
 				tc_error(tc, "Main function already declared")
