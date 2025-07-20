@@ -1,12 +1,12 @@
-fn test() {
-    printf("Hello\n");
+fn get_message() string {
+    return "this is the message";
 }
 
 fn add(a: int, b: int) int {
-    test();
     return a + b;
 }
 
 fn main() {
-    printf("1 + 2 = %d\n", add(1, 2));
+    answer := 1 + 2;
+    printf("1 + 2 = %d\n", answer);
 }

@@ -5,7 +5,7 @@ import "core:strings"
 
 Node :: struct {
 	tok:           Token,
-	resolved_type: TypeKind,
+	resolved_type: ^TypeInfo,
 }
 
 StringLiteral :: struct {
@@ -60,7 +60,7 @@ FunctionStatement :: struct {
 	args:                 [dynamic]^FunctionArg,
 	body:                 ^BlockStatement,
 	declared_return_type: ^TypeAnnotation,
-	resolved_return_type: TypeKind,
+	resolved_return_type: ^TypeInfo,
 }
 
 FunctionArg :: struct {
@@ -107,6 +107,18 @@ TypeKind :: enum {
 	Int,
 	String,
 	Function,
+}
+
+FunctionTypeInfo :: struct {
+	param_types: [dynamic]^TypeInfo,
+	return_type: ^TypeInfo,
+}
+
+TypeInfo :: struct {
+	kind: TypeKind,
+	data: union {
+		FunctionTypeInfo,
+	},
 }
 
 TypeAnnotation :: struct {
@@ -189,7 +201,7 @@ print_ast :: proc(node: AnyNode, indent_level: int) {
 		if n.declared_return_type != nil {
 			fmt.printf("%s  DeclaredReturnType: %s\n", indent, n.declared_return_type.name)
 		}
-		fmt.printf("%s  ResolvedReturnType: %s\n", indent, n.resolved_return_type)
+		fmt.printf("%s  ResolvedReturnType: %s\n", indent, n.resolved_return_type.kind)
 		print_ast(cast(AnyNode)n.body, indent_level + 1)
 	case ^FunctionArg:
 		fmt.printf("%sFunctionArg: %s\n", indent, n.ident.value)
@@ -220,7 +232,7 @@ print_ast :: proc(node: AnyNode, indent_level: int) {
 		if n.declared_type != nil {
 			fmt.printf("%s  DeclaredType: %s\n", indent, n.declared_type.name)
 		}
-		fmt.printf("%s  ResolvedType: %s\n", indent, n.resolved_type)
+		fmt.printf("%s  ResolvedType: %s\n", indent, n.resolved_type.kind)
 		print_expr(n.value, indent_level + 1)
 	case ^ReassignStatement:
 		fmt.printf("%sReassignStatement:\n", indent)

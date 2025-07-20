@@ -16,7 +16,7 @@ QBE
 - [X] optional return
 - [X] reassign stmt
 - [X] function args
-- [ ] add a proper function lang type
+- [X] add a proper function lang type
 - [ ] how to handle any type?
 - [ ] global assignment data
 - [ ] call expr return type

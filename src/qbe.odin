@@ -90,22 +90,22 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 		}
 
 		qbe_emit(qbe, "function ")
-		if s.resolved_return_type != .Void {
+		if s.resolved_return_type.kind != .Void {
 			qbe_emit(
 				qbe,
 				"%s ",
-				qbe_type_to_string(qbe_lang_type_to_qbe_type(s.resolved_return_type)),
+				qbe_type_to_string(qbe_lang_type_to_qbe_type(s.resolved_return_type.kind)),
 			)
 		}
 		qbe_emit(qbe, "$%s(", s.name.value)
 
 		for arg, idx in s.args {
 			reg := qbe_new_temp_reg(qbe)
-			qbe_add_symbol(qbe, arg.ident.value, reg, arg.resolved_type, .FuncArg)
+			qbe_add_symbol(qbe, arg.ident.value, reg, arg.resolved_type.kind, .FuncArg)
 			qbe_emit(
 				qbe,
 				"%s %s",
-				qbe_type_to_string(qbe_lang_type_to_qbe_type(arg.resolved_type)),
+				qbe_type_to_string(qbe_lang_type_to_qbe_type(arg.resolved_type.kind)),
 				reg,
 			)
 			if idx + 1 < len(s.args) {
@@ -132,7 +132,7 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 		qbe_emit(qbe, "}}\n")
 		register := fmt.tprintf("$%s", s.name.value)
 
-		qbe_add_symbol(qbe, s.name.value, register, s.resolved_return_type, .Func)
+		qbe_add_symbol(qbe, s.name.value, register, s.resolved_return_type.kind, .Func)
 
 	case ^ReturnStatement:
 		if s.value != nil {
@@ -148,14 +148,14 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 			// qbe_emit(qbe, "data export %s = { B %d { 0 } }\n", qbe_name, type_size)
 		} else {
 			reg_ptr := qbe_new_temp_reg(qbe)
-			qbe_add_symbol(qbe, s.name.value, reg_ptr, s.resolved_type, .Local)
-			size := qbe_lang_type_to_size(s.resolved_type)
+			qbe_add_symbol(qbe, s.name.value, reg_ptr, s.resolved_type.kind, .Local)
+			size := qbe_lang_type_to_size(s.resolved_type.kind)
 			qbe_emit(qbe, "  %s =l alloc%d %d\n", reg_ptr, size, size)
 			if s.value == nil {
 				qbe_emit(
 					qbe,
 					"  store%s %d, %s\n",
-					qbe_type_to_string(qbe_lang_type_to_qbe_type(s.resolved_type)),
+					qbe_type_to_string(qbe_lang_type_to_qbe_type(s.resolved_type.kind)),
 					0,
 					reg_ptr,
 				)

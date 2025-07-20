@@ -9,7 +9,7 @@ TypeChecker :: struct {
 	errs:      [dynamic]string,
 	allocator: mem.Allocator,
 	program:   ^Program,
-	symbols:   [dynamic]map[string]TypeKind,
+	symbols:   [dynamic]map[string]^TypeInfo,
 	has_main:  bool,
 }
 
@@ -55,7 +55,10 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) {
 		}
 
 		for arg in s.args {
-			arg.resolved_type = tc_check_type_annotation(tc, arg.declared_type)
+			arg.resolved_type = tc_make_typeinfo(
+				tc,
+				tc_check_type_annotation(tc, arg.declared_type),
+			)
 			tc_add_symbol(tc, arg.ident.value, arg.resolved_type)
 		}
 
@@ -76,8 +79,8 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) {
 			if rs, ok := stmt.(^ReturnStatement); ok {
 				if return_type == .Any {
 					// Assuming that if you don't specify the return type, use the first one you find. 
-					return_type = rs.resolved_type
-				} else if return_type != rs.resolved_type {
+					return_type = rs.resolved_type.kind
+				} else if return_type != rs.resolved_type.kind {
 					tc_error(tc, "Expected return type %s, got %s", return_type, rs.resolved_type)
 					return_type = .Invalid
 				}
@@ -93,7 +96,7 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) {
 				return_type = .Void
 			}
 		}
-		s.resolved_return_type = return_type
+		s.resolved_return_type = tc_make_typeinfo(tc, return_type)
 		return
 
 	case ^ReturnStatement:
@@ -105,7 +108,7 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) {
 		_, found := tc_lookup_symbol(tc, s.name.value)
 		if found {
 			tc_error(tc, "Symbol already declared: %s", s.name.value)
-			s.resolved_type = .Invalid
+			s.resolved_type = tc_make_typeinfo(tc, .Invalid)
 			return
 		}
 
@@ -114,25 +117,25 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) {
 			declared_type = tc_check_type_annotation(tc, s.declared_type)
 			if declared_type == .Invalid {
 				tc_error(tc, "Invalid type - %s", s.declared_type.name)
-				s.resolved_type = .Invalid
+				s.resolved_type = tc_make_typeinfo(tc, .Invalid)
 				return
 			}
 		}
 
 		if s.value == nil {
-			s.resolved_type = declared_type
+			s.resolved_type = tc_make_typeinfo(tc, declared_type)
 		} else {
 			expr_type := tc_check_expr(tc, s.value)
 			if declared_type == .Any {
 				s.resolved_type = expr_type
-			} else if declared_type != expr_type {
+			} else if declared_type != expr_type.kind {
 				tc_error(
 					tc,
 					"Type mismatch - declared type: %s, expression type: %s",
 					declared_type,
 					expr_type,
 				)
-				s.resolved_type = .Invalid
+				s.resolved_type = tc_make_typeinfo(tc, .Invalid)
 				return
 			} else {
 				s.resolved_type = expr_type
@@ -166,56 +169,64 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) {
 	return
 }
 
-tc_check_expr :: proc(tc: ^TypeChecker, expr: Expr) -> TypeKind {
+tc_check_expr :: proc(tc: ^TypeChecker, expr: Expr) -> ^TypeInfo {
 	switch e in expr {
 	case ^Boolean:
-		e.resolved_type = .Bool
+		e.resolved_type = tc_make_typeinfo(tc, .Bool)
 		return e.resolved_type
 	case ^IntLiteral:
-		e.resolved_type = .Int
+		e.resolved_type = tc_make_typeinfo(tc, .Int)
 		return e.resolved_type
 	case ^StringLiteral:
-		e.resolved_type = .String
+		e.resolved_type = tc_make_typeinfo(tc, .String)
 		return e.resolved_type
 	case ^CallExpr:
-	// lookup function in symbol table to get return type
-	// or check against builtins (put in some kind of structure, aka printf)
+		// lookup function in symbol table to get return type
+		// or check against builtins (put in some kind of structure, aka printf)
+		log(.ERROR, "TODO: typechecker CallExpr")
+		return nil
 	case ^InfixExpr:
 		lhs_type := tc_check_expr(tc, e.left)
 		rhs_type := tc_check_expr(tc, e.right)
-		if lhs_type == .Invalid || rhs_type == .Invalid {
+		if lhs_type.kind == .Invalid || rhs_type.kind == .Invalid {
 			tc_error(
 				tc,
 				"infix expression contains invalid left: %s, right: %s",
 				lhs_type,
 				rhs_type,
 			)
-			return .Invalid
+			e.resolved_type = tc_make_typeinfo(tc, .Invalid)
+			return e.resolved_type
 		}
-		if lhs_type != rhs_type {
-			tc_error(tc, "type mismatch - expected %s, got %s", lhs_type, rhs_type)
-			return .Invalid
+		if lhs_type.kind != rhs_type.kind {
+			tc_error(tc, "type mismatch - expected %s, got %s", lhs_type.kind, rhs_type.kind)
+			e.resolved_type = tc_make_typeinfo(tc, .Invalid)
+			return e.resolved_type
 		}
 		e.resolved_type = lhs_type
 		return e.resolved_type
+
 	case ^PrefixExpr:
 		rhs_type := tc_check_expr(tc, e.right)
-		if rhs_type == .Invalid {
-			return .Invalid
+		if rhs_type.kind == .Invalid {
+			return rhs_type
 		}
 		e.resolved_type = rhs_type
 		return e.resolved_type
+
 	case ^Identifier:
 		symbol_type, found := tc_lookup_symbol(tc, e.value)
 		if !found {
 			tc_error(tc, "Identifier not found: %s", e.value)
-			return .Invalid
+			e.resolved_type = tc_make_typeinfo(tc, .Invalid)
+			return e.resolved_type
 		}
 		e.resolved_type = symbol_type
 		return e.resolved_type
 
 	}
-	return .Invalid
+	log(.ERROR, "Unreachable - checking expr: %+v", expr)
+	return nil
 }
 
 tc_check_type_annotation :: proc(tc: ^TypeChecker, a: ^TypeAnnotation) -> TypeKind {
@@ -241,23 +252,23 @@ tc_error :: proc(tc: ^TypeChecker, ft: string, args: ..any) {
 	append(&tc.errs, fmt.tprintf(ft, ..args))
 }
 
-tc_add_symbol :: proc(tc: ^TypeChecker, name: string, type: TypeKind) {
+tc_add_symbol :: proc(tc: ^TypeChecker, name: string, typeinfo: ^TypeInfo) {
 	if len(tc.symbols) <= 0 {
 		tc_error(tc, "can't add symbol to an empty stack")
 		return
 	}
 	name_copy := strings.clone(name, tc.allocator)
-	tc.symbols[len(tc.symbols) - 1][name_copy] = type
+	tc.symbols[len(tc.symbols) - 1][name_copy] = typeinfo
 }
 
-tc_lookup_symbol :: proc(tc: ^TypeChecker, name: string) -> (TypeKind, bool) {
+tc_lookup_symbol :: proc(tc: ^TypeChecker, name: string) -> (^TypeInfo, bool) {
 	for i := len(tc.symbols) - 1; i >= 0; i -= 1 {
 		scope := tc.symbols[i]
 		if val, ok := scope[name]; ok {
 			return val, true
 		}
 	}
-	return .Invalid, false
+	return nil, false
 }
 
 tc_symbols_pop_scope :: proc(tc: ^TypeChecker) {
@@ -270,6 +281,12 @@ tc_symbols_pop_scope :: proc(tc: ^TypeChecker) {
 }
 
 tc_symbols_push_scope :: proc(tc: ^TypeChecker) {
-	scope := make(map[string]TypeKind, tc.allocator)
+	scope := make(map[string]^TypeInfo, tc.allocator)
 	append(&tc.symbols, scope)
+}
+
+tc_make_typeinfo :: proc(tc: ^TypeChecker, kind: TypeKind) -> ^TypeInfo {
+	typeinfo := new(TypeInfo, tc.allocator)
+	typeinfo.kind = kind
+	return typeinfo
 }
