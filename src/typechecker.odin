@@ -34,13 +34,13 @@ tc_check_program :: proc(tc: ^TypeChecker) {
 	log(.INFO, "Typechecking complete: %v", time.diff(start, time.now()))
 }
 
-tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) -> Type {
+tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) {
 	#partial switch s in stmt {
 	case ^Program:
 		tc_error(tc, "Unexpected program statement")
-		return .Invalid
 	case ^ExprStatement:
-		return tc_check_expr(tc, s.value)
+		tc_check_expr(tc, s.value)
+		return
 	case ^FunctionStatement:
 		tc_symbols_push_scope(tc)
 		defer tc_symbols_pop_scope(tc)
@@ -59,7 +59,7 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) -> Type {
 
 		if s.body == nil {
 			tc_error(tc, "Missing function body")
-			return .Invalid
+			return
 		}
 
 		return_type := tc_check_type_annotation(tc, s.declared_return_type)
@@ -69,14 +69,14 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) -> Type {
 				tc_error(tc, "nested functions not allowed")
 			}
 
-			stmt_type := tc_check_stmt(tc, stmt)
+			tc_check_stmt(tc, stmt)
 
-			if _, ok := stmt.(^ReturnStatement); ok {
+			if rs, ok := stmt.(^ReturnStatement); ok {
 				if return_type == .Any {
 					// Assuming that if you don't specify the return type, use the first one you find. 
-					return_type = stmt_type
-				} else if return_type != stmt_type {
-					tc_error(tc, "Expected return type %s, got %s", return_type, stmt_type)
+					return_type = rs.resolved_type
+				} else if return_type != rs.resolved_type {
+					tc_error(tc, "Expected return type %s, got %s", return_type, rs.resolved_type)
 					return_type = .Invalid
 				}
 			}
@@ -87,22 +87,19 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) -> Type {
 			return_type = .Void
 		}
 		s.resolved_return_type = return_type
-
-		// TODO: what type do functions return? should i add a function type?
-		// returning invalid because this shouldn't logically happen
-		return .Invalid
+		return
 
 	case ^ReturnStatement:
 		expr_type := tc_check_expr(tc, s.value)
 		s.resolved_type = expr_type
-		return s.resolved_type
+		return
 
 	case ^AssignStatement:
 		_, found := tc_lookup_symbol(tc, s.name.value)
 		if found {
 			tc_error(tc, "Symbol already declared: %s", s.name.value)
 			s.resolved_type = .Invalid
-			return s.resolved_type
+			return
 		}
 
 		declared_type: Type = .Any
@@ -111,7 +108,7 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) -> Type {
 			if declared_type == .Invalid {
 				tc_error(tc, "Invalid type - %s", s.declared_type.name)
 				s.resolved_type = .Invalid
-				return s.resolved_type
+				return
 			}
 		}
 
@@ -129,20 +126,20 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) -> Type {
 					expr_type,
 				)
 				s.resolved_type = .Invalid
-				return s.resolved_type
+				return
 			} else {
 				s.resolved_type = expr_type
 			}
 		}
 
 		tc_add_symbol(tc, s.name.value, s.resolved_type)
-		return s.resolved_type
+		return
 
 	case ^ReassignStatement:
 		sym_type, found := tc_lookup_symbol(tc, s.name.value)
 		if !found {
 			tc_error(tc, "%s is not defined", s.name.value)
-			return .Invalid
+			return
 		}
 		expr_type := tc_check_expr(tc, s.value)
 		if sym_type != expr_type {
@@ -153,13 +150,13 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) -> Type {
 				sym_type,
 				expr_type,
 			)
-			return .Invalid
+			return
 		}
 		s.resolved_type = sym_type
-		return s.resolved_type
+		return
 	}
 	log(.ERROR, "Unreachable typechecking statement: %+v", stmt)
-	return .Invalid
+	return
 }
 
 tc_check_expr :: proc(tc: ^TypeChecker, expr: Expr) -> Type {
