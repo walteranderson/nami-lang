@@ -81,7 +81,6 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 	#partial switch s in stmt {
 	case ^FunctionStatement:
 		qbe_push_scope(qbe)
-		defer qbe_pop_scope(qbe)
 		qbe.current_func_temp_count = 0
 		is_main := false
 		if s.name.value == "main" {
@@ -132,8 +131,9 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 			}
 		}
 		qbe_emit(qbe, "}}\n")
-		register := fmt.tprintf("$%s", s.name.value)
+		qbe_pop_scope(qbe)
 
+		register := fmt.tprintf("$%s", s.name.value)
 		qbe_add_symbol(qbe, s.name.value, register, func_typeinfo.return_type.kind, .Func)
 
 	case ^ReturnStatement:
@@ -270,14 +270,17 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> QbeResult {
 		}
 
 	case ^CallExpr:
-		// TODO: expand this further to be less hard-coded
-		ret_type: QbeType
+		return_type: QbeType
+		// TODO: better builting handling
 		if v.func.value == "printf" {
-			ret_type = .Long
-		} else if v.func.value == "main" {
-			ret_type = .Word
+			return_type = .Word
 		} else {
-			ret_type = .Word
+			entry, found := qbe_lookup_symbol(qbe, v.func.value)
+			if !found {
+				qbe_error(qbe, "Identifier not found %s", v.func.value)
+				return QbeResult{"", .Invalid}
+			}
+			return_type = entry.qbe_type
 		}
 
 		args_reg := make([dynamic]QbeResult, qbe.allocator)
@@ -291,7 +294,7 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> QbeResult {
 		}
 
 		ret_reg := qbe_new_temp_reg(qbe)
-		qbe_emit(qbe, "  %s =%s call $%s(", ret_reg, qbe_type_to_string(ret_type), v.func.value)
+		qbe_emit(qbe, "  %s =%s call $%s(", ret_reg, qbe_type_to_string(return_type), v.func.value)
 		for arg, i in args_reg {
 			qbe_emit(qbe, "%s %s", qbe_type_to_string(arg.type), arg.value)
 			if i + 1 < len(args_reg) {
@@ -299,7 +302,7 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> QbeResult {
 			}
 		}
 		qbe_emit(qbe, ")\n")
-		return QbeResult{ret_reg, ret_type}
+		return QbeResult{ret_reg, return_type}
 
 	case ^StringLiteral:
 		qbe.str_count += 1

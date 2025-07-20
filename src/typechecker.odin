@@ -108,6 +108,7 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) {
 			param_types = param_types,
 			return_type = tc_make_typeinfo(tc, return_type),
 		}
+		tc_add_symbol(tc, s.name.value, s.resolved_type)
 		return
 
 	case ^ReturnStatement:
@@ -192,10 +193,60 @@ tc_check_expr :: proc(tc: ^TypeChecker, expr: Expr) -> ^TypeInfo {
 		e.resolved_type = tc_make_typeinfo(tc, .String)
 		return e.resolved_type
 	case ^CallExpr:
-		// lookup function in symbol table to get return type
-		// or check against builtins (put in some kind of structure, aka printf)
-		log(.ERROR, "TODO: typechecker CallExpr")
-		return nil
+		typeinfo, found := tc_lookup_symbol(tc, e.func.value)
+		if !found {
+			// TODO: add better builtin support
+			if e.func.value == "printf" {
+				// TODO: do i need to support variadics now??
+				return_type := tc_make_typeinfo(tc, .Int)
+				f_typeinfo := tc_make_typeinfo(tc, .Function)
+				f_typeinfo.data = FunctionTypeInfo {
+					return_type = return_type,
+				}
+				e.resolved_type = f_typeinfo
+				return e.resolved_type
+			}
+
+			tc_error(tc, "Identifier not found: %s", e.func.value)
+			return tc_make_typeinfo(tc, .Invalid)
+		}
+
+		if typeinfo.kind != .Function {
+			tc_error(tc, "Identifier is not a function, got %s", typeinfo.kind)
+			return tc_make_typeinfo(tc, .Invalid)
+		}
+
+		f_typeinfo := typeinfo.data.(FunctionTypeInfo)
+
+		if len(f_typeinfo.param_types) != len(e.args) {
+			tc_error(
+				tc,
+				"function arity does not match. Signature expects %d parameters, got %d",
+				len(f_typeinfo.param_types),
+				len(e.args),
+			)
+			return tc_make_typeinfo(tc, .Invalid)
+		}
+
+		for arg, i in e.args {
+			arg_typeinfo := tc_check_expr(tc, arg)
+			if arg_typeinfo.kind == .Invalid {
+				tc_error(tc, "invalid function parameter")
+				return tc_make_typeinfo(tc, .Invalid)
+			}
+			f_param := f_typeinfo.param_types[i]
+			if arg_typeinfo.kind != f_param.kind {
+				tc_error(
+					tc,
+					"parameter type mismatch: expected %s, got %s",
+					f_param.kind,
+					arg_typeinfo.kind,
+				)
+				return tc_make_typeinfo(tc, .Invalid)
+			}
+		}
+		e.resolved_type = f_typeinfo.return_type
+		return e.resolved_type
 	case ^InfixExpr:
 		lhs_type := tc_check_expr(tc, e.left)
 		rhs_type := tc_check_expr(tc, e.right)

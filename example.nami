@@ -1,5 +1,5 @@
 fn get_message() string {
-    return "this is the message";
+    return "Hello from another function!";
 }
 
 fn add(a: int, b: int) int {
@@ -7,6 +7,8 @@ fn add(a: int, b: int) int {
 }
 
 fn main() {
-    answer := 1 + 2;
+    msg := get_message();
+    answer := add(1, 2);
+    printf("%s\n", msg);
     printf("1 + 2 = %d\n", answer);
 }
