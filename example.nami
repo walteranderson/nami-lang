@@ -1,15 +1,5 @@
-fn get_message() string {
-    return "Hello from another function!";
-}
-
-fn add(a: int, b: int) int {
-    return a + b;
-}
-
 fn main() {
-    msg := get_message();
-    answer := add(1, 2);
-    printf("%s\n", msg);
-    printf("add(1, 2) = %d\n", answer);
-    printf("(5 * 5 + add(1, 2)) * -1 = %d\n", (5 * 5 + add(1, 2)) * -1);
+    foo := 1 + 2 > 5;
+    printf("%d\n", foo);
+    return 0;
 }

@@ -205,34 +205,45 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> QbeResult {
 			return QbeResult{"", .Invalid}
 		}
 
-		op_str := ""
-		switch v.op {
-		case "+":
-			op_str = "add"
-		case "-":
-			op_str = "sub"
-		case "*":
-			op_str = "mul"
-		case "/":
-			op_str = "div"
-		case:
-			qbe_error(qbe, "Unsupported operator: %s", v.op)
+		// TODO: what other types should i support?
+		if lhs.type != .Word || rhs.type != .Word {
+			qbe_error(qbe, "only integers and booleans are allowed for infix expressions")
 			return QbeResult{"", .Invalid}
 		}
+		res_type: QbeType = .Word
 
-		res_type: QbeType
-		if lhs.type == .Word && rhs.type == .Word {
-			res_type = .Word
-		} else if lhs.type == .Long && rhs.type == .Long {
-			res_type = .Long
-		} else {
-			qbe_error(
-				qbe,
-				"type mismatch for operator %s: cannot operate on %s and %s",
-				op_str,
-				lhs.type,
-				rhs.type,
+		op_str := ""
+		#partial switch v.tok.type {
+		case .PLUS:
+			op_str = "add"
+		case .MINUS:
+			op_str = "sub"
+		case .STAR:
+			op_str = "mul"
+		case .SLASH:
+			op_str = "div"
+		case .EQ:
+			op_str = strings.concatenate(
+				[]string{"ceq", qbe_type_to_string(res_type)},
+				qbe.allocator,
 			)
+		case .NOT_EQ:
+			op_str = strings.concatenate(
+				[]string{"cne", qbe_type_to_string(res_type)},
+				qbe.allocator,
+			)
+		case .GT:
+			op_str = strings.concatenate(
+				[]string{"csgt", qbe_type_to_string(res_type)},
+				qbe.allocator,
+			)
+		case .LT:
+			op_str = strings.concatenate(
+				[]string{"cslt", qbe_type_to_string(res_type)},
+				qbe.allocator,
+			)
+		case:
+			qbe_error(qbe, "Unsupported operator: %s", v.op)
 			return QbeResult{"", .Invalid}
 		}
 
