@@ -35,7 +35,7 @@ tc_check_program :: proc(tc: ^TypeChecker) {
 }
 
 tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) {
-	#partial switch s in stmt {
+	switch s in stmt {
 	case ^Program:
 		tc_error(tc, "Unexpected program statement")
 	case ^ExprStatement:
@@ -111,6 +111,11 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) {
 		tc_add_symbol(tc, s.name.value, s.resolved_type)
 		return
 
+	case ^BlockStatement:
+		tc_error(tc, "Unreachable - block statement")
+	case ^FunctionArg:
+		tc_error(tc, "Unreachable - function arg")
+
 	case ^ReturnStatement:
 		expr_type := tc_check_expr(tc, s.value)
 		s.resolved_type = expr_type
@@ -175,6 +180,28 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) {
 			return
 		}
 		s.resolved_type = sym_type
+		return
+
+	case ^IfStatement:
+		cond_typeinfo := tc_check_expr(tc, s.condition)
+		if cond_typeinfo.kind != .Bool {
+			tc_error(tc, "if expression should resolve to a boolean, got %s", cond_typeinfo.kind)
+			return
+		}
+
+		tc_symbols_push_scope(tc)
+		for stmt in s.consequence.stmts {
+			tc_check_stmt(tc, stmt)
+		}
+		tc_symbols_pop_scope(tc)
+
+		if s.alternative != nil {
+			tc_symbols_push_scope(tc)
+			for stmt in s.alternative.stmts {
+				tc_check_stmt(tc, stmt)
+			}
+			tc_symbols_pop_scope(tc)
+		}
 		return
 	}
 	log(.ERROR, "Unreachable typechecking statement: %+v", stmt)
@@ -265,7 +292,12 @@ tc_check_expr :: proc(tc: ^TypeChecker, expr: Expr) -> ^TypeInfo {
 			e.resolved_type = tc_make_typeinfo(tc, .Invalid)
 			return e.resolved_type
 		}
-		e.resolved_type = lhs_type
+		#partial switch e.tok.type {
+		case .EQ, .NOT_EQ, .LT, .GT:
+			e.resolved_type = tc_make_typeinfo(tc, .Bool)
+		case:
+			e.resolved_type = lhs_type
+		}
 		return e.resolved_type
 
 	case ^PrefixExpr:

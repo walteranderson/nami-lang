@@ -47,6 +47,13 @@ CallExpr :: struct {
 	args:       [dynamic]Expr,
 }
 
+IfStatement :: struct {
+	using node:  Node,
+	condition:   Expr,
+	consequence: ^BlockStatement,
+	alternative: ^BlockStatement,
+}
+
 /////////
 
 Program :: struct {
@@ -146,6 +153,7 @@ Statement :: union {
 	^ReassignStatement,
 	^FunctionStatement,
 	^FunctionArg,
+	^IfStatement,
 }
 
 AnyNode :: union {
@@ -165,6 +173,7 @@ AnyNode :: union {
 	^ReassignStatement,
 	^FunctionStatement,
 	^FunctionArg,
+	^IfStatement,
 }
 
 print_ast :: proc(node: AnyNode, indent_level: int) {
@@ -221,10 +230,12 @@ print_ast :: proc(node: AnyNode, indent_level: int) {
 		}
 	case ^InfixExpr:
 		fmt.printf("%sInfixExpr: %s\n", indent, n.op)
+		fmt.printf("%s  ResolvedType: %s\n", indent, n.resolved_type.kind)
 		print_expr(n.left, indent_level + 1)
 		print_expr(n.right, indent_level + 1)
 	case ^PrefixExpr:
 		fmt.printf("%sPrefixExpr: %s\n", indent, n.op)
+		fmt.printf("%s  ResolvedType: %s\n", indent, n.resolved_type.kind)
 		print_expr(n.right, indent_level + 1)
 	case ^AssignStatement:
 		fmt.printf("%sAssignStatement:\n", indent)
@@ -236,6 +247,7 @@ print_ast :: proc(node: AnyNode, indent_level: int) {
 		print_expr(n.value, indent_level + 1)
 	case ^ReassignStatement:
 		fmt.printf("%sReassignStatement:\n", indent)
+		fmt.printf("%s  ResolvedType: %s\n", indent, n.resolved_type.kind)
 		print_expr(n.name, indent_level + 1)
 		print_expr(n.value, indent_level + 1)
 	case ^Boolean:
@@ -246,6 +258,16 @@ print_ast :: proc(node: AnyNode, indent_level: int) {
 		fmt.printf("%sIntLiteral: %d\n", indent, n.value)
 	case ^StringLiteral:
 		fmt.printf("%sStringLiteral: %v\n", indent, n.value)
+	case ^IfStatement:
+		fmt.printf("%sIf Statement:\n", indent)
+		fmt.printf("%s  Condition:\n", indent)
+		print_expr(n.condition, indent_level + 2)
+		fmt.printf("%s  Consequence:\n", indent)
+		print_statement(n.consequence, indent_level + 2)
+		if n.alternative != nil {
+			fmt.printf("%s  Alternative:\n", indent)
+			print_statement(n.alternative, indent_level + 2)
+		}
 	}
 }
 
@@ -266,6 +288,8 @@ print_statement :: proc(stmt: Statement, indent_level: int) {
 	case ^FunctionStatement:
 		print_ast(cast(AnyNode)s, indent_level)
 	case ^FunctionArg:
+		print_ast(cast(AnyNode)s, indent_level)
+	case ^IfStatement:
 		print_ast(cast(AnyNode)s, indent_level)
 	}
 }

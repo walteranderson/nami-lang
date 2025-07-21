@@ -73,7 +73,6 @@ parser_init :: proc(p: ^Parser, file_contents: string, allocator: mem.Allocator)
 	p.prefix_fns[.INT] = parser_parse_int
 	p.prefix_fns[.STRING] = parser_parse_string
 	p.prefix_fns[.IDENT] = parser_parse_ident
-	// p.prefix_fns[.FUNC] = parser_parse_func
 	p.prefix_fns[.TRUE] = parser_parse_bool
 	p.prefix_fns[.FALSE] = parser_parse_bool
 	p.prefix_fns[.BANG] = parser_parse_prefix_expr
@@ -119,6 +118,10 @@ parser_parse_stmt :: proc(p: ^Parser) -> Statement {
 
 	if parser_cur_token_is(p, .FUNC) {
 		return parser_parse_func(p)
+	}
+
+	if parser_cur_token_is(p, .IF) {
+		return parser_parse_if_stmt(p)
 	}
 
 	if parser_cur_token_is(p, .IDENT) {
@@ -194,6 +197,25 @@ parser_parse_expr :: proc(p: ^Parser, precedence: Precedence) -> Expr {
 		left = infix_fn(p, left)
 	}
 	return left
+}
+
+parser_parse_if_stmt :: proc(p: ^Parser) -> Statement {
+	parser_next_token(p)
+	if_expr := new(IfStatement, p.allocator)
+	if_expr.condition = parser_parse_expr(p, .LOWEST)
+	if !parser_expect_peek(p, .L_BRACE) {
+		return nil
+	}
+	if_expr.consequence = parser_parse_block_stmt(p)
+	if parser_peek_token_is(p, .ELSE) {
+		parser_next_token(p)
+		if !parser_expect_peek(p, .L_BRACE) {
+			return nil
+		}
+		if_expr.alternative = parser_parse_block_stmt(p)
+	}
+
+	return if_expr
 }
 
 parser_parse_grouped_expr :: proc(p: ^Parser) -> Expr {

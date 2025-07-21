@@ -1,6 +1,10 @@
-fn main() {
-	foo := true;
-	foo = "bar";
-    printf("hello %s, %s\n", "world", foo);
+fn main() int {
+	foo := 5;
+	bar := 4;
+
+	if foo > 0 {
+		printf("true\n")
+	}
+
     return 0;
 }

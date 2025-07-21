@@ -78,7 +78,7 @@ qbe_generate :: proc(qbe: ^Qbe) {
 }
 
 qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
-	#partial switch s in stmt {
+	switch s in stmt {
 	case ^FunctionStatement:
 		qbe_push_scope(qbe)
 		qbe.current_func_temp_count = 0
@@ -135,6 +135,11 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 
 		register := fmt.tprintf("$%s", s.name.value)
 		qbe_add_symbol(qbe, s.name.value, register, func_typeinfo.return_type.kind, .Func)
+
+	case ^BlockStatement:
+		qbe_error(qbe, "Unreachable - block statement")
+	case ^FunctionArg:
+		qbe_error(qbe, "Unreachable - function arg")
 
 	case ^ReturnStatement:
 		if s.value != nil {
@@ -247,6 +252,10 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 
 	case ^Program:
 		qbe_error(qbe, "Unexpected program")
+
+	case ^IfStatement:
+		log(.INFO, "TODO: if_expr qbe codegen")
+
 	case:
 		log(.ERROR, "QBE generating statement unreachable: %+v", stmt)
 	}
