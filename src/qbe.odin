@@ -338,9 +338,12 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> QbeResult {
 
 	case ^CallExpr:
 		return_type: QbeType
-		// TODO: better builting handling
+		// TODO: better builtin handling
+		// TODO: (variadic support) currently hardcoding only for printf
+		is_variadic := false
 		if v.func.value == "printf" {
 			return_type = .Word
+			is_variadic = true
 		} else {
 			entry, found := qbe_lookup_symbol(qbe, v.func.value)
 			if !found {
@@ -366,6 +369,9 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> QbeResult {
 			qbe_emit(qbe, "%s %s", qbe_type_to_string(arg.type), arg.value)
 			if i + 1 < len(args_reg) {
 				qbe_emit(qbe, ", ")
+				if i == 0 && is_variadic {
+					qbe_emit(qbe, " ..., ")
+				}
 			}
 		}
 		qbe_emit(qbe, ")\n")
