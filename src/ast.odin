@@ -92,7 +92,7 @@ ReassignStatement :: struct {
 AssignStatement :: struct {
 	using node:    Node,
 	name:          ^Identifier,
-	value:         Expr,
+	value:         Expr, // optional
 	declared_type: ^TypeAnnotation,
 }
 

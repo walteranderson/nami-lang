@@ -1,6 +1,6 @@
-foo := 69;
-
 fn main() {
-    printf("hello %s, %d\n", "world", foo);
+	foo := true;
+	foo = "bar";
+    printf("hello %s, %s\n", "world", foo);
     return 0;
 }

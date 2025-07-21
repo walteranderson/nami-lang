@@ -164,13 +164,13 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) {
 			return
 		}
 		expr_type := tc_check_expr(tc, s.value)
-		if sym_type != expr_type {
+		if sym_type.kind != expr_type.kind {
 			tc_error(
 				tc,
-				"Type mismatch - %s is type %s, cannot reassign to %s",
+				"Type mismatch - %s is type %s, cannot reassign to type %s",
 				s.name.value,
-				sym_type,
-				expr_type,
+				sym_type.kind,
+				expr_type.kind,
 			)
 			return
 		}
