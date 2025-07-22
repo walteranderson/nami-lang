@@ -26,6 +26,8 @@ test_tokens :: proc(t: ^testing.T) {
     bool
     void
     get_ident
+	if
+	else
 	`
 
 
@@ -61,6 +63,8 @@ test_tokens :: proc(t: ^testing.T) {
 		Token{type = .TYPE_BOOL, literal = "bool"},
 		Token{type = .TYPE_VOID, literal = "void"},
 		Token{type = .IDENT, literal = "get_ident"},
+		Token{type = .IF, literal = "if"},
+		Token{type = .ELSE, literal = "else"},
 	}
 
 	lexer: Lexer
