@@ -1,10 +1,9 @@
 package nami
 
-import vmem "core:mem/virtual"
 import "core:testing"
 
 @(test)
-test_tokens :: proc(t: ^testing.T) {
+test_lexer :: proc(t: ^testing.T) {
 	input := `
 	fn main() {}
 	[]
