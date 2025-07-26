@@ -68,35 +68,17 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) {
 			return
 		}
 
-		return_type := tc_check_type_annotation(tc, s.declared_return_type)
-
-		for stmt in s.body.stmts {
-			if _, ok := stmt.(^FunctionStatement); ok {
-				tc_error(tc, "nested functions not allowed")
-			}
-
-			tc_check_stmt(tc, stmt)
-
-			if rs, ok := stmt.(^ReturnStatement); ok {
-				if return_type == .Any {
-					// Assuming that if you don't specify the return type, use the first one you find. 
-					return_type = rs.resolved_type.kind
-				} else if return_type != rs.resolved_type.kind {
-					tc_error(tc, "Expected return type %s, got %s", return_type, rs.resolved_type)
-					return_type = .Invalid
-				}
-			}
+		declared_return_type := tc_check_type_annotation(tc, s.declared_return_type)
+		if declared_return_type == .Invalid || declared_return_type == .Any {
+			tc_error(tc, "missing function return type")
 		}
 
-		// functions default to void if no type is given
-		if return_type == .Any {
-			if is_main {
-				// except for the main function, the assumed type is int
-				return_type = .Int
-			} else {
-				return_type = .Void
-			}
+		if is_main && declared_return_type != .Int {
+			tc_error(tc, "Main function must have return type of int")
 		}
+
+		tc_check_body_stmt_for_returns(tc, s.body, declared_return_type)
+
 		tc_symbols_pop_scope(tc)
 
 		param_types: [dynamic]^TypeInfo
@@ -106,7 +88,7 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) {
 		s.resolved_type = tc_make_typeinfo(tc, .Function)
 		s.resolved_type.data = FunctionTypeInfo {
 			param_types = param_types,
-			return_type = tc_make_typeinfo(tc, return_type),
+			return_type = tc_make_typeinfo(tc, declared_return_type),
 		}
 		tc_add_symbol(tc, s.name.value, s.resolved_type)
 		return
@@ -321,6 +303,35 @@ tc_check_expr :: proc(tc: ^TypeChecker, expr: Expr) -> ^TypeInfo {
 	}
 	log(.ERROR, "Unreachable - checking expr: %+v", expr)
 	return nil
+}
+
+tc_check_body_stmt_for_returns :: proc(
+	tc: ^TypeChecker,
+	body: ^BlockStatement,
+	declared_return_type: TypeKind,
+) {
+	for stmt in body.stmts {
+		if _, ok := stmt.(^FunctionStatement); ok {
+			tc_error(tc, "nested functions not allowed")
+		}
+		tc_check_stmt(tc, stmt)
+		#partial switch s in stmt {
+		case ^ReturnStatement:
+			if s.resolved_type.kind != declared_return_type {
+				tc_error(
+					tc,
+					"Expected return type %s, got %s",
+					declared_return_type,
+					s.resolved_type.kind,
+				)
+			}
+		case ^IfStatement:
+			tc_check_body_stmt_for_returns(tc, s.consequence, declared_return_type)
+			if s.alternative != nil {
+				tc_check_body_stmt_for_returns(tc, s.alternative, declared_return_type)
+			}
+		}
+	}
 }
 
 tc_check_type_annotation :: proc(tc: ^TypeChecker, a: ^TypeAnnotation) -> TypeKind {

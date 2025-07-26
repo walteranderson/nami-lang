@@ -186,6 +186,7 @@ print_ast :: proc(node: AnyNode, indent_level: int) {
 		}
 	case ^ReturnStatement:
 		fmt.printf("%sReturnStatement:\n", indent)
+		fmt.printf("%s  ResolvedType: %s\n", indent, n.resolved_type.kind)
 		print_expr(n.value, indent_level + 1)
 	case ^ExprStatement:
 		fmt.printf("%sExprStatement:\n", indent)

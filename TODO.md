@@ -1,5 +1,5 @@
 Lexer/Parser
-- [ ] if/else
+- [X] if/else
 - [ ] && || operators
 - [ ] arrays
 - [ ] loops
