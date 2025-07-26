@@ -12,6 +12,7 @@ Typechecker
 - [X] func args / check func return
 - [X] more robust infix support for more types
 - [ ] builtin typechecking
+- [X] if/else
 
 
 QBE
@@ -25,3 +26,4 @@ QBE
 - [ ] forward declaration of some kind for functions
 - [X] lang_type_to_size
 - [ ] builtin codegen
+- [ ] if/else
