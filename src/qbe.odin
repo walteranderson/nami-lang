@@ -9,14 +9,15 @@ import "core:time"
 import "ast"
 
 Qbe :: struct {
-	allocator:               mem.Allocator,
-	sb:                      strings.Builder,
-	program:                 ^ast.Program,
-	errors:                  [dynamic]string,
-	strs:                    map[string]string,
-	str_count:               int,
-	symbols:                 [dynamic]QbeSymbolTable,
-	current_func_temp_count: int,
+	allocator:        mem.Allocator,
+	sb:               strings.Builder,
+	program:          ^ast.Program,
+	errors:           [dynamic]string,
+	strs:             map[string]string,
+	str_count:        int,
+	symbols:          [dynamic]QbeSymbolTable,
+	func_temp_count:  int,
+	label_temp_count: int,
 }
 
 QbeType :: enum {
@@ -95,7 +96,8 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: ast.Statement) {
 	switch s in stmt {
 	case ^ast.FunctionStatement:
 		qbe_push_scope(qbe)
-		qbe.current_func_temp_count = 0
+		qbe.func_temp_count = 0
+		qbe.label_temp_count = 0
 		is_main := false
 		if s.name.value == "main" {
 			is_main = true
@@ -129,7 +131,7 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: ast.Statement) {
 		}
 
 		qbe_emit(qbe, ") {{\n")
-		qbe_emit(qbe, "@start\n")
+		qbe_emit(qbe, "%s\n", qbe_new_temp_label(qbe, "start"))
 		has_return := false
 		for st in s.body.stmts {
 			if _, ok := st.(^ast.ReturnStatement); ok {
@@ -268,10 +270,41 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: ast.Statement) {
 		qbe_error(qbe, "Unexpected program")
 
 	case ^ast.IfStatement:
-		log(.INFO, "TODO: if_expr qbe codegen")
+		qbe_gen_if_stmt(qbe, s)
 
 	case:
 		log(.ERROR, "QBE generating statement unreachable: %+v", stmt)
+	}
+}
+
+qbe_gen_if_stmt :: proc(qbe: ^Qbe, stmt: ^ast.IfStatement) {
+	result := qbe_gen_expr(qbe, stmt.condition)
+	if result.type == .Invalid {
+		return
+	}
+
+	if_true_label := qbe_new_temp_label(qbe, "if_true")
+	if_false_label := qbe_new_temp_label(qbe, "if_false")
+
+	qbe_emit(qbe, "  jnz %s, %s, %s\n", result.value, if_true_label, if_false_label)
+
+	qbe_emit(qbe, "%s\n", if_true_label)
+	for s in stmt.consequence.stmts {
+		qbe_gen_stmt(qbe, s)
+	}
+
+	join_label: string
+	if stmt.alternative != nil {
+		join_label = qbe_new_temp_label(qbe, "if_join")
+		qbe_emit(qbe, "  jmp %s\n", join_label)
+	}
+	qbe_emit(qbe, "%s\n", if_false_label)
+
+	if stmt.alternative != nil {
+		for s in stmt.alternative.stmts {
+			qbe_gen_stmt(qbe, s)
+		}
+		qbe_emit(qbe, "%s\n", join_label)
 	}
 }
 
@@ -471,9 +504,15 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: ast.Expr) -> QbeResult {
 }
 
 qbe_new_temp_reg :: proc(qbe: ^Qbe) -> string {
-	qbe.current_func_temp_count += 1
-	name := fmt.tprintf("%%.%d", qbe.current_func_temp_count)
+	qbe.func_temp_count += 1
+	name := fmt.tprintf("%%.%d", qbe.func_temp_count)
 	return name
+}
+
+qbe_new_temp_label :: proc(qbe: ^Qbe, name: string) -> string {
+	qbe.label_temp_count += 1
+	label := fmt.tprintf("@%s.%d", name, qbe.label_temp_count)
+	return label
 }
 
 qbe_emit :: proc(qbe: ^Qbe, format: string, args: ..any) {

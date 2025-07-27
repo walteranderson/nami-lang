@@ -14,7 +14,6 @@ Typechecker
 - [ ] builtin typechecking
 - [X] if/else
 
-
 QBE
 - [X] optional return
 - [X] reassign stmt
@@ -26,4 +25,4 @@ QBE
 - [X] forward declaration of some kind for functions
 - [X] lang_type_to_size
 - [ ] builtin codegen
-- [ ] if/else
+- [X] if/else

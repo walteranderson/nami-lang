@@ -1,16 +1,21 @@
 fn main() Int {
-    foo: Int;
-    printf("foo = %d\n", foo);
-    msg("Adding...");
-    foo = add(5, 5);
-    printf("foo = %d\n", foo);
-    return 0;
+  foo := true;
+  bar := true;
+  printf("foo = %d\nbar = %d\n", foo, bar);
+
+  if foo {
+    printf("It was true!\n");
+    if bar {
+      printf("I knew it was bar!\n");
+    } else {
+      printf("But it wasnt bar...\n");
+      return 1;
+    }
+  } else {
+    printf("It was false!\n");
+  }
+
+  printf("Im at the end!\n");
+  return 0;
 }
 
-fn msg(str: String) {
-    printf("%s\n", str);
-}
-
-fn add(a: Int, b: Int) Int {
-  return a + b;
-}
