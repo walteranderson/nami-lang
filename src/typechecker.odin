@@ -23,6 +23,9 @@ tc_init :: proc(tc: ^TypeChecker, p: ^Program, allocator: mem.Allocator) {
 tc_check_program :: proc(tc: ^TypeChecker) {
 	start := time.now()
 	log(.INFO, "Typechecking program")
+
+	tc_check_funcs(tc)
+
 	for stmt in tc.program.stmts {
 		tc_check_stmt(tc, stmt)
 	}
@@ -34,6 +37,59 @@ tc_check_program :: proc(tc: ^TypeChecker) {
 	log(.INFO, "Typechecking complete: %v", time.diff(start, time.now()))
 }
 
+tc_check_funcs :: proc(tc: ^TypeChecker) {
+	for stmt in tc.program.stmts {
+		if fn, ok := stmt.(^FunctionStatement); ok {
+			tc_check_func_signature(tc, fn)
+		}
+	}
+}
+
+tc_check_func_signature :: proc(tc: ^TypeChecker, fn: ^FunctionStatement) {
+	is_main := false
+	if fn.name.value == "main" {
+		if tc.has_main {
+			tc_error(tc, "Main function already declared")
+		} else {
+			tc.has_main = true
+			is_main = true
+		}
+	}
+
+	for arg in fn.args {
+		arg.resolved_type = tc_make_typeinfo(tc, tc_check_type_annotation(tc, arg.declared_type))
+	}
+
+	declared_return_type := tc_check_type_annotation(tc, fn.declared_return_type)
+	if declared_return_type == .Invalid {
+		tc_error(tc, "invalid function return type")
+		tc_symbols_pop_scope(tc)
+		return
+	}
+
+	// If no return type given, assume void
+	if declared_return_type == .Any || declared_return_type == .Void {
+		declared_return_type = .Void
+	}
+
+	if is_main && declared_return_type != .Int {
+		tc_error(tc, "Main function must have return type of int")
+		tc_symbols_pop_scope(tc)
+		return
+	}
+
+	param_types: [dynamic]^TypeInfo
+	for param in fn.args {
+		append(&param_types, param.resolved_type)
+	}
+	fn.resolved_type = tc_make_typeinfo(tc, .Function)
+	fn.resolved_type.data = FunctionTypeInfo {
+		param_types = param_types,
+		return_type = tc_make_typeinfo(tc, declared_return_type),
+	}
+	tc_add_symbol(tc, fn.name.value, fn.resolved_type)
+}
+
 tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) {
 	switch s in stmt {
 	case ^Program:
@@ -42,23 +98,11 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) {
 		tc_check_expr(tc, s.value)
 		return
 	case ^FunctionStatement:
-		is_main := false
-		if s.name.value == "main" {
-			if tc.has_main {
-				tc_error(tc, "Main function already declared")
-			} else {
-				tc.has_main = true
-				is_main = true
-			}
-		}
-
+		// Since we already checked the function signature, all we need to do is check the body
 		tc_symbols_push_scope(tc)
+		defer tc_symbols_pop_scope(tc)
 
 		for arg in s.args {
-			arg.resolved_type = tc_make_typeinfo(
-				tc,
-				tc_check_type_annotation(tc, arg.declared_type),
-			)
 			tc_add_symbol(tc, arg.ident.value, arg.resolved_type)
 		}
 
@@ -68,38 +112,13 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) {
 			return
 		}
 
-		declared_return_type := tc_check_type_annotation(tc, s.declared_return_type)
-		if declared_return_type == .Invalid {
-			tc_error(tc, "invalid function return type")
-			tc_symbols_pop_scope(tc)
+		typeinfo, ok := s.resolved_type.data.(FunctionTypeInfo)
+		if !ok {
+			tc_error(tc, "expected functiontypeinfo, got %s", s.resolved_type.kind)
 			return
 		}
 
-		// If no return type given, assume void
-		if declared_return_type == .Any || declared_return_type == .Void {
-			declared_return_type = .Void
-		}
-
-		if is_main && declared_return_type != .Int {
-			tc_error(tc, "Main function must have return type of int")
-			tc_symbols_pop_scope(tc)
-			return
-		}
-
-		tc_check_body_stmt_for_returns(tc, s.body, declared_return_type)
-
-		tc_symbols_pop_scope(tc)
-
-		param_types: [dynamic]^TypeInfo
-		for param in s.args {
-			append(&param_types, param.resolved_type)
-		}
-		s.resolved_type = tc_make_typeinfo(tc, .Function)
-		s.resolved_type.data = FunctionTypeInfo {
-			param_types = param_types,
-			return_type = tc_make_typeinfo(tc, declared_return_type),
-		}
-		tc_add_symbol(tc, s.name.value, s.resolved_type)
+		tc_check_body_stmt_for_returns(tc, s.body, typeinfo.return_type.kind)
 		return
 
 	case ^BlockStatement:

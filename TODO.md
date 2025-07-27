@@ -23,7 +23,7 @@ QBE
 - [ ] how to handle `any` type?
 - [X] global assignment data
 - [X] call expr return type
-- [ ] forward declaration of some kind for functions
+- [X] forward declaration of some kind for functions
 - [X] lang_type_to_size
 - [ ] builtin codegen
 - [ ] if/else

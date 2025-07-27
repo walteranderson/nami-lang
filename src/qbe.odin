@@ -14,7 +14,6 @@ Qbe :: struct {
 	strs:                    map[string]string,
 	str_count:               int,
 	symbols:                 [dynamic]QbeSymbolTable,
-	functions:               map[string]string,
 	current_func_temp_count: int,
 }
 
@@ -51,7 +50,12 @@ QbeSymbolEntry :: struct {
 
 QbeSymbolTable :: map[string]^QbeSymbolEntry
 
-qbe_init :: proc(qbe: ^Qbe, program: ^Program, allocator: mem.Allocator) {
+qbe_init :: proc(
+	qbe: ^Qbe,
+	program: ^Program,
+	global_symbols: map[string]^TypeInfo,
+	allocator: mem.Allocator,
+) {
 	qbe.program = program
 	qbe.allocator = allocator
 	qbe.errors = make([dynamic]string, 0, allocator)
@@ -59,6 +63,14 @@ qbe_init :: proc(qbe: ^Qbe, program: ^Program, allocator: mem.Allocator) {
 
 	qbe.symbols = make([dynamic]QbeSymbolTable, 0, allocator)
 	qbe_push_scope(qbe)
+	qbe_add_global_symbols(qbe, global_symbols)
+}
+
+qbe_add_global_symbols :: proc(qbe: ^Qbe, global_symbols: map[string]^TypeInfo) {
+	for key, value in global_symbols {
+		reg := qbe_new_temp_reg(qbe)
+		qbe_add_symbol(qbe, key, reg, value.kind, .Global)
+	}
 }
 
 qbe_generate :: proc(qbe: ^Qbe) {
