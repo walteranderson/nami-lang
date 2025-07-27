@@ -71,10 +71,14 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) {
 		declared_return_type := tc_check_type_annotation(tc, s.declared_return_type)
 		if declared_return_type == .Invalid || declared_return_type == .Any {
 			tc_error(tc, "missing function return type")
+			tc_symbols_pop_scope(tc)
+			return
 		}
 
 		if is_main && declared_return_type != .Int {
 			tc_error(tc, "Main function must have return type of int")
+			tc_symbols_pop_scope(tc)
+			return
 		}
 
 		tc_check_body_stmt_for_returns(tc, s.body, declared_return_type)
@@ -339,18 +343,19 @@ tc_check_type_annotation :: proc(tc: ^TypeChecker, a: ^TypeAnnotation) -> TypeKi
 		return .Any
 	}
 
-	switch a.name {
-	case "int":
+	#partial switch a.tok.type {
+	case .TYPE_INT:
 		return .Int
-	case "string":
+	case .TYPE_STRING:
 		return .String
-	case "bool":
+	case .TYPE_BOOL:
 		return .Bool
-	case "void":
+	case .TYPE_VOID:
 		return .Void
 	case:
 		return .Invalid
 	}
+	return .Invalid
 }
 
 tc_error :: proc(tc: ^TypeChecker, ft: string, args: ..any) {

@@ -49,6 +49,15 @@ Token :: struct {
 	col:     int,
 }
 
+is_type :: proc(t: TokenType) -> bool {
+	#partial switch t {
+	case .TYPE_INT, .TYPE_BOOL, .TYPE_VOID, .TYPE_STRING:
+		return true
+	case:
+		return false
+	}
+}
+
 ident_lookup :: proc(ident: string) -> TokenType {
 	switch ident {
 	case "fn":

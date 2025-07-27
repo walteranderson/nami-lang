@@ -164,6 +164,9 @@ parser_parse_assign_stmt :: proc(p: ^Parser) -> Statement {
 
 	if !parser_peek_token_is(p, .ASSIGN) {
 		parser_next_token(p)
+		if !parser_expect_type(p) {
+			return nil
+		}
 		stmt.declared_type = parser_parse_type_annotation(p)
 	}
 
@@ -334,6 +337,9 @@ parser_parse_func :: proc(p: ^Parser) -> Statement {
 
 	if !parser_peek_token_is(p, .L_BRACE) {
 		parser_next_token(p)
+		if !parser_expect_type(p) {
+			return nil
+		}
 		func.declared_return_type = parser_parse_type_annotation(p)
 	}
 
@@ -383,6 +389,9 @@ parser_parse_func_args :: proc(p: ^Parser) -> [dynamic]^FunctionArg {
 	if parser_peek_token_is(p, .COLON) {
 		parser_next_token(p) // colon
 		parser_next_token(p)
+		if !parser_expect_type(p) {
+			return nil
+		}
 		arg.declared_type = parser_parse_type_annotation(p)
 	}
 
@@ -397,6 +406,9 @@ parser_parse_func_args :: proc(p: ^Parser) -> [dynamic]^FunctionArg {
 		if parser_peek_token_is(p, .COLON) {
 			parser_next_token(p) // colon
 			parser_next_token(p)
+			if !parser_expect_type(p) {
+				return nil
+			}
 			arg.declared_type = parser_parse_type_annotation(p)
 		}
 
@@ -454,5 +466,14 @@ parser_expect_peek :: proc(p: ^Parser, type: TokenType) -> bool {
 		return false
 	}
 	parser_next_token(p)
+	return true
+}
+
+parser_expect_type :: proc(p: ^Parser) -> bool {
+	if !is_type(p.cur.type) {
+		log(.INFO, "%s = %t", p.cur.type, is_type(p.cur.type))
+		parser_error(p, "Expected a type, got %s", p.cur.literal)
+		return false
+	}
 	return true
 }
