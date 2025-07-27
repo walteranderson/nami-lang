@@ -6,10 +6,12 @@ import os "core:os/os2"
 import "core:strings"
 import "core:time"
 
+import "ast"
+
 Qbe :: struct {
 	allocator:               mem.Allocator,
 	sb:                      strings.Builder,
-	program:                 ^Program,
+	program:                 ^ast.Program,
 	errors:                  [dynamic]string,
 	strs:                    map[string]string,
 	str_count:               int,
@@ -43,7 +45,7 @@ SymbolKind :: enum {
 QbeSymbolEntry :: struct {
 	name:      string,
 	register:  string,
-	lang_type: TypeKind,
+	lang_type: ast.TypeKind,
 	qbe_type:  QbeType,
 	kind:      SymbolKind,
 }
@@ -52,8 +54,8 @@ QbeSymbolTable :: map[string]^QbeSymbolEntry
 
 qbe_init :: proc(
 	qbe: ^Qbe,
-	program: ^Program,
-	global_symbols: map[string]^TypeInfo,
+	program: ^ast.Program,
+	global_symbols: map[string]^ast.TypeInfo,
 	allocator: mem.Allocator,
 ) {
 	qbe.program = program
@@ -66,7 +68,7 @@ qbe_init :: proc(
 	qbe_add_global_symbols(qbe, global_symbols)
 }
 
-qbe_add_global_symbols :: proc(qbe: ^Qbe, global_symbols: map[string]^TypeInfo) {
+qbe_add_global_symbols :: proc(qbe: ^Qbe, global_symbols: map[string]^ast.TypeInfo) {
 	for key, value in global_symbols {
 		reg := qbe_new_temp_reg(qbe)
 		qbe_add_symbol(qbe, key, reg, value.kind, .Global)
@@ -89,9 +91,9 @@ qbe_generate :: proc(qbe: ^Qbe) {
 	log(.INFO, "Codegen complete: %v", time.diff(start, time.now()))
 }
 
-qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
+qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: ast.Statement) {
 	switch s in stmt {
-	case ^FunctionStatement:
+	case ^ast.FunctionStatement:
 		qbe_push_scope(qbe)
 		qbe.current_func_temp_count = 0
 		is_main := false
@@ -100,7 +102,7 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 			qbe_emit(qbe, "export ")
 		}
 
-		func_typeinfo := s.resolved_type.data.(FunctionTypeInfo)
+		func_typeinfo := s.resolved_type.data.(ast.FunctionTypeInfo)
 
 		qbe_emit(qbe, "function ")
 		if func_typeinfo.return_type.kind != .Void {
@@ -130,7 +132,7 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 		qbe_emit(qbe, "@start\n")
 		has_return := false
 		for st in s.body.stmts {
-			if _, ok := st.(^ReturnStatement); ok {
+			if _, ok := st.(^ast.ReturnStatement); ok {
 				has_return = true
 			}
 			qbe_gen_stmt(qbe, st)
@@ -148,12 +150,12 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 		register := fmt.tprintf("$%s", s.name.value)
 		qbe_add_symbol(qbe, s.name.value, register, func_typeinfo.return_type.kind, .Func)
 
-	case ^BlockStatement:
+	case ^ast.BlockStatement:
 		qbe_error(qbe, "Unreachable - block statement")
-	case ^FunctionArg:
+	case ^ast.FunctionArg:
 		qbe_error(qbe, "Unreachable - function arg")
 
-	case ^ReturnStatement:
+	case ^ast.ReturnStatement:
 		if s.value != nil {
 			res := qbe_gen_expr(qbe, s.value)
 			qbe_emit(qbe, "  ret %s\n", res.value)
@@ -161,7 +163,7 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 			qbe_emit(qbe, "  ret\n")
 		}
 
-	case ^AssignStatement:
+	case ^ast.AssignStatement:
 		if len(qbe.symbols) == 1 {
 			if s.resolved_type.kind != .String &&
 			   s.resolved_type.kind != .Bool &&
@@ -184,7 +186,7 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 			data_type: QbeType
 			if s.resolved_type.kind == .String {
 				data_type = .Byte
-				str := s.value.(^StringLiteral)
+				str := s.value.(^ast.StringLiteral)
 
 				// add null termination
 				val_sb: strings.Builder
@@ -202,7 +204,7 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 				)
 			} else if s.resolved_type.kind == .Bool {
 				data_type = qbe_lang_type_to_qbe_type(s.resolved_type.kind)
-				bol := s.value.(^Boolean)
+				bol := s.value.(^ast.Boolean)
 				qbe_emit(
 					qbe,
 					"data %s = {{ %s %d }}\n",
@@ -212,7 +214,7 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 				)
 			} else {
 				data_type = qbe_lang_type_to_qbe_type(s.resolved_type.kind)
-				lit := s.value.(^IntLiteral)
+				lit := s.value.(^ast.IntLiteral)
 				qbe_emit(
 					qbe,
 					"data %s = {{ %s %d }}\n",
@@ -245,7 +247,7 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 				)
 			}
 		}
-	case ^ReassignStatement:
+	case ^ast.ReassignStatement:
 		entry, found := qbe_lookup_symbol(qbe, s.name.value)
 		if !found {
 			qbe_error(qbe, "%s is not defined", s.name.value)
@@ -259,13 +261,13 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 			res.value,
 			entry.register,
 		)
-	case ^ExprStatement:
+	case ^ast.ExprStatement:
 		qbe_gen_expr(qbe, s.value)
 
-	case ^Program:
+	case ^ast.Program:
 		qbe_error(qbe, "Unexpected program")
 
-	case ^IfStatement:
+	case ^ast.IfStatement:
 		log(.INFO, "TODO: if_expr qbe codegen")
 
 	case:
@@ -273,9 +275,9 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: Statement) {
 	}
 }
 
-qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> QbeResult {
+qbe_gen_expr :: proc(qbe: ^Qbe, expr: ast.Expr) -> QbeResult {
 	switch v in expr {
-	case ^InfixExpr:
+	case ^ast.InfixExpr:
 		lhs := qbe_gen_expr(qbe, v.left)
 		rhs := qbe_gen_expr(qbe, v.right)
 		if lhs.type == .Invalid || rhs.type == .Invalid {
@@ -336,7 +338,7 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> QbeResult {
 		)
 		return QbeResult{reg, res_type}
 
-	case ^PrefixExpr:
+	case ^ast.PrefixExpr:
 		switch v.op {
 		case "-":
 			rhs := qbe_gen_expr(qbe, v.right)
@@ -357,7 +359,7 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> QbeResult {
 			return QbeResult{"", .Invalid}
 		}
 
-	case ^CallExpr:
+	case ^ast.CallExpr:
 		return_type: QbeType
 		// TODO: better builtin handling
 		// TODO: (variadic support) currently hardcoding only for printf
@@ -414,7 +416,7 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> QbeResult {
 		)
 		return QbeResult{ret_reg, return_type}
 
-	case ^StringLiteral:
+	case ^ast.StringLiteral:
 		qbe.str_count += 1
 
 		label_sb: strings.Builder
@@ -431,7 +433,7 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> QbeResult {
 
 		qbe.strs[label] = val
 		return QbeResult{label, .Long}
-	case ^Identifier:
+	case ^ast.Identifier:
 		ident, found := qbe_lookup_symbol(qbe, v.value)
 		if !found {
 			qbe_error(qbe, "undefined identifier: %s", v.value)
@@ -458,10 +460,10 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> QbeResult {
 			return QbeResult{reg, ident.qbe_type}
 		}
 
-	case ^IntLiteral:
+	case ^ast.IntLiteral:
 		return QbeResult{fmt.tprintf("%d", v.value), .Word}
 
-	case ^Boolean:
+	case ^ast.Boolean:
 		return QbeResult{v.value ? "1" : "0", .Word}
 
 	}
@@ -500,7 +502,7 @@ qbe_add_symbol :: proc(
 	qbe: ^Qbe,
 	name: string,
 	register: string,
-	type: TypeKind,
+	type: ast.TypeKind,
 	kind: SymbolKind,
 ) {
 	if len(qbe.symbols) <= 0 {
@@ -562,7 +564,7 @@ qbe_compile :: proc(qbe: ^Qbe, program_name: string) -> (err: os.Error) {
 	return nil
 }
 
-qbe_lang_type_to_size :: proc(type: TypeKind) -> int {
+qbe_lang_type_to_size :: proc(type: ast.TypeKind) -> int {
 	switch type {
 	case .String:
 		return 8
@@ -584,7 +586,7 @@ qbe_lang_type_to_size :: proc(type: TypeKind) -> int {
 	return 0
 }
 
-qbe_lang_type_to_qbe_type :: proc(type: TypeKind) -> QbeType {
+qbe_lang_type_to_qbe_type :: proc(type: ast.TypeKind) -> QbeType {
 	switch type {
 	case .String:
 		return .Long

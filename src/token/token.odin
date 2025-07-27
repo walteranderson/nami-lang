@@ -1,4 +1,4 @@
-package nami
+package token
 
 TokenType :: enum {
 	ILLEGAL,

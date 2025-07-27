@@ -8,6 +8,8 @@ import "core:os"
 import "core:strings"
 import "core:time"
 
+import "ast"
+
 Options :: struct {
 	file_name: string `args:"pos=0,required" usage:"Path to file, ex: ./example.nami"`,
 	ast:       bool `usage:"Prints the AST"`,
@@ -60,13 +62,13 @@ main :: proc() {
 			log(.ERROR, err)
 		}
 		if opt.ast {
-			print_ast(program, 0)
+			ast.print_ast(program, 0)
 		}
 		os.exit(1)
 	}
 
 	if opt.ast {
-		print_ast(program, 0)
+		ast.print_ast(program, 0)
 		os.exit(0)
 	}
 

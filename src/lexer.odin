@@ -7,6 +7,8 @@ import "core:strings"
 import "core:unicode"
 import "core:unicode/utf8"
 
+import t "token"
+
 Lexer :: struct {
 	input:    string,
 	pos:      int,
@@ -22,9 +24,9 @@ lexer_init :: proc(l: ^Lexer, input: string) {
 	lexer_read_char(l)
 }
 
-lexer_next_token :: proc(l: ^Lexer) -> Token {
+lexer_next_token :: proc(l: ^Lexer) -> t.Token {
 	lexer_skip_whitespace(l)
-	tok: Token
+	tok: t.Token
 	tok.line = l.line
 	tok.col = l.col
 
@@ -100,18 +102,18 @@ lexer_next_token :: proc(l: ^Lexer) -> Token {
 			tok.literal = l.input[l.pos:l.pos + 1]
 		}
 	case 0:
-		tok.type = TokenType.EOF
+		tok.type = t.TokenType.EOF
 		tok.literal = ""
 	case:
 		if is_string(l.ch) {
-			tok.type = TokenType.STRING
+			tok.type = t.TokenType.STRING
 			tok.literal = lexer_read_string(l)
 		} else if unicode.is_letter(l.ch) {
 			tok.literal = lexer_read_ident(l)
-			tok.type = ident_lookup(tok.literal)
+			tok.type = t.ident_lookup(tok.literal)
 			return tok
 		} else if unicode.is_digit(l.ch) {
-			tok.type = TokenType.INT
+			tok.type = t.TokenType.INT
 			tok.literal = lexer_read_number(l)
 			return tok
 		} else {

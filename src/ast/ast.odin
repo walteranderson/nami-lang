@@ -1,10 +1,12 @@
-package nami
+package ast
 
 import "core:fmt"
 import "core:strings"
 
+import t "../token"
+
 Node :: struct {
-	tok:           Token,
+	tok:           t.Token,
 	resolved_type: ^TypeInfo,
 }
 
@@ -128,7 +130,7 @@ TypeInfo :: struct {
 }
 
 TypeAnnotation :: struct {
-	tok:  Token,
+	tok:  t.Token,
 	name: string,
 }
 
