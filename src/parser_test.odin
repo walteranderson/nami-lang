@@ -8,7 +8,7 @@ import "ast"
 @(test)
 test_parser :: proc(t: ^testing.T) {
 	input := `
-    fn main() int {
+    fn main() Int {
         foo := 34 + 35;
         printf("%d\n", foo);
         return 0;

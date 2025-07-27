@@ -2,6 +2,8 @@ package nami
 
 import "core:testing"
 
+import "token"
+
 @(test)
 test_lexer :: proc(t: ^testing.T) {
 	input := `
@@ -20,50 +22,50 @@ test_lexer :: proc(t: ^testing.T) {
     true
     false
     return
-    string
-    int
-    bool
-    void
+    String
+    Int
+    Bool
+    Void
     get_ident
 	if
 	else
 	`
 
 
-	expected := []Token {
-		Token{type = .FUNC, literal = "fn"},
-		Token{type = .IDENT, literal = "main"},
-		Token{type = .L_PAREN, literal = "("},
-		Token{type = .R_PAREN, literal = ")"},
-		Token{type = .L_BRACE, literal = "{"},
-		Token{type = .R_BRACE, literal = "}"},
-		Token{type = .L_BRACKET, literal = "["},
-		Token{type = .R_BRACKET, literal = "]"},
-		Token{type = .STRING, literal = "Hello"},
-		Token{type = .SEMI_COLON, literal = ";"},
-		Token{type = .COMMA, literal = ","},
-		Token{type = .EQ, literal = "=="},
-		Token{type = .NOT_EQ, literal = "!="},
-		Token{type = .INT, literal = "5"},
-		Token{type = .INT, literal = "150"},
-		Token{type = .LT, literal = "<"},
-		Token{type = .GT, literal = ">"},
-		Token{type = .PLUS, literal = "+"},
-		Token{type = .MINUS, literal = "-"},
-		Token{type = .STAR, literal = "*"},
-		Token{type = .SLASH, literal = "/"},
-		Token{type = .BANG, literal = "!"},
-		Token{type = .IDENT, literal = "こんにちは"},
-		Token{type = .TRUE, literal = "true"},
-		Token{type = .FALSE, literal = "false"},
-		Token{type = .RETURN, literal = "return"},
-		Token{type = .TYPE_STRING, literal = "string"},
-		Token{type = .TYPE_INT, literal = "int"},
-		Token{type = .TYPE_BOOL, literal = "bool"},
-		Token{type = .TYPE_VOID, literal = "void"},
-		Token{type = .IDENT, literal = "get_ident"},
-		Token{type = .IF, literal = "if"},
-		Token{type = .ELSE, literal = "else"},
+	expected := []token.Token {
+		token.Token{type = .FUNC, literal = "fn"},
+		token.Token{type = .IDENT, literal = "main"},
+		token.Token{type = .L_PAREN, literal = "("},
+		token.Token{type = .R_PAREN, literal = ")"},
+		token.Token{type = .L_BRACE, literal = "{"},
+		token.Token{type = .R_BRACE, literal = "}"},
+		token.Token{type = .L_BRACKET, literal = "["},
+		token.Token{type = .R_BRACKET, literal = "]"},
+		token.Token{type = .STRING, literal = "Hello"},
+		token.Token{type = .SEMI_COLON, literal = ";"},
+		token.Token{type = .COMMA, literal = ","},
+		token.Token{type = .EQ, literal = "=="},
+		token.Token{type = .NOT_EQ, literal = "!="},
+		token.Token{type = .INT, literal = "5"},
+		token.Token{type = .INT, literal = "150"},
+		token.Token{type = .LT, literal = "<"},
+		token.Token{type = .GT, literal = ">"},
+		token.Token{type = .PLUS, literal = "+"},
+		token.Token{type = .MINUS, literal = "-"},
+		token.Token{type = .STAR, literal = "*"},
+		token.Token{type = .SLASH, literal = "/"},
+		token.Token{type = .BANG, literal = "!"},
+		token.Token{type = .IDENT, literal = "こんにちは"},
+		token.Token{type = .TRUE, literal = "true"},
+		token.Token{type = .FALSE, literal = "false"},
+		token.Token{type = .RETURN, literal = "return"},
+		token.Token{type = .TYPE_STRING, literal = "String"},
+		token.Token{type = .TYPE_INT, literal = "Int"},
+		token.Token{type = .TYPE_BOOL, literal = "Bool"},
+		token.Token{type = .TYPE_VOID, literal = "Void"},
+		token.Token{type = .IDENT, literal = "get_ident"},
+		token.Token{type = .IF, literal = "if"},
+		token.Token{type = .ELSE, literal = "else"},
 	}
 
 	lexer: Lexer
@@ -88,6 +90,6 @@ test_lexer :: proc(t: ^testing.T) {
 	}
 }
 
-is_tok :: proc(actual: Token, expected: Token) -> bool {
+is_tok :: proc(actual: token.Token, expected: token.Token) -> bool {
 	return actual.type == expected.type && actual.literal == expected.literal
 }
