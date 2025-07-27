@@ -372,18 +372,34 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: Expr) -> QbeResult {
 			append(&args_reg, reg)
 		}
 
-		ret_reg := qbe_new_temp_reg(qbe)
-		qbe_emit(qbe, "  %s =%s call $%s(", ret_reg, qbe_type_to_string(return_type), v.func.value)
+		sb: strings.Builder
+		strings.builder_init(&sb, qbe.allocator)
+		defer strings.builder_destroy(&sb)
+		fmt.sbprintf(&sb, "call $%s(", v.func.value)
 		for arg, i in args_reg {
-			qbe_emit(qbe, "%s %s", qbe_type_to_string(arg.type), arg.value)
+			fmt.sbprintf(&sb, "%s %s", qbe_type_to_string(arg.type), arg.value)
 			if i + 1 < len(args_reg) {
-				qbe_emit(qbe, ", ")
+				fmt.sbprintf(&sb, ", ")
 				if i == 0 && is_variadic {
-					qbe_emit(qbe, " ..., ")
+					fmt.sbprintf(&sb, " ..., ")
 				}
 			}
 		}
-		qbe_emit(qbe, ")\n")
+		fmt.sbprintf(&sb, ")\n")
+
+		if return_type == .Void {
+			qbe_emit(qbe, "  %s", strings.to_string(sb))
+			return QbeResult{"", .Void}
+		}
+
+		ret_reg := qbe_new_temp_reg(qbe)
+		qbe_emit(
+			qbe,
+			"  %s =%s %s",
+			ret_reg,
+			qbe_type_to_string(return_type),
+			strings.to_string(sb),
+		)
 		return QbeResult{ret_reg, return_type}
 
 	case ^StringLiteral:

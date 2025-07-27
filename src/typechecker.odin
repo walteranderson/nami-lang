@@ -69,10 +69,15 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: Statement) {
 		}
 
 		declared_return_type := tc_check_type_annotation(tc, s.declared_return_type)
-		if declared_return_type == .Invalid || declared_return_type == .Any {
-			tc_error(tc, "missing function return type")
+		if declared_return_type == .Invalid {
+			tc_error(tc, "invalid function return type")
 			tc_symbols_pop_scope(tc)
 			return
+		}
+
+		// If no return type given, assume void
+		if declared_return_type == .Any || declared_return_type == .Void {
+			declared_return_type = .Void
 		}
 
 		if is_main && declared_return_type != .Int {

@@ -1,11 +1,15 @@
-fn add(a: int, b: int) int {
+fn msg(str: String) {
+    printf("%s\n", str);
+}
+
+fn add(a: Int, b: Int) Int {
   return a + b;
 }
 
-fn main() int {
-    foo: int;
+fn main() Int {
+    foo: Int;
     printf("foo = %d\n", foo);
-    printf("Adding...\n");
+    msg("Adding...");
     foo = add(5, 5);
     printf("foo = %d\n", foo);
     return 0;

@@ -72,13 +72,13 @@ ident_lookup :: proc(ident: string) -> TokenType {
 		return .IF
 	case "else":
 		return .ELSE
-	case "string":
+	case "String":
 		return .TYPE_STRING
-	case "int":
+	case "Int":
 		return .TYPE_INT
-	case "bool":
+	case "Bool":
 		return .TYPE_BOOL
-	case "void":
+	case "Void":
 		return .TYPE_VOID
 	case:
 		return .IDENT
