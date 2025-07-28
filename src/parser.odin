@@ -29,6 +29,8 @@ ParseError :: struct {
 
 Precedence :: enum {
 	LOWEST,
+	OR,
+	AND,
 	EQUALS, // ==
 	LESSGREATER, // < or >
 	SUM, // +
@@ -38,29 +40,31 @@ Precedence :: enum {
 	INDEX, // array[index]
 }
 
-precedences: map[t.TokenType]Precedence
-
-precedences_init :: proc(allocator: mem.Allocator) {
-	using Precedence, t.TokenType
-	precedences = make(map[t.TokenType]Precedence, allocator)
-	precedences[EQ] = EQUALS
-	precedences[EQ] = EQUALS
-	precedences[NOT_EQ] = EQUALS
-	precedences[LT] = LESSGREATER
-	precedences[GT] = LESSGREATER
-	precedences[PLUS] = SUM
-	precedences[MINUS] = SUM
-	precedences[SLASH] = PRODUCT
-	precedences[STAR] = PRODUCT
-	precedences[L_PAREN] = CALL
-	precedences[L_BRACKET] = INDEX
-}
-
 get_precedence :: proc(tt: t.TokenType) -> Precedence {
-	if val, ok := precedences[tt]; ok {
-		return val
+	#partial switch tt {
+	case .OR:
+		return .OR
+	case .AND:
+		return .AND
+	case .EQ, .NOT_EQ:
+		return .EQUALS
+	case .LT, .GT:
+		return .LESSGREATER
+	case .PLUS, .MINUS:
+		return .SUM
+	case .SLASH, .STAR:
+		return .PRODUCT
+	case .L_PAREN:
+		return .CALL
+	case .L_BRACKET:
+		return .INDEX
+	case:
+		return Precedence.LOWEST
 	}
-	return .LOWEST
+	// if val, ok := precedences[tt]; ok {
+	// 	return val
+	// }
+	// return .LOWEST
 }
 
 parser_init :: proc(p: ^Parser, file_contents: string, allocator: mem.Allocator) {
@@ -70,7 +74,7 @@ parser_init :: proc(p: ^Parser, file_contents: string, allocator: mem.Allocator)
 
 	p.allocator = allocator
 	p.errors = make([dynamic]ParseError, p.allocator)
-	precedences_init(p.allocator)
+	// precedences_init(p.allocator)
 
 	p.prefix_fns = make(map[t.TokenType]PrefixParseFns, p.allocator)
 	p.prefix_fns[.INT] = parser_parse_int
@@ -89,6 +93,8 @@ parser_init :: proc(p: ^Parser, file_contents: string, allocator: mem.Allocator)
 	p.infix_fns[.SLASH] = parser_parse_infix_expr
 	p.infix_fns[.EQ] = parser_parse_infix_expr
 	p.infix_fns[.NOT_EQ] = parser_parse_infix_expr
+	p.infix_fns[.AND] = parser_parse_infix_expr
+	p.infix_fns[.OR] = parser_parse_infix_expr
 	p.infix_fns[.LT] = parser_parse_infix_expr
 	p.infix_fns[.GT] = parser_parse_infix_expr
 	p.infix_fns[.L_PAREN] = parser_parse_call_expr

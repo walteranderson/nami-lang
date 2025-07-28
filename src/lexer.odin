@@ -101,6 +101,26 @@ lexer_next_token :: proc(l: ^Lexer) -> t.Token {
 			tok.type = .BANG
 			tok.literal = l.input[l.pos:l.pos + 1]
 		}
+	case '&':
+		if lexer_peek_char(l) == '&' {
+			tok.type = .AND
+			pos := l.pos
+			lexer_read_char(l)
+			tok.literal = l.input[pos:l.pos + 1]
+		} else {
+			tok.type = .AMPERSAND
+			tok.literal = l.input[l.pos:l.pos + 1]
+		}
+	case '|':
+		if lexer_peek_char(l) == '|' {
+			tok.type = .OR
+			pos := l.pos
+			lexer_read_char(l)
+			tok.literal = l.input[pos:l.pos + 1]
+		} else {
+			tok.type = .PIPE
+			tok.literal = l.input[l.pos:l.pos + 1]
+		}
 	case 0:
 		tok.type = t.TokenType.EOF
 		tok.literal = ""

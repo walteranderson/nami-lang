@@ -1,21 +1,8 @@
 fn main() Int {
-  foo := true;
-  bar := true;
-  printf("foo = %d\nbar = %d\n", foo, bar);
-
-  if foo {
-    printf("It was true!\n");
-    if bar {
-      printf("I knew it was bar!\n");
-    } else {
-      printf("But it wasnt bar...\n");
-      return 1;
-    }
-  } else {
-    printf("It was false!\n");
+  if 5 == 5 && true == true {
+    printf("It is true!\n");
   }
 
-  printf("Im at the end!\n");
   return 0;
 }
 

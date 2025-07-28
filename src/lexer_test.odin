@@ -29,6 +29,10 @@ test_lexer :: proc(t: ^testing.T) {
     get_ident
 	if
 	else
+    &&
+    ||
+    &
+    |
 	`
 
 
@@ -66,6 +70,10 @@ test_lexer :: proc(t: ^testing.T) {
 		token.Token{type = .IDENT, literal = "get_ident"},
 		token.Token{type = .IF, literal = "if"},
 		token.Token{type = .ELSE, literal = "else"},
+		token.Token{type = .AND, literal = "&&"},
+		token.Token{type = .OR, literal = "||"},
+		token.Token{type = .AMPERSAND, literal = "&"},
+		token.Token{type = .PIPE, literal = "|"},
 	}
 
 	lexer: Lexer
