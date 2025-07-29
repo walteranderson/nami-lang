@@ -9,6 +9,7 @@ import "core:strings"
 import "core:time"
 
 import "ast"
+import "logger"
 
 Options :: struct {
 	file_name: string `args:"pos=0,required" usage:"Path to file, ex: ./example.nami"`,
@@ -25,14 +26,14 @@ main :: proc() {
 	arena: vmem.Arena
 	allocator, arena_err := arena_init(&arena)
 	if arena_err != nil {
-		log(.ERROR, "Error allocating arena: %v", arena_err)
+		logger.log(.ERROR, "Error allocating arena: %v", arena_err)
 		os.exit(1)
 	}
 	defer vmem.arena_free_all(&arena)
 
 	file_contents := read_entire_file(opt.file_name, allocator)
 	if len(file_contents) == 0 {
-		log(.ERROR, "Error reading file: %s", opt.file_name)
+		logger.log(.ERROR, "Error reading file: %s", opt.file_name)
 		os.exit(1)
 	}
 
@@ -44,58 +45,70 @@ main :: proc() {
 		os.exit(0)
 	}
 
+	logger.log(.INFO, "Parsing program")
+	parser_start := time.now()
 	program := parser_parse_program(parser)
 	if len(parser.errors) > 0 {
-		log(.ERROR, "Parser errors:")
+		logger.log(.ERROR, "Parser errors:")
 		for err in parser.errors {
-			log(.ERROR, "%s:%d:%d: %s", opt.file_name, err.line, err.col, err.msg)
+			logger.log(.ERROR, "%s:%d:%d: %s", opt.file_name, err.line, err.col, err.msg)
 		}
 		os.exit(1)
 	}
+	logger.log(.INFO, "Parsing complete: %v", time.diff(parser_start, time.now()))
 
+	logger.log(.INFO, "Typechecking program")
+	tc_start := time.now()
 	tc := new(TypeChecker, allocator)
 	tc_init(tc, program, allocator)
 	tc_check_program(tc)
 	if len(tc.errs) != 0 {
-		log(.ERROR, "Type errors:")
+		logger.log(.ERROR, "Type errors:")
 		for err in tc.errs {
-			log(.ERROR, err)
+			logger.log(.ERROR, err)
 		}
 		if opt.ast {
 			ast.print_ast(program, 0)
 		}
 		os.exit(1)
 	}
+	logger.log(.INFO, "Typechecking complete: %v", time.diff(tc_start, time.now()))
 
 	if opt.ast {
 		ast.print_ast(program, 0)
 		os.exit(0)
 	}
 
+	logger.log(.INFO, "Generating QBE")
+	qbe_start := time.now()
 	qbe: Qbe
 	qbe_init(&qbe, program, tc.symbols[0], allocator)
 	qbe_generate(&qbe)
 	if len(qbe.errors) > 0 {
-		log(.ERROR, "QBE codegen errors:")
+		logger.log(.ERROR, "QBE codegen errors:")
 		for err in qbe.errors {
-			log(.ERROR, err)
+			logger.log(.ERROR, err)
 		}
 		os.exit(1)
 	}
+	logger.log(.INFO, "Codegen complete: %v", time.diff(qbe_start, time.now()))
 
+	logger.log(.INFO, "Starting compilation")
+	comp_start := time.now()
 	program_name := extract_base_name(opt.file_name)
 	err := qbe_compile(&qbe, program_name)
 	if err != nil {
-		log(.ERROR, "Error compiling qbe: %v", err)
+		logger.log(.ERROR, "Error compiling qbe: %v", err)
 		os.exit(1)
 	}
+	logger.log(.INFO, "Compilation complete: %v", time.diff(comp_start, time.now()))
 
-	log(.INFO, "Finished: total time: %v", time.diff(start, time.now()))
+	logger.log(.INFO, "Finished:\n  duration: %v", time.diff(start, time.now()))
 }
 
 print_tokens :: proc(p: ^Parser, file_name: string) {
 	for !parser_cur_token_is(p, .EOF) {
-		log(
+		logger.log(
 			.INFO,
 			"%s:%d:%d - type=%s, literal=%s",
 			file_name,
@@ -136,14 +149,4 @@ arena_init :: proc(arena: ^vmem.Arena) -> (allocator: mem.Allocator, err: mem.Al
 	vmem.arena_init_growing(arena) or_return
 	allocator = vmem.arena_allocator(arena)
 	return
-}
-
-LogLevel :: enum {
-	INFO,
-	ERROR,
-}
-
-log :: proc(level: LogLevel, msg: string, args: ..any) {
-	fmt.printf("[%s] ", level)
-	fmt.printfln(msg, ..args)
 }

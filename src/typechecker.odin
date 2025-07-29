@@ -3,9 +3,9 @@ package nami
 import "core:fmt"
 import "core:mem"
 import "core:strings"
-import "core:time"
 
 import "ast"
+import "logger"
 
 TypeChecker :: struct {
 	errs:      [dynamic]string,
@@ -23,9 +23,6 @@ tc_init :: proc(tc: ^TypeChecker, p: ^ast.Program, allocator: mem.Allocator) {
 }
 
 tc_check_program :: proc(tc: ^TypeChecker) {
-	start := time.now()
-	log(.INFO, "Typechecking program")
-
 	tc_check_funcs(tc)
 	if len(tc.errs) > 0 {
 		return
@@ -38,8 +35,6 @@ tc_check_program :: proc(tc: ^TypeChecker) {
 	if !tc.has_main {
 		tc_error(tc, "Missing main function")
 	}
-
-	log(.INFO, "Typechecking complete: %v", time.diff(start, time.now()))
 }
 
 tc_check_funcs :: proc(tc: ^TypeChecker) {
@@ -217,7 +212,7 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: ast.Statement) {
 		}
 		return
 	}
-	log(.ERROR, "Unreachable typechecking statement: %+v", stmt)
+	logger.log(.ERROR, "Unreachable typechecking statement: %+v", stmt)
 	return
 }
 
@@ -332,7 +327,7 @@ tc_check_expr :: proc(tc: ^TypeChecker, expr: ast.Expr) -> ^ast.TypeInfo {
 		return e.resolved_type
 
 	}
-	log(.ERROR, "Unreachable - checking expr: %+v", expr)
+	logger.log(.ERROR, "Unreachable - checking expr: %+v", expr)
 	return nil
 }
 

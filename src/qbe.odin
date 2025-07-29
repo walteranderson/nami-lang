@@ -4,9 +4,9 @@ import "core:fmt"
 import "core:mem"
 import os "core:os/os2"
 import "core:strings"
-import "core:time"
 
 import "ast"
+import "logger"
 
 Qbe :: struct {
 	allocator:        mem.Allocator,
@@ -77,8 +77,6 @@ qbe_add_global_symbols :: proc(qbe: ^Qbe, global_symbols: map[string]^ast.TypeIn
 }
 
 qbe_generate :: proc(qbe: ^Qbe) {
-	start := time.now()
-	log(.INFO, "Generating QBE")
 	for stmt in qbe.program.stmts {
 		qbe_gen_stmt(qbe, stmt)
 	}
@@ -88,8 +86,6 @@ qbe_generate :: proc(qbe: ^Qbe) {
 			qbe_emit(qbe, "data %s = {{ b \"%s\" }}\n", key, value)
 		}
 	}
-
-	log(.INFO, "Codegen complete: %v", time.diff(start, time.now()))
 }
 
 qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: ast.Statement) {
@@ -273,7 +269,7 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: ast.Statement) {
 		qbe_gen_if_stmt(qbe, s)
 
 	case:
-		log(.ERROR, "QBE generating statement unreachable: %+v", stmt)
+		logger.log(.ERROR, "QBE generating statement unreachable: %+v", stmt)
 	}
 }
 
@@ -568,9 +564,6 @@ qbe_lookup_symbol :: proc(qbe: ^Qbe, name: string) -> (^QbeSymbolEntry, bool) {
 }
 
 qbe_compile :: proc(qbe: ^Qbe, program_name: string) -> (err: os.Error) {
-	start := time.now()
-	log(.INFO, "Starting compilation")
-
 	qbe_file := create_file_name(program_name, "ssa")
 	asm_file := create_file_name(program_name, "s")
 
@@ -578,7 +571,7 @@ qbe_compile :: proc(qbe: ^Qbe, program_name: string) -> (err: os.Error) {
 	os.write_entire_file(qbe_file, transmute([]byte)(content)) or_return
 
 	qbe_cmd := []string{"qbe", "-o", asm_file, qbe_file}
-	log(.INFO, "Running command: %v", qbe_cmd)
+	logger.log(.INFO, "Running command: %v", qbe_cmd)
 
 	qbe_desc := os.Process_Desc {
 		command = qbe_cmd,
@@ -589,7 +582,7 @@ qbe_compile :: proc(qbe: ^Qbe, program_name: string) -> (err: os.Error) {
 	_ = os.process_start(qbe_desc) or_return
 
 	cc_cmd := []string{"cc", "-o", program_name, asm_file}
-	log(.INFO, "Running command: %v", cc_cmd)
+	logger.log(.INFO, "Running command: %v", cc_cmd)
 
 	cc_desc := os.Process_Desc {
 		command = cc_cmd,
@@ -598,8 +591,6 @@ qbe_compile :: proc(qbe: ^Qbe, program_name: string) -> (err: os.Error) {
 		stderr  = os.stderr,
 	}
 	_ = os.process_start(cc_desc) or_return
-
-	log(.INFO, "Compilation complete: %v", time.diff(start, time.now()))
 	return nil
 }
 

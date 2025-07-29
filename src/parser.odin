@@ -3,7 +3,6 @@ package nami
 import "core:fmt"
 import "core:mem"
 import "core:strconv"
-import "core:time"
 
 import ast "ast"
 import "lexer"
@@ -105,8 +104,6 @@ parser_init :: proc(p: ^Parser, file_contents: string, allocator: mem.Allocator)
 }
 
 parser_parse_program :: proc(p: ^Parser) -> ^ast.Program {
-	start := time.now()
-	log(.INFO, "Parsing program")
 
 	program := new(ast.Program, p.allocator)
 	program.stmts = make([dynamic]ast.Statement, p.allocator)
@@ -117,7 +114,6 @@ parser_parse_program :: proc(p: ^Parser) -> ^ast.Program {
 		parser_next_token(p)
 	}
 
-	log(.INFO, "Parsing complete: %v", time.diff(start, time.now()))
 	return program
 }
 
