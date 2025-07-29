@@ -6,13 +6,14 @@ import "core:strconv"
 import "core:time"
 
 import ast "ast"
+import "lexer"
 import t "token"
 
 PrefixParseFns :: proc(p: ^Parser) -> ast.Expr
 InfixParseFns :: proc(p: ^Parser, expr: ast.Expr) -> ast.Expr
 
 Parser :: struct {
-	lexer:      ^Lexer,
+	lexer:      ^lexer.Lexer,
 	allocator:  mem.Allocator,
 	cur:        t.Token,
 	peek:       t.Token,
@@ -68,9 +69,9 @@ get_precedence :: proc(tt: t.TokenType) -> Precedence {
 }
 
 parser_init :: proc(p: ^Parser, file_contents: string, allocator: mem.Allocator) {
-	lexer := new(Lexer, allocator)
-	lexer_init(lexer, file_contents)
-	p.lexer = lexer
+	l := new(lexer.Lexer, allocator)
+	lexer.init(l, file_contents)
+	p.lexer = l
 
 	p.allocator = allocator
 	p.errors = make([dynamic]ParseError, p.allocator)
@@ -453,7 +454,7 @@ parser_parse_string :: proc(p: ^Parser) -> ast.Expr {
 
 parser_next_token :: proc(p: ^Parser) {
 	p.cur = p.peek
-	p.peek = lexer_next_token(p.lexer)
+	p.peek = lexer.next_token(p.lexer)
 }
 
 parser_cur_token_is :: proc(p: ^Parser, type: t.TokenType) -> bool {

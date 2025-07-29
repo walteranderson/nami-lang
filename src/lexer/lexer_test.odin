@@ -1,8 +1,8 @@
-package nami
+package lexer
 
 import "core:testing"
 
-import "token"
+import "../token"
 
 @(test)
 test_lexer :: proc(t: ^testing.T) {
@@ -77,11 +77,11 @@ test_lexer :: proc(t: ^testing.T) {
 	}
 
 	lexer: Lexer
-	lexer_init(&lexer, input)
+	init(&lexer, input)
 
 	i := 0
 	for {
-		tok := lexer_next_token(&lexer)
+		tok := next_token(&lexer)
 		if tok.type == .EOF {
 			break
 		}
