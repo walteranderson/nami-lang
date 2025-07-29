@@ -11,3 +11,11 @@ log :: proc(level: LogLevel, msg: string, args: ..any) {
 	fmt.printf("[%s] ", level)
 	fmt.printfln(msg, ..args)
 }
+
+info :: proc(msg: string, args: ..any) {
+	log(.INFO, msg, ..args)
+}
+
+error :: proc(msg: string, args: ..any) {
+	log(.ERROR, msg, ..args)
+}

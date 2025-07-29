@@ -212,7 +212,7 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: ast.Statement) {
 		}
 		return
 	}
-	logger.log(.ERROR, "Unreachable typechecking statement: %+v", stmt)
+	logger.error("Unreachable typechecking statement: %+v", stmt)
 	return
 }
 
@@ -327,7 +327,7 @@ tc_check_expr :: proc(tc: ^TypeChecker, expr: ast.Expr) -> ^ast.TypeInfo {
 		return e.resolved_type
 
 	}
-	logger.log(.ERROR, "Unreachable - checking expr: %+v", expr)
+	logger.error("Unreachable - checking expr: %+v", expr)
 	return nil
 }
 

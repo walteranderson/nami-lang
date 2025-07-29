@@ -269,7 +269,7 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: ast.Statement) {
 		qbe_gen_if_stmt(qbe, s)
 
 	case:
-		logger.log(.ERROR, "QBE generating statement unreachable: %+v", stmt)
+		logger.error("QBE generating statement unreachable: %+v", stmt)
 	}
 }
 
@@ -571,7 +571,7 @@ qbe_compile :: proc(qbe: ^Qbe, program_name: string) -> (err: os.Error) {
 	os.write_entire_file(qbe_file, transmute([]byte)(content)) or_return
 
 	qbe_cmd := []string{"qbe", "-o", asm_file, qbe_file}
-	logger.log(.INFO, "Running command: %v", qbe_cmd)
+	logger.info("Running command: %v", qbe_cmd)
 
 	qbe_desc := os.Process_Desc {
 		command = qbe_cmd,
@@ -582,7 +582,7 @@ qbe_compile :: proc(qbe: ^Qbe, program_name: string) -> (err: os.Error) {
 	_ = os.process_start(qbe_desc) or_return
 
 	cc_cmd := []string{"cc", "-o", program_name, asm_file}
-	logger.log(.INFO, "Running command: %v", cc_cmd)
+	logger.info("Running command: %v", cc_cmd)
 
 	cc_desc := os.Process_Desc {
 		command = cc_cmd,
