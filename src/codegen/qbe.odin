@@ -658,3 +658,11 @@ qbe_type_to_string :: proc(type: QbeType) -> string {
 	}
 	return ""
 }
+
+create_file_name :: proc(base_name: string, ext: string) -> string {
+	sb: strings.Builder
+	strings.builder_init(&sb, context.temp_allocator)
+	defer strings.builder_destroy(&sb)
+	fmt.sbprintf(&sb, "%s.%s", base_name, ext)
+	return strings.to_string(sb)
+}

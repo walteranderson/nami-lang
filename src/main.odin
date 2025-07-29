@@ -119,14 +119,6 @@ extract_base_name :: proc(file_name: string) -> string {
 	return file_name
 }
 
-create_file_name :: proc(base_name: string, ext: string) -> string {
-	sb: strings.Builder
-	strings.builder_init(&sb, context.temp_allocator)
-	defer strings.builder_destroy(&sb)
-	fmt.sbprintf(&sb, "%s.%s", base_name, ext)
-	return strings.to_string(sb)
-}
-
 arena_init :: proc(arena: ^vmem.Arena) -> (allocator: mem.Allocator, err: mem.Allocator_Error) {
 	vmem.arena_init_growing(arena) or_return
 	allocator = vmem.arena_allocator(arena)

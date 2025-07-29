@@ -1,5 +1,13 @@
 fn main() Int {
-    printf("It works!\n");
-  return 0;
+    foo := 34 + 35;
+
+    if foo == 69 {
+        printf("It works!\n");
+    } else {
+        printf("Uh oh... Looks like math isnt working\n");
+        return 1;
+    }
+
+    return 0;
 }
 
