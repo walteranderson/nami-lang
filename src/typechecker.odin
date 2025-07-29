@@ -27,6 +27,9 @@ tc_check_program :: proc(tc: ^TypeChecker) {
 	log(.INFO, "Typechecking program")
 
 	tc_check_funcs(tc)
+	if len(tc.errs) > 0 {
+		return
+	}
 
 	for stmt in tc.program.stmts {
 		tc_check_stmt(tc, stmt)
@@ -65,7 +68,6 @@ tc_check_func_signature :: proc(tc: ^TypeChecker, fn: ^ast.FunctionStatement) {
 	declared_return_type := tc_check_type_annotation(tc, fn.declared_return_type)
 	if declared_return_type == .Invalid {
 		tc_error(tc, "invalid function return type")
-		tc_symbols_pop_scope(tc)
 		return
 	}
 
@@ -75,8 +77,7 @@ tc_check_func_signature :: proc(tc: ^TypeChecker, fn: ^ast.FunctionStatement) {
 	}
 
 	if is_main && declared_return_type != .Int {
-		tc_error(tc, "Main function must have return type of int")
-		tc_symbols_pop_scope(tc)
+		tc_error(tc, "Main function must have return type of Int, got %s", declared_return_type)
 		return
 	}
 
