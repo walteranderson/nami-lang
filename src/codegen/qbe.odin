@@ -1,12 +1,12 @@
-package nami
+package codegen
 
 import "core:fmt"
 import "core:mem"
 import os "core:os/os2"
 import "core:strings"
 
-import "ast"
-import "logger"
+import "../ast"
+import "../logger"
 
 Qbe :: struct {
 	allocator:        mem.Allocator,

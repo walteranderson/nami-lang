@@ -9,12 +9,14 @@ import "core:strings"
 import "core:time"
 
 import "ast"
+import "codegen"
 import "logger"
+import "parser"
+import tc "typechecker"
 
 Options :: struct {
 	file_name: string `args:"pos=0,required" usage:"Path to file, ex: ./example.nami"`,
 	ast:       bool `usage:"Prints the AST"`,
-	tokens:    bool `usage:"Prints out tokens"`,
 }
 
 main :: proc() {
@@ -37,20 +39,15 @@ main :: proc() {
 		os.exit(1)
 	}
 
-	parser := new(Parser, allocator)
-	parser_init(parser, file_contents, allocator)
-
-	if opt.tokens {
-		print_tokens(parser, opt.file_name)
-		os.exit(0)
-	}
+	p := new(parser.Parser, allocator)
+	parser.init(p, file_contents, allocator)
 
 	logger.info("Parsing program")
 	parser_start := time.now()
-	program := parser_parse_program(parser)
-	if len(parser.errors) > 0 {
+	program := parser.parse_program(p)
+	if len(p.errors) > 0 {
 		logger.error("Parser errors:")
-		for err in parser.errors {
+		for err in p.errors {
 			logger.error("%s:%d:%d: %s", opt.file_name, err.line, err.col, err.msg)
 		}
 		os.exit(1)
@@ -59,12 +56,12 @@ main :: proc() {
 
 	logger.info("Typechecking program")
 	tc_start := time.now()
-	tc := new(TypeChecker, allocator)
-	tc_init(tc, program, allocator)
-	tc_check_program(tc)
-	if len(tc.errs) != 0 {
+	tchk := new(tc.TypeChecker, allocator)
+	tc.init(tchk, program, allocator)
+	tc.check_program(tchk)
+	if len(tchk.errs) != 0 {
 		logger.error("Type errors:")
-		for err in tc.errs {
+		for err in tchk.errs {
 			logger.error(err)
 		}
 		if opt.ast {
@@ -81,9 +78,9 @@ main :: proc() {
 
 	logger.info("Generating QBE")
 	qbe_start := time.now()
-	qbe: Qbe
-	qbe_init(&qbe, program, tc.symbols[0], allocator)
-	qbe_generate(&qbe)
+	qbe: codegen.Qbe
+	codegen.qbe_init(&qbe, program, tchk.symbols[0], allocator)
+	codegen.qbe_generate(&qbe)
 	if len(qbe.errors) > 0 {
 		logger.error("QBE codegen errors:")
 		for err in qbe.errors {
@@ -96,7 +93,7 @@ main :: proc() {
 	logger.info("Starting compilation")
 	comp_start := time.now()
 	program_name := extract_base_name(opt.file_name)
-	err := qbe_compile(&qbe, program_name)
+	err := codegen.qbe_compile(&qbe, program_name)
 	if err != nil {
 		logger.error("Error compiling qbe: %v", err)
 		os.exit(1)
@@ -104,20 +101,6 @@ main :: proc() {
 	logger.info("Compilation complete: %v", time.diff(comp_start, time.now()))
 
 	logger.info("Finished: Duration: %v", time.diff(start, time.now()))
-}
-
-print_tokens :: proc(p: ^Parser, file_name: string) {
-	for !parser_cur_token_is(p, .EOF) {
-		logger.info(
-			"%s:%d:%d - type=%s, literal=%s",
-			file_name,
-			p.cur.line,
-			p.cur.col,
-			p.cur.type,
-			p.cur.literal,
-		)
-		parser_next_token(p)
-	}
 }
 
 read_entire_file :: proc(file_name: string, allocator: mem.Allocator) -> string {

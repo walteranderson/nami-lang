@@ -1,11 +1,11 @@
-package nami
+package typechecker
 
 import "core:fmt"
 import "core:mem"
 import "core:strings"
 
-import "ast"
-import "logger"
+import "../ast"
+import "../logger"
 
 TypeChecker :: struct {
 	errs:      [dynamic]string,
@@ -15,41 +15,41 @@ TypeChecker :: struct {
 	has_main:  bool,
 }
 
-tc_init :: proc(tc: ^TypeChecker, p: ^ast.Program, allocator: mem.Allocator) {
+init :: proc(tc: ^TypeChecker, p: ^ast.Program, allocator: mem.Allocator) {
 	tc.program = p
 	tc.allocator = allocator
 	tc.errs = make([dynamic]string, allocator)
-	tc_symbols_push_scope(tc)
+	symbols_push_scope(tc)
 }
 
-tc_check_program :: proc(tc: ^TypeChecker) {
-	tc_check_funcs(tc)
+check_program :: proc(tc: ^TypeChecker) {
+	check_funcs(tc)
 	if len(tc.errs) > 0 {
 		return
 	}
 
 	for stmt in tc.program.stmts {
-		tc_check_stmt(tc, stmt)
+		check_stmt(tc, stmt)
 	}
 
 	if !tc.has_main {
-		tc_error(tc, "Missing main function")
+		error(tc, "Missing main function")
 	}
 }
 
-tc_check_funcs :: proc(tc: ^TypeChecker) {
+check_funcs :: proc(tc: ^TypeChecker) {
 	for stmt in tc.program.stmts {
 		if fn, ok := stmt.(^ast.FunctionStatement); ok {
-			tc_check_func_signature(tc, fn)
+			check_func_signature(tc, fn)
 		}
 	}
 }
 
-tc_check_func_signature :: proc(tc: ^TypeChecker, fn: ^ast.FunctionStatement) {
+check_func_signature :: proc(tc: ^TypeChecker, fn: ^ast.FunctionStatement) {
 	is_main := false
 	if fn.name.value == "main" {
 		if tc.has_main {
-			tc_error(tc, "Main function already declared")
+			error(tc, "Main function already declared")
 		} else {
 			tc.has_main = true
 			is_main = true
@@ -57,12 +57,12 @@ tc_check_func_signature :: proc(tc: ^TypeChecker, fn: ^ast.FunctionStatement) {
 	}
 
 	for arg in fn.args {
-		arg.resolved_type = tc_make_typeinfo(tc, tc_check_type_annotation(tc, arg.declared_type))
+		arg.resolved_type = make_typeinfo(tc, check_type_annotation(tc, arg.declared_type))
 	}
 
-	declared_return_type := tc_check_type_annotation(tc, fn.declared_return_type)
+	declared_return_type := check_type_annotation(tc, fn.declared_return_type)
 	if declared_return_type == .Invalid {
-		tc_error(tc, "invalid function return type")
+		error(tc, "invalid function return type")
 		return
 	}
 
@@ -72,7 +72,7 @@ tc_check_func_signature :: proc(tc: ^TypeChecker, fn: ^ast.FunctionStatement) {
 	}
 
 	if is_main && declared_return_type != .Int {
-		tc_error(tc, "Main function must have return type of Int, got %s", declared_return_type)
+		error(tc, "Main function must have return type of Int, got %s", declared_return_type)
 		return
 	}
 
@@ -80,105 +80,105 @@ tc_check_func_signature :: proc(tc: ^TypeChecker, fn: ^ast.FunctionStatement) {
 	for param in fn.args {
 		append(&param_types, param.resolved_type)
 	}
-	fn.resolved_type = tc_make_typeinfo(tc, .Function)
+	fn.resolved_type = make_typeinfo(tc, .Function)
 	fn.resolved_type.data = ast.FunctionTypeInfo {
 		param_types = param_types,
-		return_type = tc_make_typeinfo(tc, declared_return_type),
+		return_type = make_typeinfo(tc, declared_return_type),
 	}
-	tc_add_symbol(tc, fn.name.value, fn.resolved_type)
+	add_symbol(tc, fn.name.value, fn.resolved_type)
 }
 
-tc_check_stmt :: proc(tc: ^TypeChecker, stmt: ast.Statement) {
+check_stmt :: proc(tc: ^TypeChecker, stmt: ast.Statement) {
 	switch s in stmt {
 	case ^ast.Program:
-		tc_error(tc, "Unexpected program statement")
+		error(tc, "Unexpected program statement")
 	case ^ast.ExprStatement:
-		tc_check_expr(tc, s.value)
+		check_expr(tc, s.value)
 		return
 	case ^ast.FunctionStatement:
 		// Since we already checked the function signature, all we need to do is check the body
-		tc_symbols_push_scope(tc)
-		defer tc_symbols_pop_scope(tc)
+		symbols_push_scope(tc)
+		defer symbols_pop_scope(tc)
 
 		for arg in s.args {
-			tc_add_symbol(tc, arg.ident.value, arg.resolved_type)
+			add_symbol(tc, arg.ident.value, arg.resolved_type)
 		}
 
 		if s.body == nil {
-			tc_error(tc, "Missing function body")
-			tc_symbols_pop_scope(tc)
+			error(tc, "Missing function body")
+			symbols_pop_scope(tc)
 			return
 		}
 
 		typeinfo, ok := s.resolved_type.data.(ast.FunctionTypeInfo)
 		if !ok {
-			tc_error(tc, "expected functiontypeinfo, got %s", s.resolved_type.kind)
+			error(tc, "expected functiontypeinfo, got %s", s.resolved_type.kind)
 			return
 		}
 
-		tc_check_body_stmt_for_returns(tc, s.body, typeinfo.return_type.kind)
+		check_body_stmt_for_returns(tc, s.body, typeinfo.return_type.kind)
 		return
 
 	case ^ast.BlockStatement:
-		tc_error(tc, "Unreachable - block statement")
+		error(tc, "Unreachable - block statement")
 	case ^ast.FunctionArg:
-		tc_error(tc, "Unreachable - function arg")
+		error(tc, "Unreachable - function arg")
 
 	case ^ast.ReturnStatement:
-		expr_type := tc_check_expr(tc, s.value)
+		expr_type := check_expr(tc, s.value)
 		s.resolved_type = expr_type
 		return
 
 	case ^ast.AssignStatement:
-		_, found := tc_lookup_symbol(tc, s.name.value)
+		_, found := lookup_symbol(tc, s.name.value)
 		if found {
-			tc_error(tc, "Symbol already declared: %s", s.name.value)
-			s.resolved_type = tc_make_typeinfo(tc, .Invalid)
+			error(tc, "Symbol already declared: %s", s.name.value)
+			s.resolved_type = make_typeinfo(tc, .Invalid)
 			return
 		}
 
 		declared_type: ast.TypeKind = .Any
 		if s.declared_type != nil {
-			declared_type = tc_check_type_annotation(tc, s.declared_type)
+			declared_type = check_type_annotation(tc, s.declared_type)
 			if declared_type == .Invalid {
-				tc_error(tc, "Invalid type - %s", s.declared_type.name)
-				s.resolved_type = tc_make_typeinfo(tc, .Invalid)
+				error(tc, "Invalid type - %s", s.declared_type.name)
+				s.resolved_type = make_typeinfo(tc, .Invalid)
 				return
 			}
 		}
 
 		if s.value == nil {
-			s.resolved_type = tc_make_typeinfo(tc, declared_type)
+			s.resolved_type = make_typeinfo(tc, declared_type)
 		} else {
-			expr_type := tc_check_expr(tc, s.value)
+			expr_type := check_expr(tc, s.value)
 			if declared_type == .Any {
 				s.resolved_type = expr_type
 			} else if declared_type != expr_type.kind {
-				tc_error(
+				error(
 					tc,
 					"Type mismatch - declared type: %s, expression type: %s",
 					declared_type,
 					expr_type,
 				)
-				s.resolved_type = tc_make_typeinfo(tc, .Invalid)
+				s.resolved_type = make_typeinfo(tc, .Invalid)
 				return
 			} else {
 				s.resolved_type = expr_type
 			}
 		}
 
-		tc_add_symbol(tc, s.name.value, s.resolved_type)
+		add_symbol(tc, s.name.value, s.resolved_type)
 		return
 
 	case ^ast.ReassignStatement:
-		sym_type, found := tc_lookup_symbol(tc, s.name.value)
+		sym_type, found := lookup_symbol(tc, s.name.value)
 		if !found {
-			tc_error(tc, "%s is not defined", s.name.value)
+			error(tc, "%s is not defined", s.name.value)
 			return
 		}
-		expr_type := tc_check_expr(tc, s.value)
+		expr_type := check_expr(tc, s.value)
 		if sym_type.kind != expr_type.kind {
-			tc_error(
+			error(
 				tc,
 				"Type mismatch - %s is type %s, cannot reassign to type %s",
 				s.name.value,
@@ -191,24 +191,24 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: ast.Statement) {
 		return
 
 	case ^ast.IfStatement:
-		cond_typeinfo := tc_check_expr(tc, s.condition)
+		cond_typeinfo := check_expr(tc, s.condition)
 		if cond_typeinfo.kind != .Bool {
-			tc_error(tc, "if expression should resolve to a boolean, got %s", cond_typeinfo.kind)
+			error(tc, "if expression should resolve to a boolean, got %s", cond_typeinfo.kind)
 			return
 		}
 
-		tc_symbols_push_scope(tc)
+		symbols_push_scope(tc)
 		for stmt in s.consequence.stmts {
-			tc_check_stmt(tc, stmt)
+			check_stmt(tc, stmt)
 		}
-		tc_symbols_pop_scope(tc)
+		symbols_pop_scope(tc)
 
 		if s.alternative != nil {
-			tc_symbols_push_scope(tc)
+			symbols_push_scope(tc)
 			for stmt in s.alternative.stmts {
-				tc_check_stmt(tc, stmt)
+				check_stmt(tc, stmt)
 			}
-			tc_symbols_pop_scope(tc)
+			symbols_pop_scope(tc)
 		}
 		return
 	}
@@ -216,25 +216,25 @@ tc_check_stmt :: proc(tc: ^TypeChecker, stmt: ast.Statement) {
 	return
 }
 
-tc_check_expr :: proc(tc: ^TypeChecker, expr: ast.Expr) -> ^ast.TypeInfo {
+check_expr :: proc(tc: ^TypeChecker, expr: ast.Expr) -> ^ast.TypeInfo {
 	switch e in expr {
 	case ^ast.Boolean:
-		e.resolved_type = tc_make_typeinfo(tc, .Bool)
+		e.resolved_type = make_typeinfo(tc, .Bool)
 		return e.resolved_type
 	case ^ast.IntLiteral:
-		e.resolved_type = tc_make_typeinfo(tc, .Int)
+		e.resolved_type = make_typeinfo(tc, .Int)
 		return e.resolved_type
 	case ^ast.StringLiteral:
-		e.resolved_type = tc_make_typeinfo(tc, .String)
+		e.resolved_type = make_typeinfo(tc, .String)
 		return e.resolved_type
 	case ^ast.CallExpr:
-		typeinfo, found := tc_lookup_symbol(tc, e.func.value)
+		typeinfo, found := lookup_symbol(tc, e.func.value)
 		if !found {
 			// TODO: add better builtin support
 			if e.func.value == "printf" {
 				// TODO: do i need to support variadics now?? (builtins)
-				return_type := tc_make_typeinfo(tc, .Int)
-				f_typeinfo := tc_make_typeinfo(tc, .Function)
+				return_type := make_typeinfo(tc, .Int)
+				f_typeinfo := make_typeinfo(tc, .Function)
 				f_typeinfo.data = ast.FunctionTypeInfo {
 					return_type = return_type,
 				}
@@ -242,74 +242,69 @@ tc_check_expr :: proc(tc: ^TypeChecker, expr: ast.Expr) -> ^ast.TypeInfo {
 				return e.resolved_type
 			}
 
-			tc_error(tc, "Identifier not found: %s", e.func.value)
-			return tc_make_typeinfo(tc, .Invalid)
+			error(tc, "Identifier not found: %s", e.func.value)
+			return make_typeinfo(tc, .Invalid)
 		}
 
 		if typeinfo.kind != .Function {
-			tc_error(tc, "Identifier is not a function, got %s", typeinfo.kind)
-			return tc_make_typeinfo(tc, .Invalid)
+			error(tc, "Identifier is not a function, got %s", typeinfo.kind)
+			return make_typeinfo(tc, .Invalid)
 		}
 
 		f_typeinfo := typeinfo.data.(ast.FunctionTypeInfo)
 
 		if len(f_typeinfo.param_types) != len(e.args) {
-			tc_error(
+			error(
 				tc,
 				"function arity does not match. Signature expects %d parameters, got %d",
 				len(f_typeinfo.param_types),
 				len(e.args),
 			)
-			return tc_make_typeinfo(tc, .Invalid)
+			return make_typeinfo(tc, .Invalid)
 		}
 
 		for arg, i in e.args {
-			arg_typeinfo := tc_check_expr(tc, arg)
+			arg_typeinfo := check_expr(tc, arg)
 			if arg_typeinfo.kind == .Invalid {
-				tc_error(tc, "invalid function parameter")
-				return tc_make_typeinfo(tc, .Invalid)
+				error(tc, "invalid function parameter")
+				return make_typeinfo(tc, .Invalid)
 			}
 			f_param := f_typeinfo.param_types[i]
 			if arg_typeinfo.kind != f_param.kind {
-				tc_error(
+				error(
 					tc,
 					"parameter type mismatch: expected %s, got %s",
 					f_param.kind,
 					arg_typeinfo.kind,
 				)
-				return tc_make_typeinfo(tc, .Invalid)
+				return make_typeinfo(tc, .Invalid)
 			}
 		}
 		e.resolved_type = f_typeinfo.return_type
 		return e.resolved_type
 	case ^ast.InfixExpr:
-		lhs_type := tc_check_expr(tc, e.left)
-		rhs_type := tc_check_expr(tc, e.right)
+		lhs_type := check_expr(tc, e.left)
+		rhs_type := check_expr(tc, e.right)
 		if lhs_type.kind == .Invalid || rhs_type.kind == .Invalid {
-			tc_error(
-				tc,
-				"infix expression contains invalid left: %s, right: %s",
-				lhs_type,
-				rhs_type,
-			)
-			e.resolved_type = tc_make_typeinfo(tc, .Invalid)
+			error(tc, "infix expression contains invalid left: %s, right: %s", lhs_type, rhs_type)
+			e.resolved_type = make_typeinfo(tc, .Invalid)
 			return e.resolved_type
 		}
 		if lhs_type.kind != rhs_type.kind {
-			tc_error(tc, "type mismatch - expected %s, got %s", lhs_type.kind, rhs_type.kind)
-			e.resolved_type = tc_make_typeinfo(tc, .Invalid)
+			error(tc, "type mismatch - expected %s, got %s", lhs_type.kind, rhs_type.kind)
+			e.resolved_type = make_typeinfo(tc, .Invalid)
 			return e.resolved_type
 		}
 		#partial switch e.tok.type {
 		case .EQ, .NOT_EQ, .LT, .GT:
-			e.resolved_type = tc_make_typeinfo(tc, .Bool)
+			e.resolved_type = make_typeinfo(tc, .Bool)
 		case:
 			e.resolved_type = lhs_type
 		}
 		return e.resolved_type
 
 	case ^ast.PrefixExpr:
-		rhs_type := tc_check_expr(tc, e.right)
+		rhs_type := check_expr(tc, e.right)
 		if rhs_type.kind == .Invalid {
 			return rhs_type
 		}
@@ -317,10 +312,10 @@ tc_check_expr :: proc(tc: ^TypeChecker, expr: ast.Expr) -> ^ast.TypeInfo {
 		return e.resolved_type
 
 	case ^ast.Identifier:
-		symbol_type, found := tc_lookup_symbol(tc, e.value)
+		symbol_type, found := lookup_symbol(tc, e.value)
 		if !found {
-			tc_error(tc, "Identifier not found: %s", e.value)
-			e.resolved_type = tc_make_typeinfo(tc, .Invalid)
+			error(tc, "Identifier not found: %s", e.value)
+			e.resolved_type = make_typeinfo(tc, .Invalid)
 			return e.resolved_type
 		}
 		e.resolved_type = symbol_type
@@ -331,20 +326,20 @@ tc_check_expr :: proc(tc: ^TypeChecker, expr: ast.Expr) -> ^ast.TypeInfo {
 	return nil
 }
 
-tc_check_body_stmt_for_returns :: proc(
+check_body_stmt_for_returns :: proc(
 	tc: ^TypeChecker,
 	body: ^ast.BlockStatement,
 	declared_return_type: ast.TypeKind,
 ) {
 	for stmt in body.stmts {
 		if _, ok := stmt.(^ast.FunctionStatement); ok {
-			tc_error(tc, "nested functions not allowed")
+			error(tc, "nested functions not allowed")
 		}
-		tc_check_stmt(tc, stmt)
+		check_stmt(tc, stmt)
 		#partial switch s in stmt {
 		case ^ast.ReturnStatement:
 			if s.resolved_type.kind != declared_return_type {
-				tc_error(
+				error(
 					tc,
 					"Expected return type %s, got %s",
 					declared_return_type,
@@ -352,15 +347,15 @@ tc_check_body_stmt_for_returns :: proc(
 				)
 			}
 		case ^ast.IfStatement:
-			tc_check_body_stmt_for_returns(tc, s.consequence, declared_return_type)
+			check_body_stmt_for_returns(tc, s.consequence, declared_return_type)
 			if s.alternative != nil {
-				tc_check_body_stmt_for_returns(tc, s.alternative, declared_return_type)
+				check_body_stmt_for_returns(tc, s.alternative, declared_return_type)
 			}
 		}
 	}
 }
 
-tc_check_type_annotation :: proc(tc: ^TypeChecker, a: ^ast.TypeAnnotation) -> ast.TypeKind {
+check_type_annotation :: proc(tc: ^TypeChecker, a: ^ast.TypeAnnotation) -> ast.TypeKind {
 	if a == nil {
 		return .Any
 	}
@@ -380,20 +375,20 @@ tc_check_type_annotation :: proc(tc: ^TypeChecker, a: ^ast.TypeAnnotation) -> as
 	return .Invalid
 }
 
-tc_error :: proc(tc: ^TypeChecker, ft: string, args: ..any) {
+error :: proc(tc: ^TypeChecker, ft: string, args: ..any) {
 	append(&tc.errs, fmt.tprintf(ft, ..args))
 }
 
-tc_add_symbol :: proc(tc: ^TypeChecker, name: string, typeinfo: ^ast.TypeInfo) {
+add_symbol :: proc(tc: ^TypeChecker, name: string, typeinfo: ^ast.TypeInfo) {
 	if len(tc.symbols) <= 0 {
-		tc_error(tc, "can't add symbol to an empty stack")
+		error(tc, "can't add symbol to an empty stack")
 		return
 	}
 	name_copy := strings.clone(name, tc.allocator)
 	tc.symbols[len(tc.symbols) - 1][name_copy] = typeinfo
 }
 
-tc_lookup_symbol :: proc(tc: ^TypeChecker, name: string) -> (^ast.TypeInfo, bool) {
+lookup_symbol :: proc(tc: ^TypeChecker, name: string) -> (^ast.TypeInfo, bool) {
 	for i := len(tc.symbols) - 1; i >= 0; i -= 1 {
 		scope := tc.symbols[i]
 		if val, ok := scope[name]; ok {
@@ -403,21 +398,21 @@ tc_lookup_symbol :: proc(tc: ^TypeChecker, name: string) -> (^ast.TypeInfo, bool
 	return nil, false
 }
 
-tc_symbols_pop_scope :: proc(tc: ^TypeChecker) {
+symbols_pop_scope :: proc(tc: ^TypeChecker) {
 	if len(tc.symbols) <= 0 {
-		tc_error(tc, "attemping to pop scope from empty symbols table")
+		error(tc, "attemping to pop scope from empty symbols table")
 		return
 	}
 	popped := pop(&tc.symbols)
 	delete(popped)
 }
 
-tc_symbols_push_scope :: proc(tc: ^TypeChecker) {
+symbols_push_scope :: proc(tc: ^TypeChecker) {
 	scope := make(map[string]^ast.TypeInfo, tc.allocator)
 	append(&tc.symbols, scope)
 }
 
-tc_make_typeinfo :: proc(tc: ^TypeChecker, kind: ast.TypeKind) -> ^ast.TypeInfo {
+make_typeinfo :: proc(tc: ^TypeChecker, kind: ast.TypeKind) -> ^ast.TypeInfo {
 	typeinfo := new(ast.TypeInfo, tc.allocator)
 	typeinfo.kind = kind
 	return typeinfo

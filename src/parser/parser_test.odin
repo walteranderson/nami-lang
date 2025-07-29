@@ -1,9 +1,9 @@
-package nami
+package parser
 
 import vmem "core:mem/virtual"
 import "core:testing"
 
-import "ast"
+import "../ast"
 
 @(test)
 test_parser :: proc(t: ^testing.T) {
