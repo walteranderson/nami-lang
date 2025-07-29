@@ -10,6 +10,7 @@ import "core:time"
 
 import "ast"
 import "codegen"
+import "fs"
 import "logger"
 import "parser"
 import tc "typechecker"
@@ -33,7 +34,7 @@ main :: proc() {
 	}
 	defer vmem.arena_free_all(&arena)
 
-	file_contents := read_entire_file(opt.file_name, allocator)
+	file_contents := fs.read_entire_file(opt.file_name, allocator)
 	if len(file_contents) == 0 {
 		logger.error("Error reading file: %s", opt.file_name)
 		os.exit(1)
@@ -92,7 +93,7 @@ main :: proc() {
 
 	logger.info("Starting compilation")
 	comp_start := time.now()
-	program_name := extract_base_name(opt.file_name)
+	program_name := fs.extract_base_name(opt.file_name)
 	err := codegen.qbe_compile(&qbe, program_name)
 	if err != nil {
 		logger.error("Error compiling qbe: %v", err)
@@ -101,22 +102,6 @@ main :: proc() {
 	logger.info("Compilation complete: %v", time.diff(comp_start, time.now()))
 
 	logger.info("Finished: Duration: %v", time.diff(start, time.now()))
-}
-
-read_entire_file :: proc(file_name: string, allocator: mem.Allocator) -> string {
-	data, ok := os.read_entire_file_from_filename(file_name, allocator)
-	if !ok {
-		return ""
-	}
-	return string(data)
-}
-
-extract_base_name :: proc(file_name: string) -> string {
-	dot_index := strings.last_index_byte(file_name, '.')
-	if dot_index != -1 {
-		return file_name[:dot_index]
-	}
-	return file_name
 }
 
 arena_init :: proc(arena: ^vmem.Arena) -> (allocator: mem.Allocator, err: mem.Allocator_Error) {

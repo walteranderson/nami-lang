@@ -6,6 +6,7 @@ import os "core:os/os2"
 import "core:strings"
 
 import "../ast"
+import "../fs"
 import "../logger"
 
 Qbe :: struct {
@@ -564,8 +565,8 @@ qbe_lookup_symbol :: proc(qbe: ^Qbe, name: string) -> (^QbeSymbolEntry, bool) {
 }
 
 qbe_compile :: proc(qbe: ^Qbe, program_name: string) -> (err: os.Error) {
-	qbe_file := create_file_name(program_name, "ssa")
-	asm_file := create_file_name(program_name, "s")
+	qbe_file := fs.create_file_name(program_name, "ssa")
+	asm_file := fs.create_file_name(program_name, "s")
 
 	content := strings.to_string(qbe.sb)
 	os.write_entire_file(qbe_file, transmute([]byte)(content)) or_return
@@ -657,12 +658,4 @@ qbe_type_to_string :: proc(type: QbeType) -> string {
 		return ""
 	}
 	return ""
-}
-
-create_file_name :: proc(base_name: string, ext: string) -> string {
-	sb: strings.Builder
-	strings.builder_init(&sb, context.temp_allocator)
-	defer strings.builder_destroy(&sb)
-	fmt.sbprintf(&sb, "%s.%s", base_name, ext)
-	return strings.to_string(sb)
 }
