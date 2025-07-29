@@ -571,27 +571,42 @@ qbe_compile :: proc(qbe: ^Qbe, program_name: string) -> (err: os.Error) {
 	content := strings.to_string(qbe.sb)
 	os.write_entire_file(qbe_file, transmute([]byte)(content)) or_return
 
-	qbe_cmd := []string{"qbe", "-o", asm_file, qbe_file}
-	logger.info("Running command: %v", qbe_cmd)
+	// QBE -> ASM
+	{
+		cmd := []string{"qbe", "-o", asm_file, qbe_file}
+		logger.info("Running command: %v", cmd)
 
-	qbe_desc := os.Process_Desc {
-		command = qbe_cmd,
-		stdin   = os.stdin,
-		stdout  = os.stdout,
-		stderr  = os.stderr,
+		desc := os.Process_Desc {
+			command = cmd,
+			stdin   = os.stdin,
+			stdout  = os.stdout,
+			stderr  = os.stderr,
+		}
+		pid := os.process_start(desc) or_return
+		_, pid_err := os.process_wait(pid)
+		if pid_err != nil {
+			return pid_err
+		}
 	}
-	_ = os.process_start(qbe_desc) or_return
 
-	cc_cmd := []string{"cc", "-o", program_name, asm_file}
-	logger.info("Running command: %v", cc_cmd)
+	// ASM -> Executable
+	{
+		cmd := []string{"gcc", "-o", program_name, asm_file}
+		logger.info("Running command: %v", cmd)
 
-	cc_desc := os.Process_Desc {
-		command = cc_cmd,
-		stdin   = os.stdin,
-		stdout  = os.stdout,
-		stderr  = os.stderr,
+		desc := os.Process_Desc {
+			command = cmd,
+			stdin   = os.stdin,
+			stdout  = os.stdout,
+			stderr  = os.stderr,
+		}
+		pid := os.process_start(desc) or_return
+		_, pid_err := os.process_wait(pid)
+		if pid_err != nil {
+			return pid_err
+		}
 	}
-	_ = os.process_start(cc_desc) or_return
+
 	return nil
 }
 

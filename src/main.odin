@@ -40,10 +40,9 @@ main :: proc() {
 		os.exit(1)
 	}
 
+	logger.info("Parsing program")
 	p := new(parser.Parser, allocator)
 	parser.init(p, file_contents, allocator)
-
-	logger.info("Parsing program")
 	parser_start := time.now()
 	program := parser.parse_program(p)
 	if len(p.errors) > 0 {
