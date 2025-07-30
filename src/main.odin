@@ -1,11 +1,8 @@
 package nami
 
 import "core:flags"
-import "core:fmt"
-import "core:mem"
 import vmem "core:mem/virtual"
 import "core:os"
-import "core:strings"
 import "core:time"
 
 import "ast"
