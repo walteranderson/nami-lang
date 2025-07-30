@@ -27,11 +27,12 @@ main :: proc() {
 	flags.parse_or_exit(&opt, os.args, style)
 
 	arena: vmem.Arena
-	allocator, arena_err := arena_init(&arena)
+	arena_err := vmem.arena_init_growing(&arena)
 	if arena_err != nil {
 		logger.error("Error allocating arena: %v", arena_err)
 		os.exit(1)
 	}
+	allocator := vmem.arena_allocator(&arena)
 	defer vmem.arena_free_all(&arena)
 
 	file_contents := fs.read_entire_file(opt.file_name, allocator)
@@ -101,10 +102,4 @@ main :: proc() {
 	logger.info("Compilation complete: %v", time.diff(comp_start, time.now()))
 
 	logger.info("Finished: Duration: %v", time.diff(start, time.now()))
-}
-
-arena_init :: proc(arena: ^vmem.Arena) -> (allocator: mem.Allocator, err: mem.Allocator_Error) {
-	vmem.arena_init_growing(arena) or_return
-	allocator = vmem.arena_allocator(arena)
-	return
 }
