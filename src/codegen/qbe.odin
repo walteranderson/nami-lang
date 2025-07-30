@@ -565,8 +565,8 @@ qbe_lookup_symbol :: proc(qbe: ^Qbe, name: string) -> (^QbeSymbolEntry, bool) {
 }
 
 qbe_compile :: proc(qbe: ^Qbe, program_name: string) -> (err: os.Error) {
-	qbe_file := fs.create_file_name(program_name, "ssa")
-	asm_file := fs.create_file_name(program_name, "s")
+	qbe_file := fs.create_file_name(program_name, "ssa", qbe.allocator)
+	asm_file := fs.create_file_name(program_name, "s", qbe.allocator)
 
 	content := strings.to_string(qbe.sb)
 	os.write_entire_file(qbe_file, transmute([]byte)(content)) or_return
