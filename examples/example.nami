@@ -1,0 +1,21 @@
+fn adda: Int, b: Int) Int {
+    return a + b;
+}
+
+fn main) Int {
+    printf("Hello World!\n");
+
+    res: Int = add(1, 1);
+    printf("add(1, 1) = %d\n", res);
+
+    if res == 2 {
+        printf("Math works!\n");
+    } else {
+        printf("Math doesnt work...\n");
+        return 1;
+    }
+
+    printf("See ya!\n");
+    return 0;
+}
+

@@ -30,12 +30,14 @@ Boolean :: struct {
 	value:      bool,
 }
 
+// unary
 PrefixExpr :: struct {
 	using node: Node,
 	op:         string, // ! or -
 	right:      Expr,
 }
 
+// binop
 InfixExpr :: struct {
 	using node: Node,
 	left:       Expr,
@@ -49,15 +51,9 @@ CallExpr :: struct {
 	args:       [dynamic]Expr,
 }
 
-IfStatement :: struct {
-	using node:  Node,
-	condition:   Expr,
-	consequence: ^BlockStatement,
-	alternative: ^BlockStatement,
-}
-
 /////////
 
+// entrypoint
 Program :: struct {
 	using node: Node,
 	stmts:      [dynamic]Statement,
@@ -75,6 +71,13 @@ FunctionArg :: struct {
 	using node:    Node,
 	ident:         ^Identifier,
 	declared_type: ^TypeAnnotation,
+}
+
+IfStatement :: struct {
+	using node:  Node,
+	condition:   Expr,
+	consequence: ^BlockStatement,
+	alternative: ^BlockStatement,
 }
 
 ReturnStatement :: struct {
