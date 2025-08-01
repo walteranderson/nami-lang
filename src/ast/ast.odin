@@ -181,6 +181,27 @@ AnyNode :: union {
 	^IfStatement,
 }
 
+
+get_token_from_expr :: proc(expr: Expr) -> t.Token {
+	switch e in expr {
+	case ^StringLiteral:
+		return e.tok
+	case ^IntLiteral:
+		return e.tok
+	case ^Identifier:
+		return e.tok
+	case ^Boolean:
+		return e.tok
+	case ^PrefixExpr:
+		return e.tok
+	case ^InfixExpr:
+		return e.tok
+	case ^CallExpr:
+		return e.tok
+	}
+	panic("Unhandled expression type in ast.get_token_from_expr")
+}
+
 print_ast :: proc(node: AnyNode, indent_level: int) {
 	indent := strings.repeat("  ", indent_level)
 	switch n in node {

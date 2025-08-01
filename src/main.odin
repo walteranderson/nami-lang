@@ -44,9 +44,8 @@ main :: proc() {
 	parser_start := time.now()
 	program := parser.parse_program(p)
 	if len(p.errors) > 0 {
-		logger.error("Parser errors:")
 		for err in p.errors {
-			logger.error("%s:%d:%d: %s", opt.file_name, err.line, err.col, err.msg)
+			logger.compiler_error(opt.file_name, err)
 		}
 		os.exit(1)
 	}
@@ -57,10 +56,9 @@ main :: proc() {
 	tchk := new(tc.TypeChecker, allocator)
 	tc.init(tchk, program, allocator)
 	tc.check_program(tchk)
-	if len(tchk.errs) != 0 {
-		logger.error("Type errors:")
-		for err in tchk.errs {
-			logger.error(err)
+	if len(tchk.errors) != 0 {
+		for err in tchk.errors {
+			logger.compiler_error(opt.file_name, err)
 		}
 		if opt.ast {
 			ast.print_ast(program, 0)

@@ -6,6 +6,7 @@ import "core:strconv"
 
 import "../ast"
 import "../lexer"
+import "../logger"
 import t "../token"
 
 PrefixParseFns :: proc(p: ^Parser) -> ast.Expr
@@ -16,15 +17,9 @@ Parser :: struct {
 	allocator:  mem.Allocator,
 	cur:        t.Token,
 	peek:       t.Token,
-	errors:     [dynamic]ParseError,
+	errors:     [dynamic]logger.CompilerError,
 	prefix_fns: map[t.TokenType]PrefixParseFns,
 	infix_fns:  map[t.TokenType]InfixParseFns,
-}
-
-ParseError :: struct {
-	msg:  string,
-	line: int,
-	col:  int,
 }
 
 @(private)
@@ -75,7 +70,7 @@ init :: proc(p: ^Parser, file_contents: string, allocator: mem.Allocator) {
 	p.lexer = l
 
 	p.allocator = allocator
-	p.errors = make([dynamic]ParseError, p.allocator)
+	p.errors = make([dynamic]logger.CompilerError, p.allocator)
 	// precedences_init(p.allocator)
 
 	p.prefix_fns = make(map[t.TokenType]PrefixParseFns, p.allocator)
@@ -108,6 +103,7 @@ init :: proc(p: ^Parser, file_contents: string, allocator: mem.Allocator) {
 parse_program :: proc(p: ^Parser) -> ^ast.Program {
 
 	program := new(ast.Program, p.allocator)
+	program.tok = p.cur
 	program.stmts = make([dynamic]ast.Statement, p.allocator)
 	for !cur_token_is(p, .EOF) {
 		if stmt := parse_stmt(p); stmt != nil {
@@ -488,8 +484,14 @@ peek_token_is :: proc(p: ^Parser, type: t.TokenType) -> bool {
 
 @(private)
 error :: proc(p: ^Parser, ft: string, args: ..any) {
+	// TODO: I feel like this shouldn't use the temporary allocator
 	msg := fmt.tprintf(ft, ..args)
-	append(&p.errors, ParseError{msg = msg, line = p.cur.line, col = p.cur.col})
+	err := logger.CompilerError {
+		msg  = msg,
+		line = p.cur.line,
+		col  = p.cur.col,
+	}
+	append(&p.errors, err)
 }
 
 @(private)

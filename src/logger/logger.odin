@@ -19,3 +19,13 @@ info :: proc(msg: string, args: ..any) {
 error :: proc(msg: string, args: ..any) {
 	log(.ERROR, msg, ..args)
 }
+
+CompilerError :: struct {
+	msg:  string,
+	line: int,
+	col:  int,
+}
+
+compiler_error :: proc(filename: string, err: CompilerError) {
+	fmt.printfln("%s:%d:%d: %s", filename, err.line, err.col, err.msg)
+}
