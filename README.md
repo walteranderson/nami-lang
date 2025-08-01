@@ -13,6 +13,6 @@ An experimental programming language. Don't use this.
 
 ```
 $ make
-$ ./nami example.nami
-$ ./example
+$ ./nami examples/hello.nami
+$ ./examples/hello
 ```
