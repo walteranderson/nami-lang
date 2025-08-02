@@ -27,5 +27,5 @@ CompilerError :: struct {
 }
 
 compiler_error :: proc(filename: string, err: CompilerError) {
-	fmt.printfln("%s:%d:%d: %s", filename, err.line, err.col, err.msg)
+	fmt.printfln("%s:%d:%d: %s: %s", filename, err.line, err.col, LogLevel.ERROR, err.msg)
 }

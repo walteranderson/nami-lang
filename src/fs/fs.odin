@@ -5,12 +5,12 @@ import "core:mem"
 import "core:os"
 import "core:strings"
 
-read_entire_file :: proc(file_name: string, allocator: mem.Allocator) -> string {
+read_entire_file :: proc(file_name: string, allocator: mem.Allocator) -> (string, bool) {
 	data, ok := os.read_entire_file_from_filename(file_name, allocator)
 	if !ok {
-		return ""
+		return "", ok
 	}
-	return string(data)
+	return string(data), true
 }
 
 extract_base_name :: proc(file_name: string) -> string {

@@ -49,19 +49,8 @@ check_funcs :: proc(tc: ^TypeChecker) {
 check_func_signature :: proc(tc: ^TypeChecker, fn: ^ast.FunctionStatement) {
 	_, found := lookup_symbol(tc, fn.name.value)
 	if found {
-		error(tc, fn.tok, "Function already declared: %s", fn.name.value)
+		error(tc, fn.name.tok, "Function already declared: %s", fn.name.value)
 		return
-	}
-
-	is_main := false
-	if fn.name.value == "main" {
-		if tc.has_main {
-			error(tc, fn.tok, "Main function declared twice")
-			return
-		} else {
-			tc.has_main = true
-			is_main = true
-		}
 	}
 
 	for arg in fn.args {
@@ -70,7 +59,8 @@ check_func_signature :: proc(tc: ^TypeChecker, fn: ^ast.FunctionStatement) {
 
 	declared_return_type := check_type_annotation(tc, fn.declared_return_type)
 	if declared_return_type == .Invalid {
-		error(tc, fn.tok, "invalid function return type")
+		// TODO: this will never happen? how do i report this?
+		error(tc, fn.declared_return_type.tok, "invalid function return type")
 		return
 	}
 
@@ -79,14 +69,20 @@ check_func_signature :: proc(tc: ^TypeChecker, fn: ^ast.FunctionStatement) {
 		declared_return_type = .Void
 	}
 
-	if is_main && declared_return_type != .Int {
-		error(
-			tc,
-			fn.tok,
-			"Main function must have return type of Int, got %s",
-			declared_return_type,
-		)
-		return
+	// main function is special, check its return type
+	// or implicitly set it to Int if no type is given
+	if fn.name.value == "main" {
+		tc.has_main = true
+		if declared_return_type == .Void {
+			declared_return_type = .Int
+		} else if declared_return_type != .Int {
+			error(
+				tc,
+				fn.declared_return_type.tok,
+				"Expected return type of Int, got %s",
+				declared_return_type,
+			)
+		}
 	}
 
 	param_types := make([dynamic]^ast.TypeInfo, tc.allocator)
@@ -130,7 +126,12 @@ check_stmt :: proc(tc: ^TypeChecker, stmt: ast.Statement) {
 check_if_stmt :: proc(tc: ^TypeChecker, s: ^ast.IfStatement) {
 	cond_typeinfo := check_expr(tc, s.condition)
 	if cond_typeinfo.kind != .Bool {
-		error(tc, s.tok, "if expression should resolve to a boolean, got %s", cond_typeinfo.kind)
+		error(
+			tc,
+			ast.get_token_from_expr(s.condition),
+			"if expression should resolve to a boolean, got %s",
+			cond_typeinfo.kind,
+		)
 		return
 	}
 
@@ -153,7 +154,7 @@ check_if_stmt :: proc(tc: ^TypeChecker, s: ^ast.IfStatement) {
 check_reassign_stmt :: proc(tc: ^TypeChecker, s: ^ast.ReassignStatement) {
 	sym_type, found := lookup_symbol(tc, s.name.value)
 	if !found {
-		error(tc, s.tok, "%s is not defined", s.name.value)
+		error(tc, s.tok, "%s is not defined, to assign a new variable use :=", s.name.value)
 		return
 	}
 	expr_type := check_expr(tc, s.value)

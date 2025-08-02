@@ -32,8 +32,8 @@ main :: proc() {
 	allocator := vmem.arena_allocator(&arena)
 	defer vmem.arena_free_all(&arena)
 
-	file_contents := fs.read_entire_file(opt.file_name, allocator)
-	if len(file_contents) == 0 {
+	file_contents, ok := fs.read_entire_file(opt.file_name, allocator)
+	if !ok {
 		logger.error("Error reading file: %s", opt.file_name)
 		os.exit(1)
 	}
