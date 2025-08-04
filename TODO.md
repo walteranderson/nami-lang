@@ -1,8 +1,8 @@
 Lexer/Parser
 - [X] if/else
 - [X] && || operators
-- [ ] arrays
 - [ ] loops
+- [ ] arrays
 - [ ] structs
 
 Typechecker
