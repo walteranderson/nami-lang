@@ -203,7 +203,7 @@ check_assign_stmt :: proc(tc: ^TypeChecker, s: ^ast.AssignStatement) {
 				s.tok,
 				"Type mismatch - declared type: %s, expression type: %s",
 				declared_type,
-				expr_type,
+				expr_type.kind,
 			)
 			s.resolved_type = make_typeinfo(tc, .Invalid)
 			return
