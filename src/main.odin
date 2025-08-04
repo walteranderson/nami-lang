@@ -53,11 +53,11 @@ main :: proc() {
 
 	logger.info("Typechecking program")
 	tc_start := time.now()
-	tchk := new(tc.TypeChecker, allocator)
-	tc.init(tchk, program, allocator)
-	tc.check_program(tchk)
-	if len(tchk.errors) != 0 {
-		for err in tchk.errors {
+	typechecker := new(tc.TypeChecker, allocator)
+	tc.init(typechecker, program, allocator)
+	tc.check_program(typechecker)
+	if len(typechecker.errors) != 0 {
+		for err in typechecker.errors {
 			logger.compiler_error(opt.file_name, err)
 		}
 		if opt.ast {
@@ -72,29 +72,32 @@ main :: proc() {
 		os.exit(0)
 	}
 
-	logger.info("Generating QBE")
-	qbe_start := time.now()
-	qbe: codegen.Qbe
-	codegen.qbe_init(&qbe, program, tchk.symbols[0], allocator)
-	codegen.qbe_generate(&qbe)
-	if len(qbe.errors) > 0 {
-		logger.error("QBE codegen errors:")
-		for err in qbe.errors {
-			logger.error(err)
+	// QBE codegen
+	{
+		logger.info("Generating QBE")
+		qbe_start := time.now()
+		qbe: codegen.Qbe
+		codegen.qbe_init(&qbe, program, typechecker.symbols[0], allocator)
+		codegen.qbe_generate(&qbe)
+		if len(qbe.errors) > 0 {
+			logger.error("QBE codegen errors:")
+			for err in qbe.errors {
+				logger.error(err)
+			}
+			os.exit(1)
 		}
-		os.exit(1)
-	}
-	logger.info("Codegen complete: %v", time.diff(qbe_start, time.now()))
+		logger.info("Codegen complete: %v", time.diff(qbe_start, time.now()))
 
-	logger.info("Starting compilation")
-	comp_start := time.now()
-	program_name := fs.extract_base_name(opt.file_name)
-	err := codegen.qbe_compile(&qbe, program_name)
-	if err != nil {
-		logger.error("Error compiling qbe: %v", err)
-		os.exit(1)
+		logger.info("Starting compilation")
+		comp_start := time.now()
+		program_name := fs.extract_base_name(opt.file_name)
+		err := codegen.compile_qbe(&qbe, program_name)
+		if err != nil {
+			logger.error("Error compiling qbe: %v", err)
+			os.exit(1)
+		}
+		logger.info("Compilation complete: %v", time.diff(comp_start, time.now()))
 	}
-	logger.info("Compilation complete: %v", time.diff(comp_start, time.now()))
 
 	logger.info("Finished: Duration: %v", time.diff(start, time.now()))
 }

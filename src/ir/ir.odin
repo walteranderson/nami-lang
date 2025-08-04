@@ -4,6 +4,7 @@ import "core:mem"
 
 Context :: struct {
 	allocator:     mem.Allocator,
+	module:        ^Module,
 	next_reg_id:   int,
 	next_label_id: int,
 }

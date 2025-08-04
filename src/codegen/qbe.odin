@@ -2,11 +2,9 @@ package codegen
 
 import "core:fmt"
 import "core:mem"
-import os "core:os/os2"
 import "core:strings"
 
 import "../ast"
-import "../fs"
 import "../logger"
 
 Qbe :: struct {
@@ -564,51 +562,6 @@ qbe_lookup_symbol :: proc(qbe: ^Qbe, name: string) -> (^QbeSymbolEntry, bool) {
 	return nil, false
 }
 
-qbe_compile :: proc(qbe: ^Qbe, program_name: string) -> (err: os.Error) {
-	qbe_file := fs.create_file_name(program_name, "ssa", qbe.allocator)
-	asm_file := fs.create_file_name(program_name, "s", qbe.allocator)
-
-	content := strings.to_string(qbe.sb)
-	os.write_entire_file(qbe_file, transmute([]byte)(content)) or_return
-
-	// QBE -> ASM
-	{
-		cmd := []string{"qbe", "-o", asm_file, qbe_file}
-		logger.info("Running command: %v", cmd)
-
-		desc := os.Process_Desc {
-			command = cmd,
-			stdin   = os.stdin,
-			stdout  = os.stdout,
-			stderr  = os.stderr,
-		}
-		pid := os.process_start(desc) or_return
-		_, pid_err := os.process_wait(pid)
-		if pid_err != nil {
-			return pid_err
-		}
-	}
-
-	// ASM -> Executable
-	{
-		cmd := []string{"gcc", "-o", program_name, asm_file}
-		logger.info("Running command: %v", cmd)
-
-		desc := os.Process_Desc {
-			command = cmd,
-			stdin   = os.stdin,
-			stdout  = os.stdout,
-			stderr  = os.stderr,
-		}
-		pid := os.process_start(desc) or_return
-		_, pid_err := os.process_wait(pid)
-		if pid_err != nil {
-			return pid_err
-		}
-	}
-
-	return nil
-}
 
 qbe_lang_type_to_size :: proc(type: ast.TypeKind) -> int {
 	switch type {
