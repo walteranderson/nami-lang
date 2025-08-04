@@ -1,3 +1,5 @@
+all: basic example
+
 basic: basic.nami
 	../nami basic.nami
 

@@ -321,6 +321,8 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: ast.Expr) -> QbeResult {
 
 		op_str := ""
 		#partial switch v.tok.type {
+		case .AND, .OR:
+			return qbe_gen_logical_operators(qbe, v)
 		case .PLUS:
 			op_str = "add"
 		case .MINUS:
@@ -496,6 +498,45 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: ast.Expr) -> QbeResult {
 
 	}
 	return QbeResult{"", .Invalid}
+}
+
+qbe_gen_logical_operators :: proc(qbe: ^Qbe, expr: ^ast.InfixExpr) -> QbeResult {
+	logic_right := qbe_new_temp_label(qbe, "logic_right")
+	true_merge := qbe_new_temp_label(qbe, "true_merge")
+	false_merge := qbe_new_temp_label(qbe, "false_merge")
+	assign_merge := qbe_new_temp_label(qbe, "assign_merge")
+
+	left_result := qbe_gen_expr(qbe, expr.left)
+	if expr.tok.type == .AND {
+		qbe_emit(qbe, "  jnz %s, %s, %s\n", left_result.value, logic_right, false_merge)
+	} else {
+		qbe_emit(qbe, "  jnz %s, %s, %s\n", left_result.value, true_merge, logic_right)
+	}
+
+	qbe_emit(qbe, "%s\n", logic_right)
+	right_result := qbe_gen_expr(qbe, expr.right)
+	qbe_emit(qbe, "  jnz %s, %s, %s\n", right_result.value, true_merge, false_merge)
+
+	qbe_emit(qbe, "%s\n", true_merge)
+	qbe_emit(qbe, "  jmp %s\n", assign_merge)
+	qbe_emit(qbe, "%s\n", false_merge)
+	qbe_emit(qbe, "  jmp %s\n", assign_merge)
+
+	qbe_emit(qbe, "%s\n", assign_merge)
+
+	result_reg := qbe_new_temp_reg(qbe)
+	qbe_type := qbe_lang_type_to_qbe_type(expr.resolved_type.kind)
+
+	qbe_emit(
+		qbe,
+		"  %s =%s phi %s 1, %s 0\n",
+		result_reg,
+		qbe_type_to_string(qbe_type),
+		true_merge,
+		false_merge,
+	)
+
+	return QbeResult{result_reg, qbe_type}
 }
 
 qbe_new_temp_reg :: proc(qbe: ^Qbe) -> string {

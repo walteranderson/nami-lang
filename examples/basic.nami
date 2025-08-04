@@ -1,2 +1,13 @@
 fn main() {
+  if true || false {
+    printf("The expression is true!\n");
+  } else {
+    printf("The expression is false!\n");
+  }
+
+  foo := false || (1 == 0);
+
+  printf("foo = %d\n", foo);
+
+  return 0;
 }
