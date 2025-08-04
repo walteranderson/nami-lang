@@ -6,7 +6,7 @@ Lexer/Parser
 - [ ] structs
 
 Typechecker
-- [ ] && || operators
+- [X] && || operators
 - [ ] builtin typechecking
 - [X] return stmt
 - [X] reassign
@@ -16,7 +16,7 @@ Typechecker
 - [X] if/else
 
 QBE
-- [ ] && || operators
+- [X] && || operators
 - [ ] how to handle `any` type?
 - [ ] builtin codegen
 - [X] optional return
