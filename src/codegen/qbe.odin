@@ -16,6 +16,7 @@ Qbe :: struct {
 	str_count:        int,
 	symbols:          [dynamic]QbeSymbolTable,
 	return_stack:     [dynamic]^ReturnContext,
+	loop_end_labels:  [dynamic]string,
 	func_temp_count:  int,
 	label_temp_count: int,
 }
@@ -71,6 +72,7 @@ qbe_init :: proc(
 
 	qbe.symbols = make([dynamic]QbeSymbolTable, 0, allocator)
 	qbe.return_stack = make([dynamic]^ReturnContext, allocator)
+	qbe.loop_end_labels = make([dynamic]string, allocator)
 	qbe_push_symbol_scope(qbe)
 	qbe_add_global_symbols(qbe, global_symbols)
 }
@@ -288,11 +290,32 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: ast.Statement) {
 	case ^ast.IfStatement:
 		qbe_gen_if_stmt(qbe, s)
 
-	case ^ast.LoopStatement, ^ast.BreakStatement:
-		qbe_error(qbe, "TODO: not implemented: LoopStatement, BreakStatement")
+	case ^ast.LoopStatement:
+		qbe_gen_loop_stmt(qbe, s)
+
+	case ^ast.BreakStatement:
+		if len(qbe.loop_end_labels) <= 0 {
+			qbe_error(qbe, "Break statement found outside of a loop")
+			return
+		}
+		current_loop_end_label := qbe.loop_end_labels[len(qbe.loop_end_labels) - 1]
+		qbe_emit(qbe, "  jmp %s\n", current_loop_end_label)
+
 	case:
 		logger.error("QBE generating statement unreachable: %+v", stmt)
 	}
+}
+
+qbe_gen_loop_stmt :: proc(qbe: ^Qbe, stmt: ^ast.LoopStatement) {
+	loop_begin := qbe_new_temp_label(qbe, "loop_begin")
+	loop_end := qbe_new_temp_label(qbe, "loop_end")
+
+	qbe_emit(qbe, "%s\n", loop_begin)
+	qbe_push_loop_end_label(qbe, loop_end)
+	qbe_gen_stmt(qbe, stmt.block)
+	qbe_emit(qbe, "  jmp %s\n", loop_begin)
+	qbe_emit(qbe, "%s\n", loop_end)
+	qbe_pop_loop_end_label(qbe)
 }
 
 qbe_gen_if_stmt :: proc(qbe: ^Qbe, stmt: ^ast.IfStatement) {
@@ -604,6 +627,18 @@ qbe_pop_return_stack :: proc(qbe: ^Qbe) {
 		return
 	}
 	pop(&qbe.return_stack)
+}
+
+qbe_push_loop_end_label :: proc(qbe: ^Qbe, label: string) {
+	append(&qbe.loop_end_labels, label)
+}
+
+qbe_pop_loop_end_label :: proc(qbe: ^Qbe) {
+	if len(qbe.loop_end_labels) <= 0 {
+		qbe_error(qbe, "attempting to pop scope from an empty loop_end stack")
+		return
+	}
+	pop(&qbe.loop_end_labels)
 }
 
 qbe_add_symbol :: proc(

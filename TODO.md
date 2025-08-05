@@ -6,7 +6,7 @@ Language Features
 - [X] variable assignment and reassignment
 - [X] logical operators (&& ||)
 - [X] if/else statements
-- [ ] loops
+- [X] loops
 - [ ] arrays
 - [ ] structs
 - [ ] >= and <=
