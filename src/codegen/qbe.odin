@@ -15,6 +15,7 @@ Qbe :: struct {
 	strs:             map[string]string,
 	str_count:        int,
 	symbols:          [dynamic]QbeSymbolTable,
+	return_stack:     [dynamic]^ReturnContext,
 	func_temp_count:  int,
 	label_temp_count: int,
 }
@@ -52,6 +53,11 @@ QbeSymbolEntry :: struct {
 
 QbeSymbolTable :: map[string]^QbeSymbolEntry
 
+ReturnContext :: struct {
+	type:         ^ast.TypeInfo,
+	has_returned: bool,
+}
+
 qbe_init :: proc(
 	qbe: ^Qbe,
 	program: ^ast.Program,
@@ -64,7 +70,8 @@ qbe_init :: proc(
 	strings.builder_init(&qbe.sb, allocator)
 
 	qbe.symbols = make([dynamic]QbeSymbolTable, 0, allocator)
-	qbe_push_scope(qbe)
+	qbe.return_stack = make([dynamic]^ReturnContext, allocator)
+	qbe_push_symbol_scope(qbe)
 	qbe_add_global_symbols(qbe, global_symbols)
 }
 
@@ -90,7 +97,9 @@ qbe_generate :: proc(qbe: ^Qbe) {
 qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: ast.Statement) {
 	switch s in stmt {
 	case ^ast.FunctionStatement:
-		qbe_push_scope(qbe)
+		func_typeinfo := s.resolved_type.data.(ast.FunctionTypeInfo)
+		qbe_push_symbol_scope(qbe)
+		qbe_push_return_stack(qbe, func_typeinfo.return_type)
 		qbe.func_temp_count = 0
 		qbe.label_temp_count = 0
 		is_main := false
@@ -99,7 +108,6 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: ast.Statement) {
 			qbe_emit(qbe, "export ")
 		}
 
-		func_typeinfo := s.resolved_type.data.(ast.FunctionTypeInfo)
 
 		qbe_emit(qbe, "function ")
 		if func_typeinfo.return_type.kind != .Void {
@@ -127,32 +135,45 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: ast.Statement) {
 
 		qbe_emit(qbe, ") {{\n")
 		qbe_emit(qbe, "%s\n", qbe_new_temp_label(qbe, "start"))
-		has_return := false
-		for st in s.body.stmts {
-			if _, ok := st.(^ast.ReturnStatement); ok {
-				has_return = true
-			}
-			qbe_gen_stmt(qbe, st)
-		}
-		if !has_return {
+		qbe_gen_stmt(qbe, s.body)
+
+		return_ctx := qbe.return_stack[len(qbe.return_stack) - 1]
+		if !return_ctx.has_returned {
 			if is_main {
 				qbe_emit(qbe, "  ret 0\n")
-			} else {
+			} else if return_ctx.type.kind == .Void {
 				qbe_emit(qbe, "  ret\n")
+			} else {
+				qbe_error(
+					qbe,
+					"Non-void function does not return a value, return type: %s",
+					return_ctx.type.kind,
+				)
 			}
 		}
+
 		qbe_emit(qbe, "}}\n")
-		qbe_pop_scope(qbe)
+		qbe_pop_symbol_scope(qbe)
+		qbe_pop_return_stack(qbe)
 
 		register := fmt.tprintf("$%s", s.name.value)
 		qbe_add_symbol(qbe, s.name.value, register, func_typeinfo.return_type.kind, .Func)
 
 	case ^ast.BlockStatement:
-		qbe_error(qbe, "Unreachable - block statement")
+		for bs in s.stmts {
+			qbe_gen_stmt(qbe, bs)
+		}
+
 	case ^ast.FunctionArg:
+		// function args are processed as part of FunctionStatement
 		qbe_error(qbe, "Unreachable - function arg")
 
 	case ^ast.ReturnStatement:
+		if len(qbe.return_stack) <= 0 {
+			qbe_error(qbe, "Return statement found outside a function")
+			return
+		}
+		qbe.return_stack[len(qbe.return_stack) - 1].has_returned = true
 		if s.value != nil {
 			res := qbe_gen_expr(qbe, s.value)
 			qbe_emit(qbe, "  ret %s\n", res.value)
@@ -286,9 +307,7 @@ qbe_gen_if_stmt :: proc(qbe: ^Qbe, stmt: ^ast.IfStatement) {
 	qbe_emit(qbe, "  jnz %s, %s, %s\n", result.value, if_true_label, if_false_label)
 
 	qbe_emit(qbe, "%s\n", if_true_label)
-	for s in stmt.consequence.stmts {
-		qbe_gen_stmt(qbe, s)
-	}
+	qbe_gen_stmt(qbe, stmt.consequence)
 
 	join_label: string
 	if stmt.alternative != nil {
@@ -298,9 +317,7 @@ qbe_gen_if_stmt :: proc(qbe: ^Qbe, stmt: ^ast.IfStatement) {
 	qbe_emit(qbe, "%s\n", if_false_label)
 
 	if stmt.alternative != nil {
-		for s in stmt.alternative.stmts {
-			qbe_gen_stmt(qbe, s)
-		}
+		qbe_gen_stmt(qbe, stmt.alternative)
 		qbe_emit(qbe, "%s\n", join_label)
 	}
 }
@@ -561,18 +578,32 @@ qbe_error :: proc(qbe: ^Qbe, ft: string, args: ..any) {
 	append(&qbe.errors, fmt.tprintf(ft, ..args))
 }
 
-qbe_push_scope :: proc(qbe: ^Qbe) {
+qbe_push_symbol_scope :: proc(qbe: ^Qbe) {
 	scope := make(map[string]^QbeSymbolEntry, qbe.allocator)
 	append(&qbe.symbols, scope)
 }
 
-qbe_pop_scope :: proc(qbe: ^Qbe) {
+qbe_pop_symbol_scope :: proc(qbe: ^Qbe) {
 	if len(qbe.symbols) <= 0 {
 		qbe_error(qbe, "attempting to pop scope from an empty symbol stack")
 		return
 	}
 	popped := pop(&qbe.symbols)
 	delete(popped)
+}
+
+qbe_push_return_stack :: proc(qbe: ^Qbe, return_type: ^ast.TypeInfo) {
+	ctx := new(ReturnContext, qbe.allocator)
+	ctx.type = return_type
+	append(&qbe.return_stack, ctx)
+}
+
+qbe_pop_return_stack :: proc(qbe: ^Qbe) {
+	if len(qbe.return_stack) <= 0 {
+		qbe_error(qbe, "attempting to pop scope from an empty return stack")
+		return
+	}
+	pop(&qbe.return_stack)
 }
 
 qbe_add_symbol :: proc(
