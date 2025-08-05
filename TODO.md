@@ -11,3 +11,9 @@ Language Features
 - [ ] structs
 - [ ] >= and <=
 - [ ] better "builtins" support other than just linking with libc
+- [ ] add control flow analysis step
+
+Examples
+- [X] factorial
+- [ ] linked list
+- [ ] stack

@@ -79,8 +79,14 @@ qbe_init :: proc(
 
 qbe_add_global_symbols :: proc(qbe: ^Qbe, global_symbols: map[string]^ast.TypeInfo) {
 	for key, value in global_symbols {
-		reg := qbe_new_temp_reg(qbe)
-		qbe_add_symbol(qbe, key, reg, value.kind, .Global)
+		if value.kind == .Function {
+			typeinfo := value.data.(ast.FunctionTypeInfo)
+			register := fmt.tprintf("$%s", key)
+			qbe_add_symbol(qbe, key, register, typeinfo.return_type.kind, .Global)
+		} else {
+			reg := qbe_new_temp_reg(qbe)
+			qbe_add_symbol(qbe, key, reg, value.kind, .Global)
+		}
 	}
 }
 
@@ -139,7 +145,7 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: ast.Statement) {
 		qbe_emit(qbe, "%s\n", qbe_new_temp_label(qbe, "start"))
 		qbe_gen_stmt(qbe, s.body)
 
-		return_ctx := qbe.return_stack[len(qbe.return_stack) - 1]
+		return_ctx := qbe_get_top_of_return_stack(qbe)
 		if !return_ctx.has_returned {
 			if is_main {
 				qbe_emit(qbe, "  ret 0\n")
@@ -158,8 +164,11 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: ast.Statement) {
 		qbe_pop_symbol_scope(qbe)
 		qbe_pop_return_stack(qbe)
 
-		register := fmt.tprintf("$%s", s.name.value)
-		qbe_add_symbol(qbe, s.name.value, register, func_typeinfo.return_type.kind, .Func)
+		_, exists := qbe_lookup_symbol(qbe, s.name.value)
+		if !exists {
+			register := fmt.tprintf("$%s", s.name.value)
+			qbe_add_symbol(qbe, s.name.value, register, func_typeinfo.return_type.kind, .Func)
+		}
 
 	case ^ast.BlockStatement:
 		for bs in s.stmts {
@@ -175,7 +184,7 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: ast.Statement) {
 			qbe_error(qbe, "Return statement found outside a function")
 			return
 		}
-		qbe.return_stack[len(qbe.return_stack) - 1].has_returned = true
+		qbe_get_top_of_return_stack(qbe).has_returned = true
 		if s.value != nil {
 			res := qbe_gen_expr(qbe, s.value)
 			qbe_emit(qbe, "  ret %s\n", res.value)
@@ -330,18 +339,24 @@ qbe_gen_if_stmt :: proc(qbe: ^Qbe, stmt: ^ast.IfStatement) {
 	qbe_emit(qbe, "  jnz %s, %s, %s\n", result.value, if_true_label, if_false_label)
 
 	qbe_emit(qbe, "%s\n", if_true_label)
+
+	qbe_push_return_stack(qbe, qbe_get_top_of_return_stack(qbe).type)
 	qbe_gen_stmt(qbe, stmt.consequence)
 
 	join_label: string
-	if stmt.alternative != nil {
+	if stmt.alternative != nil && !qbe_get_top_of_return_stack(qbe).has_returned {
 		join_label = qbe_new_temp_label(qbe, "if_join")
 		qbe_emit(qbe, "  jmp %s\n", join_label)
 	}
+	qbe_pop_return_stack(qbe)
+
 	qbe_emit(qbe, "%s\n", if_false_label)
 
 	if stmt.alternative != nil {
 		qbe_gen_stmt(qbe, stmt.alternative)
-		qbe_emit(qbe, "%s\n", join_label)
+		if join_label != "" {
+			qbe_emit(qbe, "%s\n", join_label)
+		}
 	}
 }
 
@@ -627,6 +642,10 @@ qbe_pop_return_stack :: proc(qbe: ^Qbe) {
 		return
 	}
 	pop(&qbe.return_stack)
+}
+
+qbe_get_top_of_return_stack :: proc(qbe: ^Qbe) -> ^ReturnContext {
+	return qbe.return_stack[len(qbe.return_stack) - 1]
 }
 
 qbe_push_loop_end_label :: proc(qbe: ^Qbe, label: string) {
