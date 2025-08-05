@@ -98,7 +98,7 @@ check_func_signature :: proc(tc: ^TypeChecker, fn: ^ast.FunctionStatement) {
 }
 
 check_stmt :: proc(tc: ^TypeChecker, stmt: ast.Statement) {
-	#partial switch s in stmt {
+	switch s in stmt {
 	case ^ast.ExprStatement:
 		check_expr(tc, s.value)
 
@@ -118,7 +118,11 @@ check_stmt :: proc(tc: ^TypeChecker, stmt: ast.Statement) {
 	case ^ast.IfStatement:
 		check_if_stmt(tc, s)
 
-	case:
+	case ^ast.LoopStatement:
+	case ^ast.BreakStatement:
+		error(tc, s.tok, "TODO: not implemented")
+
+	case ^ast.Program, ^ast.FunctionArg, ^ast.BlockStatement:
 		logger.error("Unreachable statement: %+v", stmt)
 	}
 }

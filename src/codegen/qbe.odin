@@ -267,6 +267,8 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: ast.Statement) {
 	case ^ast.IfStatement:
 		qbe_gen_if_stmt(qbe, s)
 
+	case ^ast.LoopStatement, ^ast.BreakStatement:
+		qbe_error(qbe, "TODO: not implemented: LoopStatement, BreakStatement")
 	case:
 		logger.error("QBE generating statement unreachable: %+v", stmt)
 	}

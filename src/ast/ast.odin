@@ -108,6 +108,15 @@ AssignStatement :: struct {
 	declared_type: ^TypeAnnotation,
 }
 
+LoopStatement :: struct {
+	using node: Node,
+	block:      ^BlockStatement,
+}
+
+BreakStatement :: struct {
+	using node: Node,
+}
+
 ///////
 
 TypeKind :: enum {
@@ -159,6 +168,8 @@ Statement :: union {
 	^FunctionStatement,
 	^FunctionArg,
 	^IfStatement,
+	^LoopStatement,
+	^BreakStatement,
 }
 
 AnyNode :: union {
@@ -179,6 +190,8 @@ AnyNode :: union {
 	^FunctionStatement,
 	^FunctionArg,
 	^IfStatement,
+	^LoopStatement,
+	^BreakStatement,
 }
 
 
@@ -295,6 +308,11 @@ print_ast :: proc(node: AnyNode, indent_level: int) {
 			fmt.printf("%s  Alternative:\n", indent)
 			print_statement(n.alternative, indent_level + 2)
 		}
+	case ^LoopStatement:
+		fmt.printf("%sLoopStatement\n", indent)
+		print_statement(n.block, indent_level + 1)
+	case ^BreakStatement:
+		fmt.printf("%sBreakStatement\n", indent)
 	}
 }
 
@@ -317,6 +335,10 @@ print_statement :: proc(stmt: Statement, indent_level: int) {
 	case ^FunctionArg:
 		print_ast(cast(AnyNode)s, indent_level)
 	case ^IfStatement:
+		print_ast(cast(AnyNode)s, indent_level)
+	case ^LoopStatement:
+		print_ast(cast(AnyNode)s, indent_level)
+	case ^BreakStatement:
 		print_ast(cast(AnyNode)s, indent_level)
 	}
 }

@@ -22,7 +22,6 @@ Parser :: struct {
 	infix_fns:  map[t.TokenType]InfixParseFns,
 }
 
-@(private)
 Precedence :: enum {
 	LOWEST,
 	OR,
@@ -36,7 +35,6 @@ Precedence :: enum {
 	INDEX, // array[index]
 }
 
-@(private)
 get_precedence :: proc(tt: t.TokenType) -> Precedence {
 	#partial switch tt {
 	case .OR:
@@ -58,10 +56,6 @@ get_precedence :: proc(tt: t.TokenType) -> Precedence {
 	case:
 		return Precedence.LOWEST
 	}
-	// if val, ok := precedences[tt]; ok {
-	// 	return val
-	// }
-	// return .LOWEST
 }
 
 init :: proc(p: ^Parser, file_contents: string, allocator: mem.Allocator) {
@@ -71,7 +65,6 @@ init :: proc(p: ^Parser, file_contents: string, allocator: mem.Allocator) {
 
 	p.allocator = allocator
 	p.errors = make([dynamic]logger.CompilerError, p.allocator)
-	// precedences_init(p.allocator)
 
 	p.prefix_fns = make(map[t.TokenType]PrefixParseFns, p.allocator)
 	p.prefix_fns[.INT] = parse_int
@@ -101,7 +94,6 @@ init :: proc(p: ^Parser, file_contents: string, allocator: mem.Allocator) {
 }
 
 parse_program :: proc(p: ^Parser) -> ^ast.Program {
-
 	program := new(ast.Program, p.allocator)
 	program.tok = p.cur
 	program.stmts = make([dynamic]ast.Statement, p.allocator)
@@ -111,25 +103,22 @@ parse_program :: proc(p: ^Parser) -> ^ast.Program {
 		}
 		next_token(p)
 	}
-
 	return program
 }
 
-@(private)
 parse_stmt :: proc(p: ^Parser) -> ast.Statement {
-	if cur_token_is(p, .RETURN) {
+	#partial switch p.cur.type {
+	case .RETURN:
 		return parse_return_stmt(p)
-	}
-
-	if cur_token_is(p, .FUNC) {
+	case .FUNC:
 		return parse_func(p)
-	}
-
-	if cur_token_is(p, .IF) {
+	case .IF:
 		return parse_if_stmt(p)
-	}
-
-	if cur_token_is(p, .IDENT) {
+	case .LOOP:
+		return parse_loop_stmt(p)
+	case .BREAK:
+		return parse_break_stmt(p)
+	case .IDENT:
 		if peek_token_is(p, .COLON) {
 			return parse_assign_stmt(p)
 		} else if peek_token_is(p, .ASSIGN) {
@@ -140,7 +129,22 @@ parse_stmt :: proc(p: ^Parser) -> ast.Statement {
 	return parse_expr_stmt(p)
 }
 
-@(private)
+parse_break_stmt :: proc(p: ^Parser) -> ast.Statement {
+	stmt := new(ast.BreakStatement, p.allocator)
+	stmt.tok = p.cur
+	return stmt
+}
+
+parse_loop_stmt :: proc(p: ^Parser) -> ast.Statement {
+	stmt := new(ast.LoopStatement, p.allocator)
+	stmt.tok = p.cur
+	if !expect_peek(p, .L_BRACE) {
+		return nil
+	}
+	stmt.block = parse_block_stmt(p)
+	return stmt
+}
+
 parse_reassign_stmt :: proc(p: ^Parser) -> ast.Statement {
 	stmt := new(ast.ReassignStatement, p.allocator)
 	stmt.tok = p.cur
@@ -159,7 +163,6 @@ parse_reassign_stmt :: proc(p: ^Parser) -> ast.Statement {
 	return stmt
 }
 
-@(private)
 parse_assign_stmt :: proc(p: ^Parser) -> ast.Statement {
 	stmt := new(ast.AssignStatement, p.allocator)
 	stmt.tok = p.cur
@@ -191,7 +194,6 @@ parse_assign_stmt :: proc(p: ^Parser) -> ast.Statement {
 	return stmt
 }
 
-@(private)
 parse_expr :: proc(p: ^Parser, precedence: Precedence) -> ast.Expr {
 	prefix_fn, ok := p.prefix_fns[p.cur.type]
 	if !ok {
@@ -210,7 +212,6 @@ parse_expr :: proc(p: ^Parser, precedence: Precedence) -> ast.Expr {
 	return left
 }
 
-@(private)
 parse_if_stmt :: proc(p: ^Parser) -> ast.Statement {
 	next_token(p)
 	if_expr := new(ast.IfStatement, p.allocator)
@@ -230,7 +231,6 @@ parse_if_stmt :: proc(p: ^Parser) -> ast.Statement {
 	return if_expr
 }
 
-@(private)
 parse_grouped_expr :: proc(p: ^Parser) -> ast.Expr {
 	next_token(p)
 	expr := parse_expr(p, .LOWEST)
@@ -240,7 +240,6 @@ parse_grouped_expr :: proc(p: ^Parser) -> ast.Expr {
 	return expr
 }
 
-@(private)
 parse_prefix_expr :: proc(p: ^Parser) -> ast.Expr {
 	expr := new(ast.PrefixExpr, p.allocator)
 	expr.tok = p.cur
@@ -250,7 +249,6 @@ parse_prefix_expr :: proc(p: ^Parser) -> ast.Expr {
 	return expr
 }
 
-@(private)
 parse_infix_expr :: proc(p: ^Parser, left: ast.Expr) -> ast.Expr {
 	infix := new(ast.InfixExpr, p.allocator)
 	infix.tok = p.cur
@@ -264,7 +262,6 @@ parse_infix_expr :: proc(p: ^Parser, left: ast.Expr) -> ast.Expr {
 	return infix
 }
 
-@(private)
 parse_call_expr :: proc(p: ^Parser, left: ast.Expr) -> ast.Expr {
 	expr := new(ast.CallExpr, p.allocator)
 	expr.tok = p.cur
@@ -280,7 +277,6 @@ parse_call_expr :: proc(p: ^Parser, left: ast.Expr) -> ast.Expr {
 	return expr
 }
 
-@(private)
 parse_expr_list :: proc(p: ^Parser, end: t.TokenType) -> [dynamic]ast.Expr {
 	list := make([dynamic]ast.Expr, p.allocator)
 	if peek_token_is(p, end) {
@@ -300,7 +296,6 @@ parse_expr_list :: proc(p: ^Parser, end: t.TokenType) -> [dynamic]ast.Expr {
 	return list
 }
 
-@(private)
 parse_expr_stmt :: proc(p: ^Parser) -> ast.Statement {
 	stmt := new(ast.ExprStatement, p.allocator)
 	stmt.tok = p.cur
@@ -311,7 +306,6 @@ parse_expr_stmt :: proc(p: ^Parser) -> ast.Statement {
 	return stmt
 }
 
-@(private)
 parse_bool :: proc(p: ^Parser) -> ast.Expr {
 	b := new(ast.Boolean, p.allocator)
 	b.tok = p.cur
@@ -319,7 +313,6 @@ parse_bool :: proc(p: ^Parser) -> ast.Expr {
 	return b
 }
 
-@(private)
 parse_return_stmt :: proc(p: ^Parser) -> ast.Statement {
 	stmt := new(ast.ReturnStatement, p.allocator)
 	stmt.tok = p.cur
@@ -339,7 +332,6 @@ parse_return_stmt :: proc(p: ^Parser) -> ast.Statement {
 	return stmt
 }
 
-@(private)
 parse_func :: proc(p: ^Parser) -> ast.Statement {
 	func := new(ast.FunctionStatement, p.allocator)
 	func.tok = p.cur
@@ -369,7 +361,6 @@ parse_func :: proc(p: ^Parser) -> ast.Statement {
 	return func
 }
 
-@(private)
 parse_type_annotation :: proc(p: ^Parser) -> ^ast.TypeAnnotation {
 	t := new(ast.TypeAnnotation, p.allocator)
 	t.tok = p.cur
@@ -377,7 +368,6 @@ parse_type_annotation :: proc(p: ^Parser) -> ^ast.TypeAnnotation {
 	return t
 }
 
-@(private)
 parse_block_stmt :: proc(p: ^Parser) -> ^ast.BlockStatement {
 	block := new(ast.BlockStatement, p.allocator)
 	block.tok = p.cur
@@ -395,7 +385,6 @@ parse_block_stmt :: proc(p: ^Parser) -> ^ast.BlockStatement {
 	return block
 }
 
-@(private)
 parse_func_args :: proc(p: ^Parser) -> [dynamic]^ast.FunctionArg {
 	args := make([dynamic]^ast.FunctionArg, p.allocator)
 	if peek_token_is(p, .R_PAREN) {
@@ -442,7 +431,6 @@ parse_func_args :: proc(p: ^Parser) -> [dynamic]^ast.FunctionArg {
 	return args
 }
 
-@(private)
 parse_ident :: proc(p: ^Parser) -> ast.Expr {
 	ident := new(ast.Identifier, p.allocator)
 	ident.tok = p.cur
@@ -450,7 +438,6 @@ parse_ident :: proc(p: ^Parser) -> ast.Expr {
 	return ident
 }
 
-@(private)
 parse_int :: proc(p: ^Parser) -> ast.Expr {
 	num := new(ast.IntLiteral, p.allocator)
 	num.tok = p.cur
@@ -458,7 +445,6 @@ parse_int :: proc(p: ^Parser) -> ast.Expr {
 	return num
 }
 
-@(private)
 parse_string :: proc(p: ^Parser) -> ast.Expr {
 	str := new(ast.StringLiteral, p.allocator)
 	str.tok = p.cur
@@ -466,23 +452,19 @@ parse_string :: proc(p: ^Parser) -> ast.Expr {
 	return str
 }
 
-@(private)
 next_token :: proc(p: ^Parser) {
 	p.cur = p.peek
 	p.peek = lexer.next_token(p.lexer)
 }
 
-@(private)
 cur_token_is :: proc(p: ^Parser, type: t.TokenType) -> bool {
 	return p.cur.type == type
 }
 
-@(private)
 peek_token_is :: proc(p: ^Parser, type: t.TokenType) -> bool {
 	return p.peek.type == type
 }
 
-@(private)
 error :: proc(p: ^Parser, ft: string, args: ..any) {
 	// TODO: I feel like this shouldn't use the temporary allocator
 	msg := fmt.tprintf(ft, ..args)
@@ -494,7 +476,6 @@ error :: proc(p: ^Parser, ft: string, args: ..any) {
 	append(&p.errors, err)
 }
 
-@(private)
 expect_peek :: proc(p: ^Parser, type: t.TokenType) -> bool {
 	if p.peek.type != type {
 		error(p, "expected token %s, got %s", type, p.peek.type)
@@ -504,7 +485,6 @@ expect_peek :: proc(p: ^Parser, type: t.TokenType) -> bool {
 	return true
 }
 
-@(private)
 expect_type :: proc(p: ^Parser) -> bool {
 	if !t.is_type(p.cur.type) {
 		error(p, "Expected a type, got %s", p.cur.literal)

@@ -39,6 +39,8 @@ TokenType :: enum {
 	RETURN,
 	IF,
 	ELSE,
+	LOOP,
+	BREAK,
 	//
 	TYPE_STRING,
 	TYPE_INT,
@@ -76,6 +78,10 @@ ident_lookup :: proc(ident: string) -> TokenType {
 		return .IF
 	case "else":
 		return .ELSE
+	case "loop":
+		return .LOOP
+	case "break":
+		return .BREAK
 	case "String":
 		return .TYPE_STRING
 	case "Int":
