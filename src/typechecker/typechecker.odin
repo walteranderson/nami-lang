@@ -318,8 +318,8 @@ check_infix_expr :: proc(tc: ^TypeChecker, e: ^ast.InfixExpr) -> ^ast.TypeInfo {
 			tc,
 			e.tok,
 			"infix expression contains invalid left: %s, right: %s",
-			lhs_type,
-			rhs_type,
+			lhs_type.kind,
+			rhs_type.kind,
 		)
 		e.resolved_type = make_typeinfo(tc, .Invalid)
 		return e.resolved_type

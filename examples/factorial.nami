@@ -1,11 +1,24 @@
 fn main() {
-    result := factorial(10);
-    printf("10! equals %d\n", result);
+    printf("10! recursively = %d\n", factorial_recursive(10));
+    printf("10! iteratively = %d\n", factorial_iterative(10));
 }
 
-fn factorial(current: Int) Int {
+fn factorial_recursive(current: Int) Int {
     if current == 0 {
         return 1;
     }
-    return current * factorial(current - 1);
+    return current * factorial_recursive(current - 1);
+}
+
+fn factorial_iterative(start: Int) Int {
+    count := 1;
+    current := start;
+    loop {
+        if current == 0 {
+            return count;
+        }
+        count = count * current;
+        current = current - 1;
+    }
+    return count;
 }
