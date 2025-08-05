@@ -1,8 +1,12 @@
-all: basic example
+COMPILER=../nami
+SRC=$(wildcard *.nami)
+TARGETS=$(patsubst %.nami,%,$(SRC))
 
-basic: basic.nami
-	../nami basic.nami
+all: $(TARGETS)
 
-example: example.nami
-	../nami example.nami
+%: %.nami
+	$(COMPILER) $<
+
+clean:
+	rm -f $(TARGETS) *.ssa *.s
 
