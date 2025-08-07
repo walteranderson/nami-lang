@@ -43,7 +43,7 @@ get_precedence :: proc(tt: t.TokenType) -> Precedence {
 		return .AND
 	case .EQ, .NOT_EQ:
 		return .EQUALS
-	case .LT, .GT:
+	case .LT, .GT, .LTE, .GTE:
 		return .LESSGREATER
 	case .PLUS, .MINUS:
 		return .SUM
@@ -87,6 +87,8 @@ init :: proc(p: ^Parser, file_contents: string, allocator: mem.Allocator) {
 	p.infix_fns[.OR] = parse_infix_expr
 	p.infix_fns[.LT] = parse_infix_expr
 	p.infix_fns[.GT] = parse_infix_expr
+	p.infix_fns[.LTE] = parse_infix_expr
+	p.infix_fns[.GTE] = parse_infix_expr
 	p.infix_fns[.L_PAREN] = parse_call_expr
 
 	next_token(p)

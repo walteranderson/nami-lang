@@ -56,11 +56,25 @@ next_token :: proc(l: ^Lexer) -> t.Token {
 		tok.type = .SEMI_COLON
 		tok.literal = l.input[l.pos:l.pos + 1]
 	case '<':
-		tok.type = .LT
-		tok.literal = l.input[l.pos:l.pos + 1]
+		if peek_char(l) == '=' {
+			tok.type = .LTE
+			pos := l.pos
+			read_char(l)
+			tok.literal = l.input[pos:l.pos + 1]
+		} else {
+			tok.type = .LT
+			tok.literal = l.input[l.pos:l.pos + 1]
+		}
 	case '>':
-		tok.type = .GT
-		tok.literal = l.input[l.pos:l.pos + 1]
+		if peek_char(l) == '=' {
+			tok.type = .GTE
+			pos := l.pos
+			read_char(l)
+			tok.literal = l.input[pos:l.pos + 1]
+		} else {
+			tok.type = .GT
+			tok.literal = l.input[l.pos:l.pos + 1]
+		}
 	case '+':
 		tok.type = .PLUS
 		tok.literal = l.input[l.pos:l.pos + 1]

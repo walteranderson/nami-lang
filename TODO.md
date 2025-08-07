@@ -9,7 +9,7 @@ Language Features
 - [X] loops
 - [ ] arrays
 - [ ] structs
-- [ ] >= and <=
+- [X] >= and <=
 - [ ] better "builtins" support other than just linking with libc
 - [ ] add control flow analysis step
 - [ ] be able to modify function arguments (or should I?)

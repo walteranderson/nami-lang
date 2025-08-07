@@ -403,9 +403,19 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: ast.Expr) -> QbeResult {
 				[]string{"csgt", qbe_type_to_string(res_type)},
 				qbe.allocator,
 			)
+		case .GTE:
+			op_str = strings.concatenate(
+				[]string{"csge", qbe_type_to_string(res_type)},
+				qbe.allocator,
+			)
 		case .LT:
 			op_str = strings.concatenate(
 				[]string{"cslt", qbe_type_to_string(res_type)},
+				qbe.allocator,
+			)
+		case .LTE:
+			op_str = strings.concatenate(
+				[]string{"csle", qbe_type_to_string(res_type)},
 				qbe.allocator,
 			)
 		case:

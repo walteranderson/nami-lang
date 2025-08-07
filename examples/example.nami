@@ -15,6 +15,10 @@ fn main() Int {
         return 1;
     }
 
+    if res >= 2 {
+        printf("%d is greater than or equal to %d\n", res, 2);
+    }
+
     printf("See ya!\n");
     return 0;
 }

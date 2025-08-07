@@ -330,7 +330,7 @@ check_infix_expr :: proc(tc: ^TypeChecker, e: ^ast.InfixExpr) -> ^ast.TypeInfo {
 		return e.resolved_type
 	}
 	#partial switch e.tok.type {
-	case .EQ, .NOT_EQ, .LT, .GT:
+	case .EQ, .NOT_EQ, .LT, .GT, .LTE, .GTE:
 		e.resolved_type = make_typeinfo(tc, .Bool)
 	case:
 		e.resolved_type = lhs_type
