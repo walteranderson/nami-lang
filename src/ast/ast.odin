@@ -51,6 +51,11 @@ CallExpr :: struct {
 	args:       [dynamic]Expr,
 }
 
+Array :: struct {
+	using node: Node,
+	elements:   [dynamic]Expr,
+}
+
 /////////
 
 // entrypoint
@@ -127,6 +132,7 @@ TypeKind :: enum {
 	Int,
 	String,
 	Function,
+	Array,
 }
 
 FunctionTypeInfo :: struct {
@@ -134,16 +140,29 @@ FunctionTypeInfo :: struct {
 	return_type: ^TypeInfo,
 }
 
+ArrayTypeInfo :: struct {
+	elements_type: ^TypeInfo,
+	size:          uint,
+}
+
 TypeInfo :: struct {
 	kind: TypeKind,
 	data: union {
 		FunctionTypeInfo,
+		ArrayTypeInfo,
 	},
+}
+
+ArrayTypeAnnotation :: struct {
+	elements_type: ^TypeAnnotation,
+	size_expr:     Expr,
 }
 
 TypeAnnotation :: struct {
 	tok:  t.Token,
-	name: string,
+	data: union {
+		ArrayTypeAnnotation,
+	},
 }
 
 ///////
@@ -156,6 +175,7 @@ Expr :: union {
 	^PrefixExpr,
 	^InfixExpr,
 	^CallExpr,
+	^Array,
 }
 
 Statement :: union {
@@ -180,6 +200,7 @@ AnyNode :: union {
 	^PrefixExpr,
 	^InfixExpr,
 	^CallExpr,
+	^Array,
 	//
 	^Program,
 	^ReturnStatement,
@@ -210,6 +231,8 @@ get_token_from_expr :: proc(expr: Expr) -> t.Token {
 	case ^InfixExpr:
 		return e.tok
 	case ^CallExpr:
+		return e.tok
+	case ^Array:
 		return e.tok
 	}
 	panic("Unhandled expression type in ast.get_token_from_expr")
@@ -247,7 +270,9 @@ print_ast :: proc(node: AnyNode, indent_level: int) {
 			}
 		}
 		if n.declared_return_type != nil {
-			fmt.printf("%s  DeclaredReturnType: %s\n", indent, n.declared_return_type.name)
+			fmt.printf("%s  DeclaredReturnType: ", indent)
+			print_type_annotation(n.declared_return_type)
+			fmt.printf("\n")
 		}
 		typeinfo := n.resolved_type.data.(FunctionTypeInfo)
 		fmt.printf("%s  ResolvedReturnType: %s\n", indent, typeinfo.return_type.kind)
@@ -255,7 +280,9 @@ print_ast :: proc(node: AnyNode, indent_level: int) {
 	case ^FunctionArg:
 		fmt.printf("%sFunctionArg: %s\n", indent, n.ident.value)
 		if n.declared_type != nil {
-			fmt.printf("%s  Type: %s\n", indent, n.declared_type.name)
+			fmt.printf("%s  Type: ", indent)
+			print_type_annotation(n.declared_type)
+			fmt.printf("\n")
 		}
 	case ^CallExpr:
 		fmt.printf("%sCallExpr: %s\n", indent, n.func.value)
@@ -281,7 +308,9 @@ print_ast :: proc(node: AnyNode, indent_level: int) {
 		fmt.printf("%sAssignStatement:\n", indent)
 		print_expr(n.name, indent_level + 1)
 		if n.declared_type != nil {
-			fmt.printf("%s  DeclaredType: %s\n", indent, n.declared_type.name)
+			fmt.printf("%s  DeclaredType: ", indent)
+			print_type_annotation(n.declared_type)
+			fmt.printf("\n")
 		}
 		fmt.printf("%s  ResolvedType: %s\n", indent, n.resolved_type.kind)
 		print_expr(n.value, indent_level + 1)
@@ -313,6 +342,11 @@ print_ast :: proc(node: AnyNode, indent_level: int) {
 		print_statement(n.block, indent_level + 1)
 	case ^BreakStatement:
 		fmt.printf("%sBreakStatement\n", indent)
+	case ^Array:
+		fmt.printf("%sArray:\n", indent)
+		for el in n.elements {
+			print_expr(el, indent_level + 1)
+		}
 	}
 }
 
@@ -359,5 +393,17 @@ print_expr :: proc(expr: Expr, indent_level: int) {
 		print_ast(cast(AnyNode)e, indent_level)
 	case ^CallExpr:
 		print_ast(cast(AnyNode)e, indent_level)
+	case ^Array:
+		print_ast(cast(AnyNode)e, indent_level)
 	}
+}
+
+print_type_annotation :: proc(ta: ^TypeAnnotation) {
+	if t.is_type(ta.tok.type) {
+		fmt.printf("%s", ta.tok.literal)
+		return
+	}
+	array_ta := ta.data.(ArrayTypeAnnotation)
+	fmt.printf("[%d]", array_ta.size_expr.(^IntLiteral).value)
+	print_type_annotation(array_ta.elements_type)
 }

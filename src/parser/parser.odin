@@ -75,6 +75,7 @@ init :: proc(p: ^Parser, file_contents: string, allocator: mem.Allocator) {
 	p.prefix_fns[.BANG] = parse_prefix_expr
 	p.prefix_fns[.MINUS] = parse_prefix_expr
 	p.prefix_fns[.L_PAREN] = parse_grouped_expr
+	p.prefix_fns[.L_BRACKET] = parse_array
 
 	p.infix_fns = make(map[t.TokenType]InfixParseFns, p.allocator)
 	p.infix_fns[.PLUS] = parse_infix_expr
@@ -165,6 +166,10 @@ parse_reassign_stmt :: proc(p: ^Parser) -> ast.Statement {
 	return stmt
 }
 
+// Variations:
+// foo: String;
+// foo: String = "bar";
+// foo := "bar";
 parse_assign_stmt :: proc(p: ^Parser) -> ast.Statement {
 	stmt := new(ast.AssignStatement, p.allocator)
 	stmt.tok = p.cur
@@ -176,10 +181,11 @@ parse_assign_stmt :: proc(p: ^Parser) -> ast.Statement {
 
 	if !peek_token_is(p, .ASSIGN) {
 		next_token(p)
-		if !expect_type(p) {
+		type := parse_type_annotation(p)
+		if type == nil {
 			return nil
 		}
-		stmt.declared_type = parse_type_annotation(p)
+		stmt.declared_type = type
 	}
 
 	if peek_token_is(p, .ASSIGN) {
@@ -190,6 +196,10 @@ parse_assign_stmt :: proc(p: ^Parser) -> ast.Statement {
 			next_token(p)
 		}
 	} else {
+		next_token(p)
+	}
+
+	if peek_token_is(p, .SEMI_COLON) {
 		next_token(p)
 	}
 
@@ -308,6 +318,26 @@ parse_expr_stmt :: proc(p: ^Parser) -> ast.Statement {
 	return stmt
 }
 
+parse_array :: proc(p: ^Parser) -> ast.Expr {
+	arr := new(ast.Array, p.allocator)
+	arr.tok = p.cur
+	arr.elements = make([dynamic]ast.Expr, p.allocator)
+
+	next_token(p)
+	append(&arr.elements, parse_expr(p, .LOWEST))
+	for peek_token_is(p, .COMMA) {
+		next_token(p) // comma
+		next_token(p)
+		append(&arr.elements, parse_expr(p, .LOWEST))
+	}
+
+	if !expect_peek(p, .R_BRACKET) {
+		return nil
+	}
+
+	return arr
+}
+
 parse_bool :: proc(p: ^Parser) -> ast.Expr {
 	b := new(ast.Boolean, p.allocator)
 	b.tok = p.cur
@@ -349,10 +379,11 @@ parse_func :: proc(p: ^Parser) -> ast.Statement {
 
 	if !peek_token_is(p, .L_BRACE) {
 		next_token(p)
-		if !expect_type(p) {
+		type := parse_type_annotation(p)
+		if type == nil {
 			return nil
 		}
-		func.declared_return_type = parse_type_annotation(p)
+		func.declared_return_type = type
 	}
 
 	if !expect_peek(p, .L_BRACE) {
@@ -364,10 +395,41 @@ parse_func :: proc(p: ^Parser) -> ast.Statement {
 }
 
 parse_type_annotation :: proc(p: ^Parser) -> ^ast.TypeAnnotation {
-	t := new(ast.TypeAnnotation, p.allocator)
-	t.tok = p.cur
-	t.name = p.cur.literal
-	return t
+	if p.cur.type != .L_BRACKET && !t.is_type(p.cur.type) {
+		error(p, "Expected a type, got %s", p.cur.literal)
+		return nil
+	}
+
+	ta := new(ast.TypeAnnotation, p.allocator)
+	ta.tok = p.cur
+
+	if p.cur.type != .L_BRACKET {
+		return ta
+	}
+
+	next_token(p)
+
+	size_expr := parse_expr(p, .LOWEST)
+	_, ok := size_expr.(^ast.IntLiteral)
+	if !ok {
+		error(p, "Expected IntLiteral, got %s", ast.get_token_from_expr(size_expr).type)
+		return nil
+	}
+
+	if !expect_peek(p, .R_BRACKET) {
+		return nil
+	}
+
+	next_token(p)
+
+	elements_type := parse_type_annotation(p)
+
+	ta.data = ast.ArrayTypeAnnotation {
+		elements_type = elements_type,
+		size_expr     = size_expr,
+	}
+
+	return ta
 }
 
 parse_block_stmt :: proc(p: ^Parser) -> ^ast.BlockStatement {
@@ -401,10 +463,11 @@ parse_func_args :: proc(p: ^Parser) -> [dynamic]^ast.FunctionArg {
 	if peek_token_is(p, .COLON) {
 		next_token(p) // colon
 		next_token(p)
-		if !expect_type(p) {
+		type := parse_type_annotation(p)
+		if type == nil {
 			return nil
 		}
-		arg.declared_type = parse_type_annotation(p)
+		arg.declared_type = type
 	}
 
 	append(&args, arg)
@@ -418,10 +481,11 @@ parse_func_args :: proc(p: ^Parser) -> [dynamic]^ast.FunctionArg {
 		if peek_token_is(p, .COLON) {
 			next_token(p) // colon
 			next_token(p)
-			if !expect_type(p) {
+			type := parse_type_annotation(p)
+			if type == nil {
 				return nil
 			}
-			arg.declared_type = parse_type_annotation(p)
+			arg.declared_type = type
 		}
 
 		append(&args, arg)
@@ -484,13 +548,5 @@ expect_peek :: proc(p: ^Parser, type: t.TokenType) -> bool {
 		return false
 	}
 	next_token(p)
-	return true
-}
-
-expect_type :: proc(p: ^Parser) -> bool {
-	if !t.is_type(p.cur.type) {
-		error(p, "Expected a type, got %s", p.cur.literal)
-		return false
-	}
 	return true
 }

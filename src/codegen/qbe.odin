@@ -563,6 +563,8 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: ast.Expr) -> QbeResult {
 	case ^ast.Boolean:
 		return QbeResult{v.value ? "1" : "0", .Word}
 
+	case ^ast.Array:
+		logger.error("TODO: qbe codegen arrays not implemented")
 	}
 	return QbeResult{"", .Invalid}
 }
@@ -717,6 +719,9 @@ qbe_lang_type_to_size :: proc(type: ast.TypeKind) -> int {
 		return 8
 	case .Void:
 		return 0
+	case .Array:
+		logger.error("TODO: Array not implemented")
+		return 0
 	case .Invalid:
 		return 0
 	}
@@ -738,6 +743,9 @@ qbe_lang_type_to_qbe_type :: proc(type: ast.TypeKind) -> QbeType {
 		return .Long
 	case .Void:
 		return .Void
+	case .Array:
+		logger.error("TODO: Array not implemented")
+		return .Invalid
 	case .Invalid:
 		return .Invalid
 	}

@@ -189,7 +189,7 @@ check_assign_stmt :: proc(tc: ^TypeChecker, s: ^ast.AssignStatement) {
 	if s.declared_type != nil {
 		declared_type = check_type_annotation(tc, s.declared_type)
 		if declared_type == .Invalid {
-			error(tc, s.tok, "Invalid type - %s", s.declared_type.name)
+			error(tc, s.tok, "Invalid type - %s", s.declared_type.tok.type)
 			s.resolved_type = make_typeinfo(tc, .Invalid)
 			return
 		}
@@ -305,6 +305,10 @@ check_expr :: proc(tc: ^TypeChecker, expr: ast.Expr) -> ^ast.TypeInfo {
 		}
 		e.resolved_type = symbol_type
 		return e.resolved_type
+	case ^ast.Array:
+		logger.error("TODO: typechecking arrays not implemented")
+		e.resolved_type = make_typeinfo(tc, .Array)
+		return e.resolved_type
 	}
 	logger.error("Unreachable - checking expr: %+v", expr)
 	return nil
@@ -414,15 +418,11 @@ check_type_annotation :: proc(tc: ^TypeChecker, a: ^ast.TypeAnnotation) -> ast.T
 		return .Bool
 	case .TYPE_VOID:
 		return .Void
-	case:
-		return .Invalid
+	case .L_BRACKET:
+		return .Array
 	}
 	return .Invalid
 }
-
-// error :: proc(tc: ^TypeChecker, ft: string, args: ..any) {
-// 	append(&tc.errors, fmt.tprintf(ft, ..args))
-// }
 
 error :: proc(tc: ^TypeChecker, tok: token.Token, ft: string, args: ..any) {
 	// TODO: I feel like this shouldn't use the temporary allocator
