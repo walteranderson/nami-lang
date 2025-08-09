@@ -54,33 +54,37 @@ check_func_signature :: proc(tc: ^TypeChecker, fn: ^ast.FunctionStatement) {
 	}
 
 	for arg in fn.args {
-		arg.resolved_type = make_typeinfo(tc, check_type_annotation(tc, arg.declared_type))
+		arg.resolved_type = resolve_type_annotation(tc, arg.declared_type)
 	}
 
-	declared_return_type := check_type_annotation(tc, fn.declared_return_type)
-	if declared_return_type == .Invalid {
-		// TODO: this will never happen? how do i report this?
-		error(tc, fn.declared_return_type.tok, "invalid function return type")
+	return_type := resolve_type_annotation(tc, fn.declared_return_type)
+	if return_type.kind == .Invalid {
+		error(
+			tc,
+			fn.declared_return_type.tok,
+			"Invalid type - %s",
+			fn.declared_return_type.tok.literal,
+		)
 		return
 	}
 
-	// If no return type given, assume void
-	if declared_return_type == .Any || declared_return_type == .Void {
-		declared_return_type = .Void
+	// functions return void if no type is given
+	if return_type.kind == .Any {
+		return_type.kind = .Void
 	}
 
 	// main function is special, check its return type
 	// or implicitly set it to Int if no type is given
 	if fn.name.value == "main" {
 		tc.has_main = true
-		if declared_return_type == .Void {
-			declared_return_type = .Int
-		} else if declared_return_type != .Int {
+		if return_type.kind == .Void {
+			return_type.kind = .Int
+		} else if return_type.kind != .Int {
 			error(
 				tc,
 				fn.declared_return_type.tok,
 				"Expected return type of Int, got %s",
-				declared_return_type,
+				return_type.kind,
 			)
 		}
 	}
@@ -92,7 +96,7 @@ check_func_signature :: proc(tc: ^TypeChecker, fn: ^ast.FunctionStatement) {
 	fn.resolved_type = make_typeinfo(tc, .Function)
 	fn.resolved_type.data = ast.FunctionTypeInfo {
 		param_types = param_types,
-		return_type = make_typeinfo(tc, declared_return_type),
+		return_type = return_type,
 	}
 	add_symbol(tc, fn.name.value, fn.resolved_type)
 }
@@ -185,34 +189,53 @@ check_assign_stmt :: proc(tc: ^TypeChecker, s: ^ast.AssignStatement) {
 		return
 	}
 
-	declared_type: ast.TypeKind = .Any
-	if s.declared_type != nil {
-		declared_type = check_type_annotation(tc, s.declared_type)
-		if declared_type == .Invalid {
-			error(tc, s.tok, "Invalid type - %s", s.declared_type.tok.type)
-			s.resolved_type = make_typeinfo(tc, .Invalid)
-			return
-		}
+	typeinfo := resolve_type_annotation(tc, s.declared_type)
+	if typeinfo.kind == .Invalid {
+		error(tc, s.declared_type.tok, "Invalid type - %s", s.declared_type.tok.type)
+		s.resolved_type = make_typeinfo(tc, .Invalid)
+		return
 	}
+	s.resolved_type = typeinfo
 
-	if s.value == nil {
-		s.resolved_type = make_typeinfo(tc, declared_type)
-	} else {
+	if s.value != nil {
 		expr_type := check_expr(tc, s.value)
-		if declared_type == .Any {
+		if typeinfo.kind == .Any {
 			s.resolved_type = expr_type
-		} else if declared_type != expr_type.kind {
+		} else if typeinfo.kind != expr_type.kind {
 			error(
 				tc,
-				s.tok,
+				ast.get_token_from_expr(s.value),
 				"Type mismatch - declared type: %s, expression type: %s",
-				declared_type,
+				typeinfo.kind,
 				expr_type.kind,
 			)
 			s.resolved_type = make_typeinfo(tc, .Invalid)
 			return
-		} else {
-			s.resolved_type = expr_type
+		} else if typeinfo.kind == .Array {
+			ti_ti := typeinfo.data.(ast.ArrayTypeInfo)
+			expr_ti := expr_type.data.(ast.ArrayTypeInfo)
+			if ti_ti.elements_type.kind != expr_ti.elements_type.kind {
+				error(
+					tc,
+					ast.get_token_from_expr(s.value),
+					"Type mismatch - array elements declared type %s, got %s",
+					ti_ti.elements_type.kind,
+					expr_ti.elements_type.kind,
+				)
+				s.resolved_type = make_typeinfo(tc, .Invalid)
+				return
+			}
+			if ti_ti.size != expr_ti.size {
+				error(
+					tc,
+					ast.get_token_from_expr(s.value),
+					"Array size mismatch: Declared type expected %d, got %d",
+					ti_ti.size,
+					expr_ti.size,
+				)
+				s.resolved_type = make_typeinfo(tc, .Invalid)
+				return
+			}
 		}
 	}
 
@@ -306,12 +329,44 @@ check_expr :: proc(tc: ^TypeChecker, expr: ast.Expr) -> ^ast.TypeInfo {
 		e.resolved_type = symbol_type
 		return e.resolved_type
 	case ^ast.Array:
-		logger.error("TODO: typechecking arrays not implemented")
-		e.resolved_type = make_typeinfo(tc, .Array)
-		return e.resolved_type
+		return check_array_expr(tc, e)
 	}
 	logger.error("Unreachable - checking expr: %+v", expr)
 	return nil
+}
+
+check_array_expr :: proc(tc: ^TypeChecker, e: ^ast.Array) -> ^ast.TypeInfo {
+	e.resolved_type = make_typeinfo(tc, .Array)
+	if len(e.elements) <= 0 {
+		e.resolved_type.data = ast.ArrayTypeInfo {
+			elements_type = make_typeinfo(tc, .Any),
+			size          = 0,
+		}
+		return e.resolved_type
+	}
+	first_typeinfo := check_expr(tc, e.elements[0])
+	array_typeinfo := ast.ArrayTypeInfo {
+		elements_type = first_typeinfo,
+		size          = len(e.elements),
+	}
+
+	for el in e.elements[1:] {
+		cur := check_expr(tc, el)
+		if cur.kind != array_typeinfo.elements_type.kind {
+			error(
+				tc,
+				ast.get_token_from_expr(el),
+				"Type mismatch - can only have one element type in an array: expected %d, got %d",
+				array_typeinfo.elements_type.kind,
+				cur.kind,
+			)
+			e.resolved_type = make_typeinfo(tc, .Invalid)
+			return e.resolved_type
+		}
+	}
+
+	e.resolved_type.data = array_typeinfo
+	return e.resolved_type
 }
 
 check_infix_expr :: proc(tc: ^TypeChecker, e: ^ast.InfixExpr) -> ^ast.TypeInfo {
@@ -370,7 +425,6 @@ check_call_expr :: proc(tc: ^TypeChecker, e: ^ast.CallExpr) -> ^ast.TypeInfo {
 	f_typeinfo := typeinfo.data.(ast.FunctionTypeInfo)
 
 	if len(f_typeinfo.param_types) != len(e.args) {
-		logger.info("%+v", f_typeinfo)
 		error(
 			tc,
 			e.tok,
@@ -403,26 +457,6 @@ check_call_expr :: proc(tc: ^TypeChecker, e: ^ast.CallExpr) -> ^ast.TypeInfo {
 	return e.resolved_type
 }
 
-
-check_type_annotation :: proc(tc: ^TypeChecker, a: ^ast.TypeAnnotation) -> ast.TypeKind {
-	if a == nil {
-		return .Any
-	}
-
-	#partial switch a.tok.type {
-	case .TYPE_INT:
-		return .Int
-	case .TYPE_STRING:
-		return .String
-	case .TYPE_BOOL:
-		return .Bool
-	case .TYPE_VOID:
-		return .Void
-	case .L_BRACKET:
-		return .Array
-	}
-	return .Invalid
-}
 
 error :: proc(tc: ^TypeChecker, tok: token.Token, ft: string, args: ..any) {
 	// TODO: I feel like this shouldn't use the temporary allocator
@@ -466,6 +500,49 @@ symbols_pop_scope :: proc(tc: ^TypeChecker) {
 symbols_push_scope :: proc(tc: ^TypeChecker) {
 	scope := make(map[string]^ast.TypeInfo, tc.allocator)
 	append(&tc.symbols, scope)
+}
+
+resolve_type_annotation :: proc(
+	tc: ^TypeChecker,
+	annotation: ^ast.TypeAnnotation,
+) -> ^ast.TypeInfo {
+	if annotation == nil {
+		return make_typeinfo(tc, .Any)
+	}
+
+	#partial switch annotation.tok.type {
+	case .TYPE_INT:
+		return make_typeinfo(tc, .Int)
+	case .TYPE_STRING:
+		return make_typeinfo(tc, .String)
+	case .TYPE_BOOL:
+		return make_typeinfo(tc, .Bool)
+	case .TYPE_VOID:
+		return make_typeinfo(tc, .Void)
+	case .L_BRACKET:
+		arr_annotation := annotation.data.(ast.ArrayTypeAnnotation)
+		size_typeinfo := check_expr(tc, arr_annotation.size_expr)
+		if size_typeinfo.kind != .Int {
+			error(
+				tc,
+				ast.get_token_from_expr(arr_annotation.size_expr),
+				"Array size must be an Int",
+			)
+			return make_typeinfo(tc, .Invalid)
+		}
+
+		size := arr_annotation.size_expr.(^ast.IntLiteral).value
+		elements_type := resolve_type_annotation(tc, arr_annotation.elements_type)
+
+		arr_typeinfo := make_typeinfo(tc, .Array)
+		arr_typeinfo.data = ast.ArrayTypeInfo {
+			elements_type = elements_type,
+			size          = uint(size),
+		}
+		return arr_typeinfo
+	}
+	logger.error("Unreachable type annotation: %s", annotation.tok.type)
+	return make_typeinfo(tc, .Invalid)
 }
 
 make_typeinfo :: proc(tc: ^TypeChecker, kind: ast.TypeKind) -> ^ast.TypeInfo {

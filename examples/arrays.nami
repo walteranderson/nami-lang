@@ -1,3 +1,4 @@
 fn main() {
-    test: [3]Int = [1, 2, 3];
+    foo: [3]String = ["foo", "bar", "baz"];
+    bar: [1]Int;
 }
