@@ -142,7 +142,7 @@ FunctionTypeInfo :: struct {
 
 ArrayTypeInfo :: struct {
 	elements_type: ^TypeInfo,
-	size:          uint,
+	size:          int,
 }
 
 TypeInfo :: struct {

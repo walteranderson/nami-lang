@@ -225,7 +225,7 @@ check_assign_stmt :: proc(tc: ^TypeChecker, s: ^ast.AssignStatement) {
 				s.resolved_type = make_typeinfo(tc, .Invalid)
 				return
 			}
-			if ti_ti.size != expr_ti.size {
+			if ti_ti.size < expr_ti.size {
 				error(
 					tc,
 					ast.get_token_from_expr(s.value),
@@ -537,7 +537,7 @@ resolve_type_annotation :: proc(
 		arr_typeinfo := make_typeinfo(tc, .Array)
 		arr_typeinfo.data = ast.ArrayTypeInfo {
 			elements_type = elements_type,
-			size          = uint(size),
+			size          = size,
 		}
 		return arr_typeinfo
 	}

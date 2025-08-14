@@ -33,8 +33,9 @@ QbeType :: enum {
 }
 
 QbeResult :: struct {
-	value: string,
-	type:  QbeType,
+	value:    string,
+	type:     QbeType,
+	is_array: bool,
 }
 
 SymbolKind :: enum {
@@ -45,11 +46,11 @@ SymbolKind :: enum {
 }
 
 QbeSymbolEntry :: struct {
-	name:      string,
-	register:  string,
-	lang_type: ast.TypeKind,
-	qbe_type:  QbeType,
-	kind:      SymbolKind,
+	name:     string,
+	register: string,
+	typeinfo: ^ast.TypeInfo,
+	qbe_type: QbeType,
+	kind:     SymbolKind,
 }
 
 QbeSymbolTable :: map[string]^QbeSymbolEntry
@@ -82,10 +83,10 @@ qbe_add_global_symbols :: proc(qbe: ^Qbe, global_symbols: map[string]^ast.TypeIn
 		if value.kind == .Function {
 			typeinfo := value.data.(ast.FunctionTypeInfo)
 			register := fmt.tprintf("$%s", key)
-			qbe_add_symbol(qbe, key, register, typeinfo.return_type.kind, .Global)
+			qbe_add_symbol(qbe, key, register, typeinfo.return_type, .Global)
 		} else {
 			reg := qbe_new_temp_reg(qbe)
-			qbe_add_symbol(qbe, key, reg, value.kind, .Global)
+			qbe_add_symbol(qbe, key, reg, value, .Global)
 		}
 	}
 }
@@ -129,7 +130,7 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: ast.Statement) {
 
 		for arg, idx in s.args {
 			reg := qbe_new_temp_reg(qbe)
-			qbe_add_symbol(qbe, arg.ident.value, reg, arg.resolved_type.kind, .FuncArg)
+			qbe_add_symbol(qbe, arg.ident.value, reg, arg.resolved_type, .FuncArg)
 			qbe_emit(
 				qbe,
 				"%s %s",
@@ -167,7 +168,7 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: ast.Statement) {
 		_, exists := qbe_lookup_symbol(qbe, s.name.value)
 		if !exists {
 			register := fmt.tprintf("$%s", s.name.value)
-			qbe_add_symbol(qbe, s.name.value, register, func_typeinfo.return_type.kind, .Func)
+			qbe_add_symbol(qbe, s.name.value, register, func_typeinfo.return_type, .Func)
 		}
 
 	case ^ast.BlockStatement:
@@ -193,89 +194,8 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: ast.Statement) {
 		}
 
 	case ^ast.AssignStatement:
-		if len(qbe.symbols) == 1 {
-			if s.resolved_type.kind != .String &&
-			   s.resolved_type.kind != .Bool &&
-			   s.resolved_type.kind != .Int {
-				qbe_error(
-					qbe,
-					"Unsupported constant - global constants can only be string, bool, or int",
-				)
-				return
-			}
+		qbe_gen_assign_stmt(qbe, s)
 
-			symbol_sb: strings.Builder
-			strings.builder_init(&symbol_sb, qbe.allocator)
-			defer strings.builder_destroy(&symbol_sb)
-			fmt.sbprintf(&symbol_sb, "$%s", s.name.value)
-
-			symbol_register := strings.to_string(symbol_sb)
-			qbe_add_symbol(qbe, s.name.value, symbol_register, s.resolved_type.kind, .Global)
-
-			data_type: QbeType
-			if s.resolved_type.kind == .String {
-				data_type = .Byte
-				str := s.value.(^ast.StringLiteral)
-
-				// add null termination
-				val_sb: strings.Builder
-				strings.builder_init(&val_sb, qbe.allocator)
-				defer strings.builder_destroy(&val_sb)
-				fmt.sbprintf(&val_sb, "%s\\00", str.value)
-				val := strings.to_string(val_sb)
-
-				qbe_emit(
-					qbe,
-					"data %s = {{ %s \"%s\" }}\n",
-					symbol_register,
-					qbe_type_to_string(data_type),
-					val,
-				)
-			} else if s.resolved_type.kind == .Bool {
-				data_type = qbe_lang_type_to_qbe_type(s.resolved_type.kind)
-				bol := s.value.(^ast.Boolean)
-				qbe_emit(
-					qbe,
-					"data %s = {{ %s %d }}\n",
-					symbol_register,
-					qbe_type_to_string(data_type),
-					bol.value,
-				)
-			} else {
-				data_type = qbe_lang_type_to_qbe_type(s.resolved_type.kind)
-				lit := s.value.(^ast.IntLiteral)
-				qbe_emit(
-					qbe,
-					"data %s = {{ %s %d }}\n",
-					symbol_register,
-					qbe_type_to_string(data_type),
-					lit.value,
-				)
-			}
-		} else {
-			reg_ptr := qbe_new_temp_reg(qbe)
-			qbe_add_symbol(qbe, s.name.value, reg_ptr, s.resolved_type.kind, .Local)
-			size := qbe_lang_type_to_size(s.resolved_type.kind)
-			qbe_emit(qbe, "  %s =l alloc%d %d\n", reg_ptr, size, size)
-			if s.value == nil {
-				qbe_emit(
-					qbe,
-					"  store%s %d, %s\n",
-					qbe_type_to_string(qbe_lang_type_to_qbe_type(s.resolved_type.kind)),
-					0,
-					reg_ptr,
-				)
-			} else {
-				res := qbe_gen_expr(qbe, s.value)
-				qbe_emit(
-					qbe,
-					"  store%s %s, %s\n",
-					qbe_type_to_string(res.type),
-					res.value,
-					reg_ptr,
-				)
-			}
-		}
 	case ^ast.ReassignStatement:
 		entry, found := qbe_lookup_symbol(qbe, s.name.value)
 		if !found {
@@ -312,6 +232,112 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: ast.Statement) {
 
 	case:
 		logger.error("QBE generating statement unreachable: %+v", stmt)
+	}
+}
+
+qbe_gen_assign_stmt :: proc(qbe: ^Qbe, s: ^ast.AssignStatement) {
+	if len(qbe.symbols) == 1 {
+		// Global Assignments
+
+		if s.resolved_type.kind != .String &&
+		   s.resolved_type.kind != .Bool &&
+		   s.resolved_type.kind != .Int {
+			qbe_error(
+				qbe,
+				"Unsupported constant - global constants can only be string, bool, or int",
+			)
+			return
+		}
+
+		symbol_sb: strings.Builder
+		strings.builder_init(&symbol_sb, qbe.allocator)
+		defer strings.builder_destroy(&symbol_sb)
+		fmt.sbprintf(&symbol_sb, "$%s", s.name.value)
+
+		symbol_register := strings.to_string(symbol_sb)
+		qbe_add_symbol(qbe, s.name.value, symbol_register, s.resolved_type, .Global)
+
+		if s.value == nil {
+			qbe_emit(
+				qbe,
+				"data %s = {{ z %d }}\n",
+				symbol_register,
+				qbe_lang_type_to_size(s.resolved_type.kind),
+			)
+		} else {
+			data_type: QbeType
+			if s.resolved_type.kind == .String {
+				data_type = .Byte
+				str := s.value.(^ast.StringLiteral)
+
+				// add null termination
+				val_sb: strings.Builder
+				strings.builder_init(&val_sb, qbe.allocator)
+				defer strings.builder_destroy(&val_sb)
+				fmt.sbprintf(&val_sb, "%s\\00", str.value)
+				val := strings.to_string(val_sb)
+
+				qbe_emit(
+					qbe,
+					"data %s = {{ %s \"%s\" }}\n",
+					symbol_register,
+					qbe_type_to_string(data_type),
+					val,
+				)
+			} else if s.resolved_type.kind == .Bool {
+				data_type = qbe_lang_type_to_qbe_type(s.resolved_type.kind)
+				bol := s.value.(^ast.Boolean)
+				qbe_emit(
+					qbe,
+					"data %s = {{ %s %d }}\n",
+					symbol_register,
+					qbe_type_to_string(data_type),
+					bol.value,
+				)
+			} else if s.resolved_type.kind == .Int {
+				data_type = qbe_lang_type_to_qbe_type(s.resolved_type.kind)
+				lit := s.value.(^ast.IntLiteral)
+				qbe_emit(
+					qbe,
+					"data %s = {{ %s %d }}\n",
+					symbol_register,
+					qbe_type_to_string(data_type),
+					lit.value,
+				)
+			}
+		}
+	} else {
+		// Local-scoped Assignments
+
+		if s.value == nil {
+			if s.resolved_type.kind == .Array {
+				reg := qbe_new_temp_reg(qbe)
+				qbe_gen_empty_array(qbe, s.resolved_type, reg)
+			} else {
+				reg := qbe_new_temp_reg(qbe)
+				size := qbe_lang_type_to_size(s.resolved_type.kind)
+				qbe_emit(qbe, "  %s =l alloc%d %d\n", reg, size, size)
+				qbe_emit(
+					qbe,
+					"  store%s %d, %s\n",
+					qbe_type_to_string(qbe_lang_type_to_qbe_type(s.resolved_type.kind)),
+					0,
+					reg,
+				)
+				qbe_add_symbol(qbe, s.name.value, reg, s.resolved_type, .Local)
+			}
+		} else {
+			res := qbe_gen_expr(qbe, s.value)
+			if res.is_array {
+				qbe_add_symbol(qbe, s.name.value, res.value, s.resolved_type, .Local)
+			} else {
+				reg := qbe_new_temp_reg(qbe)
+				size := qbe_lang_type_to_size(s.resolved_type.kind)
+				qbe_emit(qbe, "  %s =l alloc%d %d\n", reg, size, size)
+				qbe_emit(qbe, "  store%s %s, %s\n", qbe_type_to_string(res.type), res.value, reg)
+				qbe_add_symbol(qbe, s.name.value, reg, s.resolved_type, .Local)
+			}
+		}
 	}
 }
 
@@ -366,13 +392,13 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: ast.Expr) -> QbeResult {
 		lhs := qbe_gen_expr(qbe, v.left)
 		rhs := qbe_gen_expr(qbe, v.right)
 		if lhs.type == .Invalid || rhs.type == .Invalid {
-			return QbeResult{"", .Invalid}
+			return qbe_make_result("", .Invalid)
 		}
 
 		// TODO: what other types should i support?
 		if lhs.type != .Word || rhs.type != .Word {
 			qbe_error(qbe, "only integers and booleans are allowed for infix expressions")
-			return QbeResult{"", .Invalid}
+			return qbe_make_result("", .Invalid)
 		}
 		res_type: QbeType = .Word
 
@@ -420,7 +446,7 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: ast.Expr) -> QbeResult {
 			)
 		case:
 			qbe_error(qbe, "Unsupported operator: %s", v.op)
-			return QbeResult{"", .Invalid}
+			return qbe_make_result("", .Invalid)
 		}
 
 		reg := qbe_new_temp_reg(qbe)
@@ -433,7 +459,7 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: ast.Expr) -> QbeResult {
 			lhs.value,
 			rhs.value,
 		)
-		return QbeResult{reg, res_type}
+		return qbe_make_result(reg, res_type)
 
 	case ^ast.PrefixExpr:
 		switch v.op {
@@ -443,17 +469,17 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: ast.Expr) -> QbeResult {
 			qbe_emit(qbe, "  %s =%s copy %s\n", reg, qbe_type_to_string(rhs.type), rhs.value)
 			neg_reg := qbe_new_temp_reg(qbe)
 			qbe_emit(qbe, "  %s =%s neg %s\n", neg_reg, qbe_type_to_string(rhs.type), reg)
-			return QbeResult{neg_reg, rhs.type}
+			return qbe_make_result(neg_reg, rhs.type)
 		case "!":
 			rhs := qbe_gen_expr(qbe, v.right)
 			reg := qbe_new_temp_reg(qbe)
 			qbe_emit(qbe, "  %s =%s copy %s\n", reg, qbe_type_to_string(rhs.type), rhs.value)
 			not_reg := qbe_new_temp_reg(qbe)
 			qbe_emit(qbe, "  %s =%s xor %s, 1\n", not_reg, qbe_type_to_string(rhs.type), reg)
-			return QbeResult{not_reg, rhs.type}
+			return qbe_make_result(not_reg, rhs.type)
 		case:
 			qbe_error(qbe, "Unsupported prefix operator: %s", v.op)
-			return QbeResult{"", .Invalid}
+			return qbe_make_result("", .Invalid)
 		}
 
 	case ^ast.CallExpr:
@@ -468,7 +494,7 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: ast.Expr) -> QbeResult {
 			entry, found := qbe_lookup_symbol(qbe, v.func.value)
 			if !found {
 				qbe_error(qbe, "Identifier not found %s", v.func.value)
-				return QbeResult{"", .Invalid}
+				return qbe_make_result("", .Invalid)
 			}
 			return_type = entry.qbe_type
 		}
@@ -478,7 +504,7 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: ast.Expr) -> QbeResult {
 		for arg in v.args {
 			reg := qbe_gen_expr(qbe, arg)
 			if reg.type == .Invalid {
-				return QbeResult{"", .Invalid}
+				return qbe_make_result("", .Invalid)
 			}
 			append(&args_reg, reg)
 		}
@@ -500,7 +526,7 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: ast.Expr) -> QbeResult {
 
 		if return_type == .Void {
 			qbe_emit(qbe, "  %s", strings.to_string(sb))
-			return QbeResult{"", .Void}
+			return qbe_make_result("", .Void)
 		}
 
 		ret_reg := qbe_new_temp_reg(qbe)
@@ -511,7 +537,7 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: ast.Expr) -> QbeResult {
 			qbe_type_to_string(return_type),
 			strings.to_string(sb),
 		)
-		return QbeResult{ret_reg, return_type}
+		return qbe_make_result(ret_reg, return_type)
 
 	case ^ast.StringLiteral:
 		qbe.str_count += 1
@@ -529,44 +555,99 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: ast.Expr) -> QbeResult {
 		val := strings.to_string(val_sb)
 
 		qbe.strs[label] = val
-		return QbeResult{label, .Long}
+		return qbe_make_result(label, .Long)
 	case ^ast.Identifier:
 		ident, found := qbe_lookup_symbol(qbe, v.value)
 		if !found {
 			qbe_error(qbe, "undefined identifier: %s", v.value)
-			return QbeResult{"", .Invalid}
+			return qbe_make_result("", .Invalid)
 		}
 		switch ident.kind {
 		case .Local:
 			reg := qbe_new_temp_reg(qbe)
 			type := qbe_type_to_string(ident.qbe_type)
 			qbe_emit(qbe, "  %s =%s load%s %s\n", reg, type, type, ident.register)
-			return QbeResult{reg, ident.qbe_type}
+			return qbe_make_result(reg, ident.qbe_type)
 		case .FuncArg:
-			return QbeResult{ident.register, ident.qbe_type}
+			return qbe_make_result(ident.register, ident.qbe_type)
 		case .Func:
 		// TODO: function identifier, do i want to support this?
 		case .Global:
 			if ident.qbe_type == .Long {
-				return QbeResult{ident.register, ident.qbe_type}
+				return qbe_make_result(ident.register, ident.qbe_type)
 			}
 			// if its not a pointer (long) then its a word and we need to load it into a temp register
 			reg := qbe_new_temp_reg(qbe)
 			type := qbe_type_to_string(ident.qbe_type)
 			qbe_emit(qbe, "  %s =%s load%s %s\n", reg, type, type, ident.register)
-			return QbeResult{reg, ident.qbe_type}
+			return qbe_make_result(reg, ident.qbe_type)
 		}
 
 	case ^ast.IntLiteral:
-		return QbeResult{fmt.tprintf("%d", v.value), .Word}
+		return qbe_make_result(fmt.tprintf("%d", v.value), .Word)
 
 	case ^ast.Boolean:
-		return QbeResult{v.value ? "1" : "0", .Word}
+		return qbe_make_result(v.value ? "1" : "0", .Word)
 
 	case ^ast.Array:
-		logger.error("TODO: qbe codegen arrays not implemented")
+		return qbe_gen_array_expr(qbe, v)
 	}
-	return QbeResult{"", .Invalid}
+	return qbe_make_result("", .Invalid)
+}
+
+qbe_gen_array_expr :: proc(qbe: ^Qbe, v: ^ast.Array) -> QbeResult {
+	reg_ptr := qbe_new_temp_reg(qbe)
+
+	if len(v.elements) == 0 {
+		qbe_gen_empty_array(qbe, v.resolved_type, reg_ptr)
+	} else {
+		typeinfo := v.resolved_type.data.(ast.ArrayTypeInfo)
+		type_str := qbe_type_to_string(qbe_lang_type_to_qbe_type(typeinfo.elements_type.kind))
+		size := qbe_lang_type_to_size(typeinfo.elements_type.kind)
+		capacity := typeinfo.size * size
+		qbe_emit(qbe, "  %s =l alloc%d %d\n", reg_ptr, size, capacity)
+
+		first_res := qbe_gen_expr(qbe, v.elements[0])
+		qbe_emit(qbe, "  store%s %s, %s\n", type_str, first_res.value, reg_ptr)
+		offset := size
+		i := 1
+		for offset < capacity {
+			res_value: string
+			if i < len(v.elements) {
+				res_value = qbe_gen_expr(qbe, v.elements[i]).value
+			} else {
+				res_value = "0"
+			}
+			ptr := qbe_new_temp_reg(qbe)
+			qbe_emit(qbe, "  %s =l add %s, %d\n", ptr, reg_ptr, offset)
+			qbe_emit(qbe, "  store%s %s, %s\n", type_str, res_value, ptr)
+			offset = offset + size
+			i = i + 1
+		}
+	}
+
+	return qbe_make_result(reg_ptr, .Long, true)
+}
+
+qbe_gen_empty_array :: proc(qbe: ^Qbe, typeinfo: ^ast.TypeInfo, reg: string) {
+	data, ok := typeinfo.data.(ast.ArrayTypeInfo)
+	if !ok {
+		qbe_error(qbe, "Expected array typeinfo, got %s", typeinfo.kind)
+		return
+	}
+
+	size := qbe_lang_type_to_size(data.elements_type.kind)
+	type_str := qbe_type_to_string(qbe_lang_type_to_qbe_type(data.elements_type.kind))
+	capacity := data.size * size
+	qbe_emit(qbe, "  %s =l alloc%d %d\n", reg, size, capacity)
+	qbe_emit(qbe, "  store%s %d, %s\n", type_str, 0, reg)
+	offset := size
+	for offset < capacity {
+		ptr := qbe_new_temp_reg(qbe)
+		qbe_emit(qbe, "  %s =l add %s, %d\n", ptr, reg, offset)
+		qbe_emit(qbe, "  store%s %d, %s\n", type_str, 0, ptr)
+		offset = offset + size
+	}
 }
 
 qbe_gen_logical_operators :: proc(qbe: ^Qbe, expr: ^ast.InfixExpr) -> QbeResult {
@@ -605,7 +686,7 @@ qbe_gen_logical_operators :: proc(qbe: ^Qbe, expr: ^ast.InfixExpr) -> QbeResult 
 		false_merge,
 	)
 
-	return QbeResult{result_reg, qbe_type}
+	return qbe_make_result(result_reg, qbe_type)
 }
 
 qbe_new_temp_reg :: proc(qbe: ^Qbe) -> string {
@@ -676,7 +757,7 @@ qbe_add_symbol :: proc(
 	qbe: ^Qbe,
 	name: string,
 	register: string,
-	type: ast.TypeKind,
+	typeinfo: ^ast.TypeInfo,
 	kind: SymbolKind,
 ) {
 	if len(qbe.symbols) <= 0 {
@@ -686,8 +767,8 @@ qbe_add_symbol :: proc(
 	entry := new(QbeSymbolEntry, qbe.allocator)
 	entry.name = strings.clone(name, qbe.allocator)
 	entry.register = strings.clone(register, qbe.allocator)
-	entry.lang_type = type
-	entry.qbe_type = qbe_lang_type_to_qbe_type(type)
+	entry.typeinfo = typeinfo
+	entry.qbe_type = qbe_lang_type_to_qbe_type(typeinfo.kind)
 	entry.kind = kind
 	qbe.symbols[len(qbe.symbols) - 1][entry.name] = entry
 }
@@ -720,8 +801,7 @@ qbe_lang_type_to_size :: proc(type: ast.TypeKind) -> int {
 	case .Void:
 		return 0
 	case .Array:
-		logger.error("TODO: Array not implemented")
-		return 0
+		return 8
 	case .Invalid:
 		return 0
 	}
@@ -744,8 +824,7 @@ qbe_lang_type_to_qbe_type :: proc(type: ast.TypeKind) -> QbeType {
 	case .Void:
 		return .Void
 	case .Array:
-		logger.error("TODO: Array not implemented")
-		return .Invalid
+		return .Long
 	case .Invalid:
 		return .Invalid
 	}
@@ -772,4 +851,8 @@ qbe_type_to_string :: proc(type: QbeType) -> string {
 		return ""
 	}
 	return ""
+}
+
+qbe_make_result :: proc(value: string, type: QbeType, is_array := false) -> QbeResult {
+	return QbeResult{value, type, is_array}
 }
