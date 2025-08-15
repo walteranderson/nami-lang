@@ -56,6 +56,12 @@ Array :: struct {
 	elements:   [dynamic]Expr,
 }
 
+IndexExpr :: struct {
+	using node: Node,
+	left:       Expr,
+	index:      Expr,
+}
+
 /////////
 
 // entrypoint
@@ -176,6 +182,7 @@ Expr :: union {
 	^InfixExpr,
 	^CallExpr,
 	^Array,
+	^IndexExpr,
 }
 
 Statement :: union {
@@ -201,6 +208,7 @@ AnyNode :: union {
 	^InfixExpr,
 	^CallExpr,
 	^Array,
+	^IndexExpr,
 	//
 	^Program,
 	^ReturnStatement,
@@ -233,6 +241,8 @@ get_token_from_expr :: proc(expr: Expr) -> t.Token {
 	case ^CallExpr:
 		return e.tok
 	case ^Array:
+		return e.tok
+	case ^IndexExpr:
 		return e.tok
 	}
 	panic("Unhandled expression type in ast.get_token_from_expr")
@@ -347,6 +357,12 @@ print_ast :: proc(node: AnyNode, indent_level: int) {
 		for el in n.elements {
 			print_expr(el, indent_level + 1)
 		}
+	case ^IndexExpr:
+		fmt.printf("%sIndexExpression:\n", indent)
+		fmt.printf("%s  Left:\n", indent)
+		print_expr(n.left, indent_level + 2)
+		fmt.printf("%s  Index:\n", indent)
+		print_expr(n.index, indent_level + 2)
 	}
 }
 
@@ -394,6 +410,8 @@ print_expr :: proc(expr: Expr, indent_level: int) {
 	case ^CallExpr:
 		print_ast(cast(AnyNode)e, indent_level)
 	case ^Array:
+		print_ast(cast(AnyNode)e, indent_level)
+	case ^IndexExpr:
 		print_ast(cast(AnyNode)e, indent_level)
 	}
 }

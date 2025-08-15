@@ -91,6 +91,7 @@ init :: proc(p: ^Parser, file_contents: string, allocator: mem.Allocator) {
 	p.infix_fns[.LTE] = parse_infix_expr
 	p.infix_fns[.GTE] = parse_infix_expr
 	p.infix_fns[.L_PAREN] = parse_call_expr
+	p.infix_fns[.L_BRACKET] = parse_index_expr
 
 	next_token(p)
 	next_token(p)
@@ -130,6 +131,18 @@ parse_stmt :: proc(p: ^Parser) -> ast.Statement {
 	}
 
 	return parse_expr_stmt(p)
+}
+
+parse_index_expr :: proc(p: ^Parser, left: ast.Expr) -> ast.Expr {
+	expr := new(ast.IndexExpr, p.allocator)
+	expr.tok = p.cur
+	expr.left = left
+	next_token(p)
+	expr.index = parse_expr(p, .LOWEST)
+	if !expect_peek(p, .R_BRACKET) {
+		return nil
+	}
+	return expr
 }
 
 parse_break_stmt :: proc(p: ^Parser) -> ast.Statement {

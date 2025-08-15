@@ -330,9 +330,42 @@ check_expr :: proc(tc: ^TypeChecker, expr: ast.Expr) -> ^ast.TypeInfo {
 		return e.resolved_type
 	case ^ast.Array:
 		return check_array_expr(tc, e)
+	case ^ast.IndexExpr:
+		return check_index_expr(tc, e)
 	}
 	logger.error("Unreachable - checking expr: %+v", expr)
 	return nil
+}
+
+check_index_expr :: proc(tc: ^TypeChecker, expr: ^ast.IndexExpr) -> ^ast.TypeInfo {
+	ident_typeinfo := check_expr(tc, expr.left)
+	if ident_typeinfo.kind != .Array {
+		error(
+			tc,
+			ast.get_token_from_expr(expr.left),
+			"Type error - expected Array, got %s",
+			ident_typeinfo.kind,
+		)
+		expr.resolved_type = make_typeinfo(tc, .Invalid)
+		return expr.resolved_type
+	}
+
+	idx_typeinfo := check_expr(tc, expr.index)
+	if idx_typeinfo.kind != .Int {
+		error(
+			tc,
+			ast.get_token_from_expr(expr.index),
+			"Type error - expected Int, got %s",
+			idx_typeinfo.kind,
+		)
+		expr.resolved_type = make_typeinfo(tc, .Invalid)
+		return expr.resolved_type
+	}
+
+	ident_arr_typeinfo := ident_typeinfo.data.(ast.ArrayTypeInfo)
+	expr.resolved_type = ident_arr_typeinfo.elements_type
+
+	return expr.resolved_type
 }
 
 check_array_expr :: proc(tc: ^TypeChecker, e: ^ast.Array) -> ^ast.TypeInfo {

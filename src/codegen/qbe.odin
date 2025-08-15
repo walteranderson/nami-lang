@@ -591,6 +591,10 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: ast.Expr) -> QbeResult {
 
 	case ^ast.Array:
 		return qbe_gen_array_expr(qbe, v)
+
+	case ^ast.IndexExpr:
+		logger.error("TODO: QBE codegen IndexExpr")
+		return qbe_make_result("", .Invalid)
 	}
 	return qbe_make_result("", .Invalid)
 }
