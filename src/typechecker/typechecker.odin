@@ -123,11 +123,85 @@ check_stmt :: proc(tc: ^TypeChecker, stmt: ast.Statement) {
 		check_if_stmt(tc, s)
 
 	case ^ast.LoopStatement:
+		check_loop_stmt(tc, s)
+
 	case ^ast.BreakStatement:
-		error(tc, s.tok, "TODO: not implemented")
+		error(tc, s.tok, "TODO: break statement not typechecked")
 
 	case ^ast.Program, ^ast.FunctionArg, ^ast.BlockStatement:
 		logger.error("Unreachable statement: %+v", stmt)
+	}
+}
+
+check_loop_stmt :: proc(tc: ^TypeChecker, loop: ^ast.LoopStatement) {
+	if loop.wear == nil && loop.item == nil {
+		// this is an infinite loop, no typechecking required
+		// loop { ... }
+		return
+	}
+
+	// loop where [expr] { ... }
+	if loop.wear != nil {
+		wear_typeinfo := check_expr(tc, loop.wear)
+		if wear_typeinfo.kind != .Bool {
+			error(
+				tc,
+				ast.get_token_from_expr(loop.wear),
+				"loop where expects a condition that resolves to a boolean, got %s",
+				wear_typeinfo.kind,
+			)
+		}
+		return
+	}
+
+	// loop item in items { ... }
+	// loop item, idx in items { ... }
+
+	if loop.item == nil {
+		error(tc, loop.tok, "item variable is required when looping over an array")
+		return
+	}
+	if loop.items == nil {
+		error(tc, loop.tok, "items variable is required when looping over an array")
+		return
+	}
+
+	symbols_push_scope(tc)
+	defer symbols_pop_scope(tc)
+
+	items_typeinfo := check_expr(tc, loop.items)
+	if items_typeinfo.kind != .Array {
+		error(
+			tc,
+			ast.get_token_from_expr(loop.items),
+			"Expected array, got %s",
+			items_typeinfo.kind,
+		)
+		return
+	}
+	arr_typeinfo := items_typeinfo.data.(ast.ArrayTypeInfo)
+
+
+	// item_typeinfo := check_expr(tc, loop.item)
+	item_ident, ok := loop.item.(^ast.Identifier)
+	if !ok {
+		error(tc, ast.get_token_from_expr(loop.item), "Expected identifier")
+		return
+	}
+	add_symbol(tc, item_ident.value, make_typeinfo(tc, arr_typeinfo.elements_type.kind))
+
+	// idx is optional
+	if loop.idx != nil {
+		idx_ident, ok := loop.idx.(^ast.Identifier)
+		if !ok {
+			error(tc, ast.get_token_from_expr(loop.idx), "Expected idx to be an identifier")
+			return
+		}
+		add_symbol(tc, idx_ident.value, make_typeinfo(tc, .Int))
+	}
+
+	for stmt in loop.block.stmts {
+		check_stmt(tc, stmt)
 	}
 }
 
@@ -292,6 +366,8 @@ check_body_stmt_for_returns :: proc(
 			if s.alternative != nil {
 				check_body_stmt_for_returns(tc, s.alternative, declared_return_type)
 			}
+		case ^ast.LoopStatement:
+			check_body_stmt_for_returns(tc, s.block, declared_return_type)
 		}
 	}
 }

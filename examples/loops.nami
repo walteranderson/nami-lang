@@ -1,7 +1,6 @@
 fn main() {
-    x := 0;
-    loop where x < 10 {
-        printf("%d\n", x);
-        x = x + 1;
+    foo := [1, 2, 3];
+    loop item, idx in foo {
+        printf("foo[%d] = %d\n", idx, item);
     }
 }
