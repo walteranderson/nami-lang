@@ -593,9 +593,68 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: ast.Expr) -> QbeResult {
 		return qbe_gen_array_expr(qbe, v)
 
 	case ^ast.IndexExpr:
-		logger.error("TODO: QBE codegen IndexExpr")
+		return qbe_gen_index_expr(qbe, v)
+	}
+	return qbe_make_result("", .Invalid)
+}
+
+qbe_gen_index_expr :: proc(qbe: ^Qbe, expr: ^ast.IndexExpr) -> QbeResult {
+	ident, ok := expr.left.(^ast.Identifier)
+	if !ok {
+		qbe_error(
+			qbe,
+			"Expected identifier when using index expression, got %s",
+			ast.get_token_from_expr(expr.left).type,
+		)
 		return qbe_make_result("", .Invalid)
 	}
+	symbol, okk := qbe_lookup_symbol(qbe, ident.value)
+	if !okk {
+		qbe_error(qbe, "Identifier not found: %s", ident.value)
+		return qbe_make_result("", .Invalid)
+	}
+	if symbol.typeinfo.kind != .Array {
+		qbe_error(qbe, "Expected array, got %s", symbol.typeinfo.kind)
+		return qbe_make_result("", .Invalid)
+	}
+	idx, okkk := expr.index.(^ast.IntLiteral)
+	if !okkk {
+		qbe_error(
+			qbe,
+			"Expected index to be integer, got %s",
+			ast.get_token_from_expr(expr.index).type,
+		)
+		return qbe_make_result("", .Invalid)
+
+	}
+	typeinfo := symbol.typeinfo.data.(ast.ArrayTypeInfo)
+	element_size := qbe_lang_type_to_size(typeinfo.elements_type.kind)
+
+	// if idx is 0, we use symbol.register
+	if idx.value == 0 {
+		reg := qbe_new_temp_reg(qbe)
+		type := qbe_type_to_string(qbe_lang_type_to_qbe_type(typeinfo.elements_type.kind))
+		qbe_emit(qbe, "  %s =%s load%s %s\n", reg, type, type, symbol.register)
+		return qbe_make_result(reg, qbe_lang_type_to_qbe_type(typeinfo.elements_type.kind))
+	} else {
+		add_reg := qbe_new_temp_reg(qbe)
+		element_size := qbe_lang_type_to_size(typeinfo.elements_type.kind)
+		size := element_size * idx.value
+		qbe_emit(
+			qbe,
+			"  %s =%s add %s, %d\n",
+			add_reg,
+			qbe_type_to_string(symbol.qbe_type),
+			symbol.register,
+			size,
+		)
+
+		reg := qbe_new_temp_reg(qbe)
+		type := qbe_type_to_string(qbe_lang_type_to_qbe_type(typeinfo.elements_type.kind))
+		qbe_emit(qbe, "  %s =%s load%s %s\n", reg, type, type, add_reg)
+		return qbe_make_result(reg, qbe_lang_type_to_qbe_type(typeinfo.elements_type.kind))
+	}
+
 	return qbe_make_result("", .Invalid)
 }
 
