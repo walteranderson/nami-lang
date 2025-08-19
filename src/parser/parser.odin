@@ -154,11 +154,52 @@ parse_break_stmt :: proc(p: ^Parser) -> ast.Statement {
 parse_loop_stmt :: proc(p: ^Parser) -> ast.Statement {
 	stmt := new(ast.LoopStatement, p.allocator)
 	stmt.tok = p.cur
-	if !expect_peek(p, .L_BRACE) {
-		return nil
+
+	// loop { ... }
+	if peek_token_is(p, .L_BRACE) {
+		next_token(p)
+		stmt.block = parse_block_stmt(p)
+		return stmt
 	}
-	stmt.block = parse_block_stmt(p)
-	return stmt
+
+	// loop where x < 10 { ... }
+	if peek_token_is(p, .WHERE) {
+		next_token(p)
+		next_token(p)
+		stmt.wear = parse_expr(p, .LOWEST)
+
+		if !expect_peek(p, .L_BRACE) {
+			return nil
+		}
+		stmt.block = parse_block_stmt(p)
+		return stmt
+	}
+
+	// loop item in items { ... }
+	// loop item, idx in items { ... }
+	if peek_token_is(p, .IDENT) {
+		next_token(p)
+		stmt.item = parse_expr(p, .LOWEST)
+		if peek_token_is(p, .COMMA) {
+			next_token(p)
+			next_token(p)
+			stmt.idx = parse_expr(p, .LOWEST)
+		}
+		if !expect_peek(p, .IN) {
+			return nil
+		}
+		next_token(p)
+		stmt.items = parse_expr(p, .LOWEST)
+
+		if !expect_peek(p, .L_BRACE) {
+			return nil
+		}
+		stmt.block = parse_block_stmt(p)
+		return stmt
+	}
+
+	error(p, "Unexpected loop syntax")
+	return nil
 }
 
 parse_reassign_stmt :: proc(p: ^Parser) -> ast.Statement {

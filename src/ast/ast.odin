@@ -122,6 +122,14 @@ AssignStatement :: struct {
 LoopStatement :: struct {
 	using node: Node,
 	block:      ^BlockStatement,
+
+	// loop item, idx in items
+	item:       Expr,
+	idx:        Expr,
+	items:      Expr,
+
+	// loop where [expr]
+	wear:       Expr,
 }
 
 BreakStatement :: struct {
@@ -349,6 +357,22 @@ print_ast :: proc(node: AnyNode, indent_level: int) {
 		}
 	case ^LoopStatement:
 		fmt.printf("%sLoopStatement\n", indent)
+		if n.item != nil {
+			fmt.printf("%s  Item:\n", indent)
+			print_expr(n.item, indent_level + 2)
+		}
+		if n.idx != nil {
+			fmt.printf("%s  Idx:\n", indent)
+			print_expr(n.idx, indent_level + 2)
+		}
+		if n.items != nil {
+			fmt.printf("%s  Items:\n", indent)
+			print_expr(n.items, indent_level + 2)
+		}
+		if n.wear != nil {
+			fmt.printf("%s  Where:\n", indent)
+			print_expr(n.wear, indent_level + 2)
+		}
 		print_statement(n.block, indent_level + 1)
 	case ^BreakStatement:
 		fmt.printf("%sBreakStatement\n", indent)
