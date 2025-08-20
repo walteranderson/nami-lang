@@ -142,14 +142,14 @@ check_loop_stmt :: proc(tc: ^TypeChecker, loop: ^ast.LoopStatement) {
 			check_stmt(tc, stmt)
 		}
 
-	case .Where:
-		wear_typeinfo := check_expr(tc, loop.wear)
-		if wear_typeinfo.kind != .Bool {
+	case .When:
+		when_typeinfo := check_expr(tc, loop.wehn)
+		if when_typeinfo.kind != .Bool {
 			error(
 				tc,
-				ast.get_token_from_expr(loop.wear),
-				"loop where expects a condition that resolves to a boolean, got %s",
-				wear_typeinfo.kind,
+				ast.get_token_from_expr(loop.wehn),
+				"loop when expects a condition that resolves to a boolean, got %s",
+				when_typeinfo.kind,
 			)
 		}
 		symbols_push_scope(tc)

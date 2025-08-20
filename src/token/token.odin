@@ -44,7 +44,7 @@ TokenType :: enum {
 	LOOP,
 	BREAK,
 	IN,
-	WHERE,
+	WHEN,
 	//
 	TYPE_STRING,
 	TYPE_INT,
@@ -88,8 +88,8 @@ ident_lookup :: proc(ident: string) -> TokenType {
 		return .BREAK
 	case "in":
 		return .IN
-	case "where":
-		return .WHERE
+	case "when":
+		return .WHEN
 	case "String":
 		return .TYPE_STRING
 	case "Int":

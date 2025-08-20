@@ -163,12 +163,12 @@ parse_loop_stmt :: proc(p: ^Parser) -> ast.Statement {
 		return stmt
 	}
 
-	// loop where x < 10 { ... }
-	if peek_token_is(p, .WHERE) {
+	// loop when x < 10 { ... }
+	if peek_token_is(p, .WHEN) {
 		next_token(p)
 		next_token(p)
-		stmt.kind = .Where
-		stmt.wear = parse_expr(p, .LOWEST)
+		stmt.kind = .When
+		stmt.wehn = parse_expr(p, .LOWEST)
 
 		if !expect_peek(p, .L_BRACE) {
 			return nil

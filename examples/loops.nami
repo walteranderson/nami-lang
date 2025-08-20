@@ -1,6 +1,6 @@
 fn main() {
     x := 0
-    loop where x < 10 {
+    loop when x <= 20 {
         printf("x = %d\n", x)
         x = x + 1;
     }

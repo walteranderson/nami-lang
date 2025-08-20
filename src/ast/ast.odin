@@ -124,7 +124,7 @@ LoopStatement :: struct {
 	block:      ^BlockStatement,
 	kind:       enum {
 		Infinite,
-		Where,
+		When,
 		Iterator,
 	},
 
@@ -133,8 +133,8 @@ LoopStatement :: struct {
 	idx:        Expr,
 	items:      Expr,
 
-	// loop where [expr]
-	wear:       Expr,
+	// loop when [expr]
+	wehn:       Expr,
 }
 
 BreakStatement :: struct {
@@ -374,9 +374,9 @@ print_ast :: proc(node: AnyNode, indent_level: int) {
 			fmt.printf("%s  Items:\n", indent)
 			print_expr(n.items, indent_level + 2)
 		}
-		if n.wear != nil {
-			fmt.printf("%s  Where:\n", indent)
-			print_expr(n.wear, indent_level + 2)
+		if n.wehn != nil {
+			fmt.printf("%s  When:\n", indent)
+			print_expr(n.wehn, indent_level + 2)
 		}
 		print_statement(n.block, indent_level + 1)
 	case ^BreakStatement:
