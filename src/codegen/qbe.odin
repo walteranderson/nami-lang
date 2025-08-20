@@ -341,16 +341,34 @@ qbe_gen_assign_stmt :: proc(qbe: ^Qbe, s: ^ast.AssignStatement) {
 	}
 }
 
-qbe_gen_loop_stmt :: proc(qbe: ^Qbe, stmt: ^ast.LoopStatement) {
+qbe_gen_loop_stmt :: proc(qbe: ^Qbe, loop: ^ast.LoopStatement) {
 	loop_begin := qbe_new_temp_label(qbe, "loop_begin")
 	loop_end := qbe_new_temp_label(qbe, "loop_end")
 
 	qbe_emit(qbe, "%s\n", loop_begin)
 	qbe_push_loop_end_label(qbe, loop_end)
-	qbe_gen_stmt(qbe, stmt.block)
-	qbe_emit(qbe, "  jmp %s\n", loop_begin)
-	qbe_emit(qbe, "%s\n", loop_end)
-	qbe_pop_loop_end_label(qbe)
+
+	switch loop.kind {
+	case .Infinite:
+		qbe_gen_stmt(qbe, loop.block)
+		qbe_emit(qbe, "  jmp %s\n", loop_begin)
+		qbe_emit(qbe, "%s\n", loop_end)
+		qbe_pop_loop_end_label(qbe)
+	case .Where:
+		qbe_gen_stmt(qbe, loop.block)
+		result := qbe_gen_expr(qbe, loop.wear)
+		qbe_emit(qbe, "  jnz %s, %s, %s\n", result.value, loop_begin, loop_end)
+		qbe_emit(qbe, "%s\n", loop_end)
+		qbe_pop_loop_end_label(qbe)
+	case .Iterator:
+		// TODO:
+		// create temporaries for item and idx
+		// gen the body
+		// conditional jump if ...
+		// qbe_emit(qbe, "%s\n", loop_end)
+		// qbe_pop_loop_end_label(qbe)
+		logger.error("TODO: qbe codegen - iterator loops not implemented yet")
+	}
 }
 
 qbe_gen_if_stmt :: proc(qbe: ^Qbe, stmt: ^ast.IfStatement) {

@@ -158,6 +158,7 @@ parse_loop_stmt :: proc(p: ^Parser) -> ast.Statement {
 	// loop { ... }
 	if peek_token_is(p, .L_BRACE) {
 		next_token(p)
+		stmt.kind = .Infinite
 		stmt.block = parse_block_stmt(p)
 		return stmt
 	}
@@ -166,6 +167,7 @@ parse_loop_stmt :: proc(p: ^Parser) -> ast.Statement {
 	if peek_token_is(p, .WHERE) {
 		next_token(p)
 		next_token(p)
+		stmt.kind = .Where
 		stmt.wear = parse_expr(p, .LOWEST)
 
 		if !expect_peek(p, .L_BRACE) {
@@ -179,6 +181,7 @@ parse_loop_stmt :: proc(p: ^Parser) -> ast.Statement {
 	// loop item, idx in items { ... }
 	if peek_token_is(p, .IDENT) {
 		next_token(p)
+		stmt.kind = .Iterator
 		stmt.item = parse_expr(p, .LOWEST)
 		if peek_token_is(p, .COMMA) {
 			next_token(p)

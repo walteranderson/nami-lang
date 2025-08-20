@@ -134,14 +134,15 @@ check_stmt :: proc(tc: ^TypeChecker, stmt: ast.Statement) {
 }
 
 check_loop_stmt :: proc(tc: ^TypeChecker, loop: ^ast.LoopStatement) {
-	if loop.wear == nil && loop.item == nil {
-		// this is an infinite loop, no typechecking required
-		// loop { ... }
-		return
-	}
+	switch loop.kind {
+	case .Infinite:
+		symbols_push_scope(tc)
+		defer symbols_pop_scope(tc)
+		for stmt in loop.block.stmts {
+			check_stmt(tc, stmt)
+		}
 
-	// loop where [expr] { ... }
-	if loop.wear != nil {
+	case .Where:
 		wear_typeinfo := check_expr(tc, loop.wear)
 		if wear_typeinfo.kind != .Bool {
 			error(
@@ -151,57 +152,59 @@ check_loop_stmt :: proc(tc: ^TypeChecker, loop: ^ast.LoopStatement) {
 				wear_typeinfo.kind,
 			)
 		}
-		return
-	}
+		symbols_push_scope(tc)
+		defer symbols_pop_scope(tc)
+		for stmt in loop.block.stmts {
+			check_stmt(tc, stmt)
+		}
 
-	// loop item in items { ... }
-	// loop item, idx in items { ... }
-
-	if loop.item == nil {
-		error(tc, loop.tok, "item variable is required when looping over an array")
-		return
-	}
-	if loop.items == nil {
-		error(tc, loop.tok, "items variable is required when looping over an array")
-		return
-	}
-
-	symbols_push_scope(tc)
-	defer symbols_pop_scope(tc)
-
-	items_typeinfo := check_expr(tc, loop.items)
-	if items_typeinfo.kind != .Array {
-		error(
-			tc,
-			ast.get_token_from_expr(loop.items),
-			"Expected array, got %s",
-			items_typeinfo.kind,
-		)
-		return
-	}
-	arr_typeinfo := items_typeinfo.data.(ast.ArrayTypeInfo)
-
-
-	// item_typeinfo := check_expr(tc, loop.item)
-	item_ident, ok := loop.item.(^ast.Identifier)
-	if !ok {
-		error(tc, ast.get_token_from_expr(loop.item), "Expected identifier")
-		return
-	}
-	add_symbol(tc, item_ident.value, make_typeinfo(tc, arr_typeinfo.elements_type.kind))
-
-	// idx is optional
-	if loop.idx != nil {
-		idx_ident, ok := loop.idx.(^ast.Identifier)
-		if !ok {
-			error(tc, ast.get_token_from_expr(loop.idx), "Expected idx to be an identifier")
+	case .Iterator:
+		if loop.item == nil {
+			error(tc, loop.tok, "item variable is required when looping over an array")
 			return
 		}
-		add_symbol(tc, idx_ident.value, make_typeinfo(tc, .Int))
-	}
+		if loop.items == nil {
+			error(tc, loop.tok, "items variable is required when looping over an array")
+			return
+		}
 
-	for stmt in loop.block.stmts {
-		check_stmt(tc, stmt)
+		symbols_push_scope(tc)
+		defer symbols_pop_scope(tc)
+
+		items_typeinfo := check_expr(tc, loop.items)
+		if items_typeinfo.kind != .Array {
+			error(
+				tc,
+				ast.get_token_from_expr(loop.items),
+				"Expected array, got %s",
+				items_typeinfo.kind,
+			)
+			return
+		}
+		arr_typeinfo := items_typeinfo.data.(ast.ArrayTypeInfo)
+
+
+		// item_typeinfo := check_expr(tc, loop.item)
+		item_ident, ok := loop.item.(^ast.Identifier)
+		if !ok {
+			error(tc, ast.get_token_from_expr(loop.item), "Expected identifier")
+			return
+		}
+		add_symbol(tc, item_ident.value, make_typeinfo(tc, arr_typeinfo.elements_type.kind))
+
+		// idx is optional
+		if loop.idx != nil {
+			idx_ident, ok := loop.idx.(^ast.Identifier)
+			if !ok {
+				error(tc, ast.get_token_from_expr(loop.idx), "Expected idx to be an identifier")
+				return
+			}
+			add_symbol(tc, idx_ident.value, make_typeinfo(tc, .Int))
+		}
+
+		for stmt in loop.block.stmts {
+			check_stmt(tc, stmt)
+		}
 	}
 }
 

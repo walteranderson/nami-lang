@@ -122,6 +122,11 @@ AssignStatement :: struct {
 LoopStatement :: struct {
 	using node: Node,
 	block:      ^BlockStatement,
+	kind:       enum {
+		Infinite,
+		Where,
+		Iterator,
+	},
 
 	// loop item, idx in items
 	item:       Expr,
