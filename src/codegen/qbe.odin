@@ -355,9 +355,17 @@ qbe_gen_loop_stmt :: proc(qbe: ^Qbe, loop: ^ast.LoopStatement) {
 		qbe_emit(qbe, "%s\n", loop_end)
 		qbe_pop_loop_end_label(qbe)
 	case .When:
-		qbe_gen_stmt(qbe, loop.block)
+		// when condition check
+		loop_body := qbe_new_temp_label(qbe, "loop_body")
 		result := qbe_gen_expr(qbe, loop.wehn)
-		qbe_emit(qbe, "  jnz %s, %s, %s\n", result.value, loop_begin, loop_end)
+		qbe_emit(qbe, "  jnz %s, %s, %s\n", result.value, loop_body, loop_end)
+
+		// loop body
+		qbe_emit(qbe, "%s\n", loop_body)
+		qbe_gen_stmt(qbe, loop.block)
+		qbe_emit(qbe, "  jmp %s\n", loop_begin)
+
+		// end
 		qbe_emit(qbe, "%s\n", loop_end)
 		qbe_pop_loop_end_label(qbe)
 	case .Iterator:
