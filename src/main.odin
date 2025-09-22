@@ -91,9 +91,8 @@ main :: proc() {
 		logger.info("Starting compilation")
 		comp_start := time.now()
 		program_name := fs.extract_base_name(opt.file_name)
-		err := codegen.compile_qbe(&qbe, program_name)
-		if err != nil {
-			logger.error("Error compiling qbe: %v", err)
+		ok := codegen.compile_qbe(&qbe, program_name)
+		if !ok {
 			os.exit(1)
 		}
 		logger.info("Compilation complete: %v", time.diff(comp_start, time.now()))

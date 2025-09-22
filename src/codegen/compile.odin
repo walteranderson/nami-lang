@@ -5,12 +5,16 @@ import "../logger"
 import os "core:os/os2"
 import "core:strings"
 
-compile_qbe :: proc(qbe: ^Qbe, program_name: string) -> (err: os.Error) {
+compile_qbe :: proc(qbe: ^Qbe, program_name: string) -> bool {
 	qbe_file := fs.create_file_name(program_name, "ssa", context.temp_allocator)
 	asm_file := fs.create_file_name(program_name, "s", context.temp_allocator)
 	defer free_all(context.temp_allocator)
 
-	os.write_entire_file(qbe_file, qbe.sb.buf[:]) or_return
+	err := os.write_entire_file(qbe_file, qbe.sb.buf[:])
+	if err != nil {
+		logger.error("os write file error: %+v", err)
+		return false
+	}
 
 	// QBE -> ASM
 	{
@@ -23,10 +27,18 @@ compile_qbe :: proc(qbe: ^Qbe, program_name: string) -> (err: os.Error) {
 			stdout  = os.stdout,
 			stderr  = os.stderr,
 		}
-		pid := os.process_start(desc) or_return
-		_, pid_err := os.process_wait(pid)
+		pid, err := os.process_start(desc)
+		if err != nil {
+			logger.error("os process_start error: %+v", err)
+			return false
+		}
+		state, pid_err := os.process_wait(pid)
 		if pid_err != nil {
-			return pid_err
+			logger.error("os process_wait pid_err: %+v", err)
+			return false
+		}
+		if !state.success {
+			return false
 		}
 	}
 
@@ -41,12 +53,21 @@ compile_qbe :: proc(qbe: ^Qbe, program_name: string) -> (err: os.Error) {
 			stdout  = os.stdout,
 			stderr  = os.stderr,
 		}
-		pid := os.process_start(desc) or_return
-		_, pid_err := os.process_wait(pid)
+		pid, err := os.process_start(desc)
+		if err != nil {
+			logger.error("os process_start error: %+v", err)
+			return false
+		}
+
+		state, pid_err := os.process_wait(pid)
 		if pid_err != nil {
-			return pid_err
+			logger.error("os process_wait pid_err: %+v", err)
+			return false
+		}
+		if !state.success {
+			return false
 		}
 	}
 
-	return nil
+	return true
 }
