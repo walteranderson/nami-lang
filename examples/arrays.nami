@@ -1,12 +1,18 @@
 fn main() {
-    items: [5]Int = [69, 420, 69420];
+    items: [4]Int = [69, 420, 69420];
 
-    printf("with idx\n");
+    printf("Access via index\n");
+    printf("item[0] = %d\n", items[0]);
+    printf("item[1] = %d\n", items[1]);
+    printf("item[2] = %d\n", items[2]);
+    printf("item[3] = %d\n", items[3]);
+
+    printf("loop with idx\n");
     loop item, idx in items {
         printf("item[%d] = %d\n", idx, item);
     }
 
-    printf("without idx\n");
+    printf("loop without idx\n");
     loop item in items {
         printf("item = %d\n", item);
     }

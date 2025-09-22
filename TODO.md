@@ -7,7 +7,7 @@ Language Features
 - [X] logical operators (&& ||)
 - [X] if/else statements
 - [X] loops
-- [ ] arrays
+- [X] arrays
 - [ ] structs
 - [X] >= and <=
 - [ ] better "builtins" support other than just linking with libc
