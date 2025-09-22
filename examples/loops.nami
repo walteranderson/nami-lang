@@ -1,7 +1,35 @@
 fn main() {
-    x := 0
-    loop when x <= 20 {
-        printf("x = %d\n", x)
+    infinite_loop();
+    when_loop();
+    iterator_loop();
+}
+
+fn infinite_loop() {
+    printf("Infinite Loop:\n");
+
+    x := 0;
+    loop {
+        if x > 9 { break }
+        printf("  x = %d\n", x);
         x = x + 1;
+    }
+}
+
+fn when_loop() {
+    printf("When Loop:\n");
+
+    x := 0;
+    loop when x < 10 {
+        printf("  x = %d\n", x);
+        x = x + 1;
+    }
+}
+
+fn iterator_loop() {
+    printf("Iterator Loop:\n");
+
+    items := [2, 3, 5, 7, 11];
+    loop item, idx in items {
+        printf("  items[%d] = %d\n", idx, item);
     }
 }
