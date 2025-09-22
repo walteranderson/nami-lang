@@ -345,16 +345,21 @@ qbe_gen_loop_stmt :: proc(qbe: ^Qbe, loop: ^ast.LoopStatement) {
 	loop_begin := qbe_new_temp_label(qbe, "loop_begin")
 	loop_end := qbe_new_temp_label(qbe, "loop_end")
 
-	qbe_emit(qbe, "%s\n", loop_begin)
-	qbe_push_loop_end_label(qbe, loop_end)
 
 	switch loop.kind {
 	case .Infinite:
+		qbe_emit(qbe, "%s\n", loop_begin)
+		qbe_push_loop_end_label(qbe, loop_end)
+
 		qbe_gen_stmt(qbe, loop.block)
+
 		qbe_emit(qbe, "  jmp %s\n", loop_begin)
 		qbe_emit(qbe, "%s\n", loop_end)
 		qbe_pop_loop_end_label(qbe)
 	case .When:
+		qbe_emit(qbe, "%s\n", loop_begin)
+		qbe_push_loop_end_label(qbe, loop_end)
+
 		// when condition check
 		loop_body := qbe_new_temp_label(qbe, "loop_body")
 		result := qbe_gen_expr(qbe, loop.wehn)
@@ -369,13 +374,108 @@ qbe_gen_loop_stmt :: proc(qbe: ^Qbe, loop: ^ast.LoopStatement) {
 		qbe_emit(qbe, "%s\n", loop_end)
 		qbe_pop_loop_end_label(qbe)
 	case .Iterator:
-		// TODO:
-		// create temporaries for item and idx
-		// gen the body
-		// conditional jump if ...
-		// qbe_emit(qbe, "%s\n", loop_end)
-		// qbe_pop_loop_end_label(qbe)
-		logger.error("TODO: qbe codegen - iterator loops not implemented yet")
+		qbe_emit(qbe, "%s\n", loop_begin)
+		qbe_push_loop_end_label(qbe, loop_end)
+
+		idx_reg := qbe_new_temp_reg(qbe)
+		qbe_emit(qbe, "  %s =l alloc4 4\n", idx_reg)
+		qbe_emit(qbe, "  storew 0, %s\n", idx_reg)
+
+		if loop.idx != nil {
+			idx_ident, ok := loop.idx.(^ast.Identifier)
+			if !ok {
+				qbe_error(qbe, "expected index to be identifier")
+				return
+			}
+			qbe_add_symbol(qbe, idx_ident.value, idx_reg, idx_ident.resolved_type, .Local)
+		}
+
+		item_ident, okk := loop.item.(^ast.Identifier)
+		if !okk {
+			qbe_error(qbe, "expected item to be identifier")
+			return
+		}
+
+		items_ident, okkk := loop.items.(^ast.Identifier)
+		if !okk {
+			qbe_error(qbe, "expected items to be identifier")
+			return
+		}
+
+		items_symbol, ok := qbe_lookup_symbol(qbe, items_ident.value)
+		if !ok {
+			qbe_error(qbe, "Identifier not found %s", items_ident.value)
+			return
+		}
+		array_element_typeinfo, okkkk := items_symbol.typeinfo.data.(ast.ArrayTypeInfo)
+		if !okkkk {
+			qbe_error(qbe, "expected array to have typeinfo")
+			return
+		}
+
+		loop_cond := qbe_new_temp_label(qbe, "loop_cond")
+
+		qbe_emit(qbe, "  jmp %s\n", loop_cond)
+
+		qbe_emit(qbe, "%s\n", loop_cond)
+
+		loop_body := qbe_new_temp_label(qbe, "loop_body")
+		// because I only support fixed arrays, I'm going to hard-code the array length in the conditional.
+		// Once I decide to support dynamic arrays, this may need to change.
+		cond_reg := qbe_new_temp_reg(qbe)
+		idx_val_reg1 := qbe_new_temp_reg(qbe)
+		qbe_emit(qbe, "  %s =w loadw %s\n", idx_val_reg1, idx_reg)
+		qbe_emit(
+			qbe,
+			"  %s =w csltw %s, %d\n",
+			cond_reg,
+			idx_val_reg1,
+			array_element_typeinfo.size,
+		)
+		qbe_emit(qbe, "  jnz %s, %s, %s\n", cond_reg, loop_body, loop_end)
+
+		qbe_emit(qbe, "%s\n", loop_body)
+
+		offset_reg := qbe_new_temp_reg(qbe)
+		element_size := qbe_lang_type_to_size(array_element_typeinfo.elements_type.kind)
+		idx_val_reg2 := qbe_new_temp_reg(qbe)
+		qbe_emit(qbe, "  %s =w loadw %s\n", idx_val_reg2, idx_reg)
+		qbe_emit(qbe, "  %s =w mul %s, %d\n", offset_reg, idx_val_reg2, element_size)
+
+		offset_cast_reg := qbe_new_temp_reg(qbe)
+		qbe_emit(
+			qbe,
+			"  %s =%s extsw %s\n",
+			offset_cast_reg,
+			qbe_type_to_string(items_symbol.qbe_type),
+			offset_reg,
+		)
+
+		item_addr := qbe_new_temp_reg(qbe)
+		qbe_emit(
+			qbe,
+			"  %s =%s add %s, %s\n",
+			item_addr,
+			qbe_type_to_string(items_symbol.qbe_type),
+			items_symbol.register,
+			offset_cast_reg,
+		)
+		qbe_add_symbol(qbe, item_ident.value, item_addr, item_ident.resolved_type, .Local)
+
+		qbe_gen_stmt(qbe, loop.block)
+
+		idx_val2_reg := qbe_new_temp_reg(qbe)
+		qbe_emit(qbe, "  %s =w loadw %s\n", idx_val2_reg, idx_reg)
+
+		idx_next_reg := qbe_new_temp_reg(qbe)
+		qbe_emit(qbe, "  %s =w add %s, 1\n", idx_next_reg, idx_val2_reg)
+
+		qbe_emit(qbe, "  storew %s, %s\n", idx_next_reg, idx_reg)
+
+		qbe_emit(qbe, "  jmp %s\n", loop_cond)
+
+		qbe_emit(qbe, "%s\n", loop_end)
+		qbe_pop_loop_end_label(qbe)
 	}
 }
 

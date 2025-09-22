@@ -1,7 +1,13 @@
 fn main() {
-    foo := [1, 2, 3];
-    printf("Array by index:\n")
-    printf("foo[0] = %d\n", foo[0]);
-    printf("foo[1] = %d\n", foo[1]);
-    printf("foo[2] = %d\n", foo[2]);
+    items := [69, 420, 69420];
+
+    printf("with idx\n");
+    loop item, idx in items {
+        printf("item[%d] = %d\n", idx, item);
+    }
+
+    printf("without idx\n");
+    loop item in items {
+        printf("item = %d\n", item);
+    }
 }

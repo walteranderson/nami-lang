@@ -163,10 +163,6 @@ check_loop_stmt :: proc(tc: ^TypeChecker, loop: ^ast.LoopStatement) {
 			error(tc, loop.tok, "item variable is required when looping over an array")
 			return
 		}
-		if loop.items == nil {
-			error(tc, loop.tok, "items variable is required when looping over an array")
-			return
-		}
 
 		symbols_push_scope(tc)
 		defer symbols_pop_scope(tc)
@@ -184,13 +180,19 @@ check_loop_stmt :: proc(tc: ^TypeChecker, loop: ^ast.LoopStatement) {
 		arr_typeinfo := items_typeinfo.data.(ast.ArrayTypeInfo)
 
 
-		// item_typeinfo := check_expr(tc, loop.item)
 		item_ident, ok := loop.item.(^ast.Identifier)
 		if !ok {
 			error(tc, ast.get_token_from_expr(loop.item), "Expected identifier")
 			return
 		}
-		add_symbol(tc, item_ident.value, make_typeinfo(tc, arr_typeinfo.elements_type.kind))
+		_, found := lookup_symbol(tc, item_ident.value)
+		if found {
+			error(tc, item_ident.tok, "Symbol already declared: %s", item_ident.value)
+			item_ident.resolved_type = make_typeinfo(tc, .Invalid)
+			return
+		}
+		item_ident.resolved_type = make_typeinfo(tc, arr_typeinfo.elements_type.kind)
+		add_symbol(tc, item_ident.value, item_ident.resolved_type)
 
 		// idx is optional
 		if loop.idx != nil {
@@ -199,7 +201,14 @@ check_loop_stmt :: proc(tc: ^TypeChecker, loop: ^ast.LoopStatement) {
 				error(tc, ast.get_token_from_expr(loop.idx), "Expected idx to be an identifier")
 				return
 			}
-			add_symbol(tc, idx_ident.value, make_typeinfo(tc, .Int))
+			_, found := lookup_symbol(tc, idx_ident.value)
+			if found {
+				error(tc, idx_ident.tok, "Symbol already declared: %s", idx_ident.value)
+				idx_ident.resolved_type = make_typeinfo(tc, .Invalid)
+				return
+			}
+			idx_ident.resolved_type = make_typeinfo(tc, .Int)
+			add_symbol(tc, idx_ident.value, idx_ident.resolved_type)
 		}
 
 		for stmt in loop.block.stmts {
