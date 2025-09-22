@@ -126,7 +126,9 @@ check_stmt :: proc(tc: ^TypeChecker, stmt: ast.Statement) {
 		check_loop_stmt(tc, s)
 
 	case ^ast.BreakStatement:
-		error(tc, s.tok, "TODO: break statement not typechecked")
+		return
+	// TODO: Not sure if I need to do anything with break statements here
+	// error(tc, s.tok, "TODO: break statement not typechecked")
 
 	case ^ast.Program, ^ast.FunctionArg, ^ast.BlockStatement:
 		logger.error("Unreachable statement: %+v", stmt)
