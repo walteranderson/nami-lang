@@ -1,5 +1,5 @@
 fn main() {
-    items := [69, 420, 69420];
+    items: [5]Int = [69, 420, 69420];
 
     printf("with idx\n");
     loop item, idx in items {

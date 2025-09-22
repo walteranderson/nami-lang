@@ -322,6 +322,8 @@ check_assign_stmt :: proc(tc: ^TypeChecker, s: ^ast.AssignStatement) {
 				s.resolved_type = make_typeinfo(tc, .Invalid)
 				return
 			}
+			arr_value := s.value.(^ast.Array)
+			arr_value.resolved_type = s.resolved_type
 		}
 	}
 
