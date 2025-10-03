@@ -30,7 +30,7 @@ check_program :: proc(tc: ^TypeChecker) {
 	}
 
 	for stmt in tc.program.stmts {
-		check_stmt(tc, stmt)
+		check_stmt(tc, stmt, .Invalid)
 	}
 
 	if !tc.has_main {
@@ -101,7 +101,7 @@ check_func_signature :: proc(tc: ^TypeChecker, fn: ^ast.FunctionStatement) {
 	add_symbol(tc, fn.name.value, fn.resolved_type)
 }
 
-check_stmt :: proc(tc: ^TypeChecker, stmt: ast.Statement) {
+check_stmt :: proc(tc: ^TypeChecker, stmt: ast.Statement, expected_return_type: ast.TypeKind) {
 	switch s in stmt {
 	case ^ast.ExprStatement:
 		check_expr(tc, s.value)
@@ -112,6 +112,15 @@ check_stmt :: proc(tc: ^TypeChecker, stmt: ast.Statement) {
 	case ^ast.ReturnStatement:
 		expr_type := check_expr(tc, s.value)
 		s.resolved_type = expr_type
+		if s.resolved_type.kind != expected_return_type {
+			error(
+				tc,
+				s.tok,
+				"Expected return type %s, got %s",
+				expected_return_type,
+				s.resolved_type.kind,
+			)
+		}
 
 	case ^ast.AssignStatement:
 		check_assign_stmt(tc, s)
@@ -120,10 +129,10 @@ check_stmt :: proc(tc: ^TypeChecker, stmt: ast.Statement) {
 		check_reassign_stmt(tc, s)
 
 	case ^ast.IfStatement:
-		check_if_stmt(tc, s)
+		check_if_stmt(tc, s, expected_return_type)
 
 	case ^ast.LoopStatement:
-		check_loop_stmt(tc, s)
+		check_loop_stmt(tc, s, expected_return_type)
 
 	case ^ast.BreakStatement:
 		return
@@ -135,13 +144,17 @@ check_stmt :: proc(tc: ^TypeChecker, stmt: ast.Statement) {
 	}
 }
 
-check_loop_stmt :: proc(tc: ^TypeChecker, loop: ^ast.LoopStatement) {
+check_loop_stmt :: proc(
+	tc: ^TypeChecker,
+	loop: ^ast.LoopStatement,
+	expected_return_type: ast.TypeKind,
+) {
 	switch loop.kind {
 	case .Infinite:
 		symbols_push_scope(tc)
 		defer symbols_pop_scope(tc)
 		for stmt in loop.block.stmts {
-			check_stmt(tc, stmt)
+			check_stmt(tc, stmt, expected_return_type)
 		}
 
 	case .When:
@@ -157,7 +170,7 @@ check_loop_stmt :: proc(tc: ^TypeChecker, loop: ^ast.LoopStatement) {
 		symbols_push_scope(tc)
 		defer symbols_pop_scope(tc)
 		for stmt in loop.block.stmts {
-			check_stmt(tc, stmt)
+			check_stmt(tc, stmt, expected_return_type)
 		}
 
 	case .Iterator:
@@ -214,12 +227,12 @@ check_loop_stmt :: proc(tc: ^TypeChecker, loop: ^ast.LoopStatement) {
 		}
 
 		for stmt in loop.block.stmts {
-			check_stmt(tc, stmt)
+			check_stmt(tc, stmt, expected_return_type)
 		}
 	}
 }
 
-check_if_stmt :: proc(tc: ^TypeChecker, s: ^ast.IfStatement) {
+check_if_stmt :: proc(tc: ^TypeChecker, s: ^ast.IfStatement, expected_return_type: ast.TypeKind) {
 	cond_typeinfo := check_expr(tc, s.condition)
 	if cond_typeinfo.kind != .Bool {
 		error(
@@ -233,14 +246,14 @@ check_if_stmt :: proc(tc: ^TypeChecker, s: ^ast.IfStatement) {
 
 	symbols_push_scope(tc)
 	for stmt in s.consequence.stmts {
-		check_stmt(tc, stmt)
+		check_stmt(tc, stmt, expected_return_type)
 	}
 	symbols_pop_scope(tc)
 
 	if s.alternative != nil {
 		symbols_push_scope(tc)
 		for stmt in s.alternative.stmts {
-			check_stmt(tc, stmt)
+			check_stmt(tc, stmt, expected_return_type)
 		}
 		symbols_pop_scope(tc)
 	}
@@ -352,40 +365,21 @@ check_func_stmt :: proc(tc: ^TypeChecker, fn: ^ast.FunctionStatement) {
 		return
 	}
 
-	check_body_stmt_for_returns(tc, fn.body, typeinfo.return_type.kind)
+	expected_return_type := typeinfo.return_type.kind
+	for stmt in fn.body.stmts {
+		if _, ok := stmt.(^ast.FunctionStatement); ok {
+			error(tc, fn.body.tok, "nested functions not allowed")
+		}
+		check_stmt(tc, stmt, expected_return_type)
+	}
 	return
 }
 
-check_body_stmt_for_returns :: proc(
+check_body_stmt :: proc(
 	tc: ^TypeChecker,
 	body: ^ast.BlockStatement,
 	declared_return_type: ast.TypeKind,
 ) {
-	for stmt in body.stmts {
-		if _, ok := stmt.(^ast.FunctionStatement); ok {
-			error(tc, body.tok, "nested functions not allowed")
-		}
-		check_stmt(tc, stmt)
-		#partial switch s in stmt {
-		case ^ast.ReturnStatement:
-			if s.resolved_type.kind != declared_return_type {
-				error(
-					tc,
-					s.tok,
-					"Expected return type %s, got %s",
-					declared_return_type,
-					s.resolved_type.kind,
-				)
-			}
-		case ^ast.IfStatement:
-			check_body_stmt_for_returns(tc, s.consequence, declared_return_type)
-			if s.alternative != nil {
-				check_body_stmt_for_returns(tc, s.alternative, declared_return_type)
-			}
-		case ^ast.LoopStatement:
-			check_body_stmt_for_returns(tc, s.block, declared_return_type)
-		}
-	}
 }
 
 check_expr :: proc(tc: ^TypeChecker, expr: ast.Expr) -> ^ast.TypeInfo {
