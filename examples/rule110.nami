@@ -1,0 +1,11 @@
+fn main() {
+    row := [0, 0, 0, 0, 0, 0, 0, 0, 0, 1];
+    loop cell in row {
+        if cell == 0 {
+            printf(" ");
+        } else {
+            printf("x");
+        }
+    }
+    printf("\n");
+}
