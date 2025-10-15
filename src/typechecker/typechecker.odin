@@ -11,19 +11,19 @@ import "../token"
 TypeChecker :: struct {
 	errors:    [dynamic]logger.CompilerError,
 	allocator: mem.Allocator,
-	program:   ^ast.Program,
+	program:   ^ast.Module,
 	symbols:   [dynamic]map[string]^ast.TypeInfo,
 	has_main:  bool,
 }
 
-init :: proc(tc: ^TypeChecker, p: ^ast.Program, allocator: mem.Allocator) {
+init :: proc(tc: ^TypeChecker, p: ^ast.Module, allocator: mem.Allocator) {
 	tc.program = p
 	tc.allocator = allocator
 	tc.errors = make([dynamic]logger.CompilerError, allocator)
 	symbols_push_scope(tc)
 }
 
-check_program :: proc(tc: ^TypeChecker) {
+check_module :: proc(tc: ^TypeChecker) {
 	check_funcs(tc)
 	if len(tc.errors) > 0 {
 		return
@@ -139,7 +139,7 @@ check_stmt :: proc(tc: ^TypeChecker, stmt: ast.Statement, expected_return_type: 
 	// TODO: Not sure if I need to do anything with break statements here
 	// error(tc, s.tok, "TODO: break statement not typechecked")
 
-	case ^ast.Program, ^ast.FunctionArg, ^ast.BlockStatement:
+	case ^ast.Module, ^ast.FunctionArg, ^ast.BlockStatement:
 		logger.error("Unreachable statement: %+v", stmt)
 	}
 }

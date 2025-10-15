@@ -42,7 +42,7 @@ main :: proc() {
 	p := new(parser.Parser, allocator)
 	parser.init(p, file_contents, allocator)
 	parser_start := time.now()
-	program := parser.parse_program(p)
+	module := parser.parse_module(p)
 	if len(p.errors) > 0 {
 		for err in p.errors {
 			logger.compiler_error(opt.file_name, err)
@@ -54,21 +54,21 @@ main :: proc() {
 	logger.info("Typechecking program")
 	tc_start := time.now()
 	typechecker := new(tc.TypeChecker, allocator)
-	tc.init(typechecker, program, allocator)
-	tc.check_program(typechecker)
+	tc.init(typechecker, module, allocator)
+	tc.check_module(typechecker)
 	if len(typechecker.errors) != 0 {
 		for err in typechecker.errors {
 			logger.compiler_error(opt.file_name, err)
 		}
 		if opt.ast {
-			ast.print_ast(program, 0)
+			ast.print_ast(module, 0)
 		}
 		os.exit(1)
 	}
 	logger.info("Typechecking complete: %v", time.diff(tc_start, time.now()))
 
 	if opt.ast {
-		ast.print_ast(program, 0)
+		ast.print_ast(module, 0)
 		os.exit(0)
 	}
 
@@ -77,7 +77,7 @@ main :: proc() {
 		logger.info("Generating QBE")
 		qbe_start := time.now()
 		qbe: codegen.Qbe
-		codegen.qbe_init(&qbe, program, typechecker.symbols[0], allocator)
+		codegen.qbe_init(&qbe, module, typechecker.symbols[0], allocator)
 		codegen.qbe_generate(&qbe)
 		if len(qbe.errors) > 0 {
 			logger.error("QBE codegen errors:")

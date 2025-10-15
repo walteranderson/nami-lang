@@ -65,7 +65,7 @@ IndexExpr :: struct {
 /////////
 
 // entrypoint
-Program :: struct {
+Module :: struct {
 	using node: Node,
 	stmts:      [dynamic]Statement,
 }
@@ -199,7 +199,7 @@ Expr :: union {
 }
 
 Statement :: union {
-	^Program,
+	^Module,
 	^ReturnStatement,
 	^ExprStatement,
 	^BlockStatement,
@@ -223,7 +223,7 @@ AnyNode :: union {
 	^Array,
 	^IndexExpr,
 	//
-	^Program,
+	^Module,
 	^ReturnStatement,
 	^ExprStatement,
 	^BlockStatement,
@@ -264,8 +264,8 @@ get_token_from_expr :: proc(expr: Expr) -> t.Token {
 print_ast :: proc(node: AnyNode, indent_level: int) {
 	indent := strings.repeat("  ", indent_level)
 	switch n in node {
-	case ^Program:
-		fmt.printf("%sProgram:\n", indent)
+	case ^Module:
+		fmt.printf("%Module:\n", indent)
 		for stmt in n.stmts {
 			print_statement(stmt, indent_level + 1)
 		}
@@ -397,7 +397,7 @@ print_ast :: proc(node: AnyNode, indent_level: int) {
 
 print_statement :: proc(stmt: Statement, indent_level: int) {
 	switch s in stmt {
-	case ^Program:
+	case ^Module:
 		print_ast(cast(AnyNode)s, indent_level)
 	case ^ReturnStatement:
 		print_ast(cast(AnyNode)s, indent_level)

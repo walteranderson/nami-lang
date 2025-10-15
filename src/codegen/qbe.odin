@@ -10,7 +10,7 @@ import "../logger"
 Qbe :: struct {
 	allocator:        mem.Allocator,
 	sb:               strings.Builder,
-	program:          ^ast.Program,
+	module:           ^ast.Module,
 	errors:           [dynamic]string,
 	strs:             map[string]string,
 	str_count:        int,
@@ -62,11 +62,11 @@ ReturnContext :: struct {
 
 qbe_init :: proc(
 	qbe: ^Qbe,
-	program: ^ast.Program,
+	module: ^ast.Module,
 	global_symbols: map[string]^ast.TypeInfo,
 	allocator: mem.Allocator,
 ) {
-	qbe.program = program
+	qbe.module = module
 	qbe.allocator = allocator
 	qbe.errors = make([dynamic]string, 0, allocator)
 	strings.builder_init(&qbe.sb, allocator)
@@ -92,7 +92,7 @@ qbe_add_global_symbols :: proc(qbe: ^Qbe, global_symbols: map[string]^ast.TypeIn
 }
 
 qbe_generate :: proc(qbe: ^Qbe) {
-	for stmt in qbe.program.stmts {
+	for stmt in qbe.module.stmts {
 		qbe_gen_stmt(qbe, stmt)
 	}
 
@@ -213,8 +213,8 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: ast.Statement) {
 	case ^ast.ExprStatement:
 		qbe_gen_expr(qbe, s.value)
 
-	case ^ast.Program:
-		qbe_error(qbe, "Unexpected program")
+	case ^ast.Module:
+		qbe_error(qbe, "Unexpected module")
 
 	case ^ast.IfStatement:
 		qbe_gen_if_stmt(qbe, s)

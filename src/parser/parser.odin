@@ -97,17 +97,17 @@ init :: proc(p: ^Parser, file_contents: string, allocator: mem.Allocator) {
 	next_token(p)
 }
 
-parse_program :: proc(p: ^Parser) -> ^ast.Program {
-	program := new(ast.Program, p.allocator)
-	program.tok = p.cur
-	program.stmts = make([dynamic]ast.Statement, p.allocator)
+parse_module :: proc(p: ^Parser) -> ^ast.Module {
+	module := new(ast.Module, p.allocator)
+	module.tok = p.cur
+	module.stmts = make([dynamic]ast.Statement, p.allocator)
 	for !cur_token_is(p, .EOF) {
 		if stmt := parse_stmt(p); stmt != nil {
-			append(&program.stmts, stmt)
+			append(&module.stmts, stmt)
 		}
 		next_token(p)
 	}
-	return program
+	return module
 }
 
 parse_stmt :: proc(p: ^Parser) -> ast.Statement {
