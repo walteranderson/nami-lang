@@ -5,7 +5,7 @@ import "core:mem"
 Context :: struct {
 	allocator:     mem.Allocator,
 	module:        ^Module,
-	next_reg_id:   int,
+	next_tmp_id:   int,
 	next_label_id: int,
 }
 
@@ -24,21 +24,52 @@ FunctionDef :: struct {
 }
 
 FunctionParam :: struct {
-	reg_id: int,
+	tmp_id: int,
 	type:   TypeKind,
 }
 
 Block :: struct {
-	reg_id:       int,
 	label:        string,
 	instructions: [dynamic]^Instruction,
+	terminator:   ^Jump,
+}
+
+Jump :: struct {
+	kind: JumpType,
+	data: union {
+		JmpData,
+		JnzData,
+		RetData,
+	},
+}
+
+JumpType :: enum {
+	Jmp,
+	Jnz,
+	Ret,
+	Hlt,
+}
+
+JmpData :: struct {
+	label: string,
+}
+
+JnzData :: struct {
+	condition:   Operand,
+	true_label:  string,
+	false_label: string,
+}
+
+RetData :: struct {
+	val: Operand,
 }
 
 Instruction :: struct {
-	opcode: OpCode,
-	dest:   Operand,
-	src1:   Operand,
-	src2:   Operand,
+	return_type: TypeKind,
+	opcode:      OpCode,
+	dest:        Operand,
+	src1:        Operand,
+	src2:        Operand,
 }
 
 Operand :: struct {}
