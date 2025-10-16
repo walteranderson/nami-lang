@@ -5,12 +5,12 @@ import "../logger"
 import os "core:os/os2"
 import "core:strings"
 
-compile_qbe :: proc(qbe: ^Qbe, program_name: string) -> bool {
+compile_qbe :: proc(sb: ^strings.Builder, program_name: string) -> bool {
 	qbe_file := fs.create_file_name(program_name, "ssa", context.temp_allocator)
 	asm_file := fs.create_file_name(program_name, "s", context.temp_allocator)
 	defer free_all(context.temp_allocator)
 
-	err := os.write_entire_file(qbe_file, qbe.sb.buf[:])
+	err := os.write_entire_file(qbe_file, sb.buf[:])
 	if err != nil {
 		logger.error("os write file error: %+v", err)
 		return false

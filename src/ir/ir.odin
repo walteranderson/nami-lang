@@ -72,13 +72,27 @@ Instruction :: struct {
 	src2:        Operand,
 }
 
-Operand :: struct {}
+Operand :: struct {
+	kind: OperandKind,
+	// explicit_type: ...
+	data: union {
+		OperandConstantData,
+	},
+}
+
+OperandKind :: enum {
+	LiteralConst,
+}
+
+OperandConstantData :: struct {
+	value: int,
+}
 
 OpCode :: enum {
 	Add,
-	// Sub,
-	// Mul,
-	// Div,
+	Sub,
+	Mul,
+	Div,
 	Call,
 	// Alloc,
 }
@@ -95,6 +109,7 @@ DataDef :: struct {
 }
 
 Linkage :: enum {
+	None,
 	Export,
 	// Thread,
 	// Section<name, flags>

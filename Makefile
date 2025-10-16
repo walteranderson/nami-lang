@@ -1,3 +1,4 @@
+# FLAGS=-out:nami -define:EXPERIMENTAL_IR=true
 FLAGS=-out:nami
 SRC=./src
 

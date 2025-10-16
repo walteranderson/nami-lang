@@ -8,9 +8,12 @@ import "core:time"
 import "ast"
 import "codegen"
 import "fs"
+import "ir"
 import "logger"
 import "parser"
 import tc "typechecker"
+
+EXPERIMENTAL_IR :: #config(EXPERIMENTAL_IR, false)
 
 Options :: struct {
 	file_name: string `args:"pos=0,required" usage:"Path to file, ex: ./example.nami"`,
@@ -73,29 +76,39 @@ main :: proc() {
 	}
 
 	// QBE codegen
-	{
-		logger.info("Generating QBE")
-		qbe_start := time.now()
-		qbe: codegen.Qbe
-		codegen.qbe_init(&qbe, module, typechecker.symbols[0], allocator)
-		codegen.qbe_generate(&qbe)
-		if len(qbe.errors) > 0 {
-			logger.error("QBE codegen errors:")
-			for err in qbe.errors {
-				logger.error(err)
+	when EXPERIMENTAL_IR {
+		{
+			logger.info("Generating EXPERIMENTAL_IR")
+			ir_start := time.now()
+			ctx := ir.new_context(allocator)
+			ir.from_ast(ctx, module)
+			logger.info("EXPERIMENTAL_IR complete: %v", time.diff(ir_start, time.now()))
+		}
+	} else {
+		{
+			logger.info("Generating QBE")
+			qbe_start := time.now()
+			qbe: codegen.Qbe
+			codegen.qbe_init(&qbe, module, typechecker.symbols[0], allocator)
+			codegen.qbe_generate(&qbe)
+			if len(qbe.errors) > 0 {
+				logger.error("QBE codegen errors:")
+				for err in qbe.errors {
+					logger.error(err)
+				}
+				os.exit(1)
 			}
-			os.exit(1)
-		}
-		logger.info("Codegen complete: %v", time.diff(qbe_start, time.now()))
+			logger.info("Codegen complete: %v", time.diff(qbe_start, time.now()))
 
-		logger.info("Starting compilation")
-		comp_start := time.now()
-		program_name := fs.extract_base_name(opt.file_name)
-		ok := codegen.compile_qbe(&qbe, program_name)
-		if !ok {
-			os.exit(1)
+			logger.info("Starting compilation")
+			comp_start := time.now()
+			program_name := fs.extract_base_name(opt.file_name)
+			ok := codegen.compile_qbe(&qbe.sb, program_name)
+			if !ok {
+				os.exit(1)
+			}
+			logger.info("Compilation complete: %v", time.diff(comp_start, time.now()))
 		}
-		logger.info("Compilation complete: %v", time.diff(comp_start, time.now()))
 	}
 
 	logger.info("Finished: Duration: %v", time.diff(start, time.now()))
