@@ -7,6 +7,7 @@ import "core:time"
 
 import "ast"
 import "codegen"
+import qbecodegen "codegen/qbe"
 import "fs"
 import "ir"
 import "logger"
@@ -82,6 +83,16 @@ main :: proc() {
 			ir_start := time.now()
 			ctx := ir.new_context(allocator)
 			ir.from_ast(ctx, module)
+			qbe_codegen := qbecodegen.new_qbecodegen(allocator)
+			qbecodegen.from_ir(qbe_codegen, ctx.module)
+
+			logger.info("Starting compilation")
+			comp_start := time.now()
+			program_name := fs.extract_base_name(opt.file_name)
+			ok := codegen.compile_qbe(&qbe_codegen.sb, program_name)
+			if !ok {
+				os.exit(1)
+			}
 			logger.info("EXPERIMENTAL_IR complete: %v", time.diff(ir_start, time.now()))
 		}
 	} else {
