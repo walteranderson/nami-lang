@@ -9,17 +9,13 @@ import "../lexer"
 import "../logger"
 import t "../token"
 
-PrefixParseFns :: proc(p: ^Parser) -> ast.Expr
-InfixParseFns :: proc(p: ^Parser, expr: ast.Expr) -> ast.Expr
 
 Parser :: struct {
-	lexer:      ^lexer.Lexer,
-	allocator:  mem.Allocator,
-	cur:        t.Token,
-	peek:       t.Token,
-	errors:     [dynamic]logger.CompilerError,
-	prefix_fns: map[t.TokenType]PrefixParseFns,
-	infix_fns:  map[t.TokenType]InfixParseFns,
+	lexer:     ^lexer.Lexer,
+	allocator: mem.Allocator,
+	cur:       t.Token,
+	peek:      t.Token,
+	errors:    [dynamic]logger.CompilerError,
 }
 
 Precedence :: enum {
@@ -58,6 +54,67 @@ get_precedence :: proc(tt: t.TokenType) -> Precedence {
 	}
 }
 
+PrefixParseFns :: proc(p: ^Parser) -> ast.Expr
+InfixParseFns :: proc(p: ^Parser, expr: ast.Expr) -> ast.Expr
+
+get_prefix_fn :: proc(tok_type: t.TokenType) -> PrefixParseFns {
+	#partial switch (tok_type) {
+	case .INT:
+		return parse_int
+	case .STRING:
+		return parse_string
+	case .IDENT:
+		return parse_ident
+	case .TRUE:
+		return parse_bool
+	case .FALSE:
+		return parse_bool
+	case .BANG:
+		return parse_prefix_expr
+	case .MINUS:
+		return parse_prefix_expr
+	case .L_PAREN:
+		return parse_grouped_expr
+	case .L_BRACKET:
+		return parse_array
+	}
+	return nil
+}
+
+get_infix_fn :: proc(tok_type: t.TokenType) -> InfixParseFns {
+	#partial switch (tok_type) {
+	case .PLUS:
+		return parse_infix_expr
+	case .MINUS:
+		return parse_infix_expr
+	case .STAR:
+		return parse_infix_expr
+	case .SLASH:
+		return parse_infix_expr
+	case .EQ:
+		return parse_infix_expr
+	case .NOT_EQ:
+		return parse_infix_expr
+	case .AND:
+		return parse_infix_expr
+	case .OR:
+		return parse_infix_expr
+	case .LT:
+		return parse_infix_expr
+	case .GT:
+		return parse_infix_expr
+	case .LTE:
+		return parse_infix_expr
+	case .GTE:
+		return parse_infix_expr
+	case .L_PAREN:
+		return parse_call_expr
+	case .L_BRACKET:
+		return parse_index_expr
+	}
+	return nil
+}
+
 init :: proc(p: ^Parser, file_contents: string, allocator: mem.Allocator) {
 	l := new(lexer.Lexer, allocator)
 	lexer.init(l, file_contents)
@@ -65,33 +122,6 @@ init :: proc(p: ^Parser, file_contents: string, allocator: mem.Allocator) {
 
 	p.allocator = allocator
 	p.errors = make([dynamic]logger.CompilerError, p.allocator)
-
-	p.prefix_fns = make(map[t.TokenType]PrefixParseFns, p.allocator)
-	p.prefix_fns[.INT] = parse_int
-	p.prefix_fns[.STRING] = parse_string
-	p.prefix_fns[.IDENT] = parse_ident
-	p.prefix_fns[.TRUE] = parse_bool
-	p.prefix_fns[.FALSE] = parse_bool
-	p.prefix_fns[.BANG] = parse_prefix_expr
-	p.prefix_fns[.MINUS] = parse_prefix_expr
-	p.prefix_fns[.L_PAREN] = parse_grouped_expr
-	p.prefix_fns[.L_BRACKET] = parse_array
-
-	p.infix_fns = make(map[t.TokenType]InfixParseFns, p.allocator)
-	p.infix_fns[.PLUS] = parse_infix_expr
-	p.infix_fns[.MINUS] = parse_infix_expr
-	p.infix_fns[.STAR] = parse_infix_expr
-	p.infix_fns[.SLASH] = parse_infix_expr
-	p.infix_fns[.EQ] = parse_infix_expr
-	p.infix_fns[.NOT_EQ] = parse_infix_expr
-	p.infix_fns[.AND] = parse_infix_expr
-	p.infix_fns[.OR] = parse_infix_expr
-	p.infix_fns[.LT] = parse_infix_expr
-	p.infix_fns[.GT] = parse_infix_expr
-	p.infix_fns[.LTE] = parse_infix_expr
-	p.infix_fns[.GTE] = parse_infix_expr
-	p.infix_fns[.L_PAREN] = parse_call_expr
-	p.infix_fns[.L_BRACKET] = parse_index_expr
 
 	next_token(p)
 	next_token(p)
@@ -264,15 +294,15 @@ parse_assign_stmt :: proc(p: ^Parser) -> ast.Statement {
 }
 
 parse_expr :: proc(p: ^Parser, precedence: Precedence) -> ast.Expr {
-	prefix_fn, ok := p.prefix_fns[p.cur.type]
-	if !ok {
+	prefix_fn := get_prefix_fn(p.cur.type)
+	if prefix_fn == nil {
 		error(p, "no prefix parse function found for %s", p.cur.type)
 		return nil
 	}
 	left := prefix_fn(p)
 	for !peek_token_is(p, .SEMI_COLON) && precedence < get_precedence(p.peek.type) {
-		infix_fn, ok := p.infix_fns[p.peek.type]
-		if !ok {
+		infix_fn := get_infix_fn(p.peek.type)
+		if infix_fn == nil {
 			return left
 		}
 		next_token(p)
