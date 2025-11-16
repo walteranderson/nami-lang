@@ -62,6 +62,12 @@ IndexExpr :: struct {
 	index:      Expr,
 }
 
+ReassignExpr :: struct {
+	using node: Node,
+	target:     Expr,
+	value:      Expr,
+}
+
 /////////
 
 // entrypoint
@@ -104,12 +110,6 @@ ExprStatement :: struct {
 BlockStatement :: struct {
 	using node: Node,
 	stmts:      [dynamic]Statement,
-}
-
-ReassignStatement :: struct {
-	using node: Node,
-	name:       ^Identifier,
-	value:      Expr,
 }
 
 AssignStatement :: struct {
@@ -165,8 +165,9 @@ ArrayTypeInfo :: struct {
 }
 
 TypeInfo :: struct {
-	kind: TypeKind,
-	data: union {
+	kind:         TypeKind,
+	reassignable: bool,
+	data:         union {
 		FunctionTypeInfo,
 		ArrayTypeInfo,
 	},
@@ -196,6 +197,7 @@ Expr :: union {
 	^CallExpr,
 	^Array,
 	^IndexExpr,
+	^ReassignExpr,
 }
 
 Statement :: union {
@@ -204,7 +206,6 @@ Statement :: union {
 	^ExprStatement,
 	^BlockStatement,
 	^AssignStatement,
-	^ReassignStatement,
 	^FunctionStatement,
 	^FunctionArg,
 	^IfStatement,
@@ -222,13 +223,13 @@ AnyNode :: union {
 	^CallExpr,
 	^Array,
 	^IndexExpr,
+	^ReassignExpr,
 	//
 	^Module,
 	^ReturnStatement,
 	^ExprStatement,
 	^BlockStatement,
 	^AssignStatement,
-	^ReassignStatement,
 	^FunctionStatement,
 	^FunctionArg,
 	^IfStatement,
@@ -257,6 +258,8 @@ get_token_from_expr :: proc(expr: Expr) -> t.Token {
 		return e.tok
 	case ^IndexExpr:
 		return e.tok
+	case ^ReassignExpr:
+		return e.tok
 	}
 	panic("Unhandled expression type in ast.get_token_from_expr")
 }
@@ -265,7 +268,7 @@ print_ast :: proc(node: AnyNode, indent_level: int) {
 	indent := strings.repeat("  ", indent_level)
 	switch n in node {
 	case ^Module:
-		fmt.printf("%Module:\n", indent)
+		fmt.printf("%sModule:\n", indent)
 		for stmt in n.stmts {
 			print_statement(stmt, indent_level + 1)
 		}
@@ -337,11 +340,6 @@ print_ast :: proc(node: AnyNode, indent_level: int) {
 		}
 		fmt.printf("%s  ResolvedType: %s\n", indent, n.resolved_type.kind)
 		print_expr(n.value, indent_level + 1)
-	case ^ReassignStatement:
-		fmt.printf("%sReassignStatement:\n", indent)
-		fmt.printf("%s  ResolvedType: %s\n", indent, n.resolved_type.kind)
-		print_expr(n.name, indent_level + 1)
-		print_expr(n.value, indent_level + 1)
 	case ^Boolean:
 		fmt.printf("%sBoolean: %t\n", indent, n.value)
 	case ^Identifier:
@@ -392,6 +390,13 @@ print_ast :: proc(node: AnyNode, indent_level: int) {
 		print_expr(n.left, indent_level + 2)
 		fmt.printf("%s  Index:\n", indent)
 		print_expr(n.index, indent_level + 2)
+	case ^ReassignExpr:
+		fmt.printf("%sReassignExpression:\n", indent)
+		fmt.printf("%s  ResolvedType: %s\n", indent, n.resolved_type.kind)
+		fmt.printf("%s  Target:\n", indent)
+		print_expr(n.target, indent_level + 2)
+		fmt.printf("%s  Value:\n", indent)
+		print_expr(n.value, indent_level + 2)
 	}
 }
 
@@ -406,8 +411,6 @@ print_statement :: proc(stmt: Statement, indent_level: int) {
 	case ^BlockStatement:
 		print_ast(cast(AnyNode)s, indent_level)
 	case ^AssignStatement:
-		print_ast(cast(AnyNode)s, indent_level)
-	case ^ReassignStatement:
 		print_ast(cast(AnyNode)s, indent_level)
 	case ^FunctionStatement:
 		print_ast(cast(AnyNode)s, indent_level)
@@ -441,6 +444,8 @@ print_expr :: proc(expr: Expr, indent_level: int) {
 	case ^Array:
 		print_ast(cast(AnyNode)e, indent_level)
 	case ^IndexExpr:
+		print_ast(cast(AnyNode)e, indent_level)
+	case ^ReassignExpr:
 		print_ast(cast(AnyNode)e, indent_level)
 	}
 }

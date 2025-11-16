@@ -20,6 +20,7 @@ Parser :: struct {
 
 Precedence :: enum {
 	LOWEST,
+	ASSIGNMENT, // =
 	OR,
 	AND,
 	EQUALS, // ==
@@ -37,6 +38,8 @@ get_precedence :: proc(tt: t.TokenType) -> Precedence {
 		return .OR
 	case .AND:
 		return .AND
+	case .ASSIGN:
+		return .ASSIGNMENT
 	case .EQ, .NOT_EQ:
 		return .EQUALS
 	case .LT, .GT, .LTE, .GTE:
@@ -111,6 +114,8 @@ get_infix_fn :: proc(tok_type: t.TokenType) -> InfixParseFns {
 		return parse_call_expr
 	case .L_BRACKET:
 		return parse_index_expr
+	case .ASSIGN:
+		return parse_reassign_expr
 	}
 	return nil
 }
@@ -155,9 +160,10 @@ parse_stmt :: proc(p: ^Parser) -> ast.Statement {
 	case .IDENT:
 		if peek_token_is(p, .COLON) {
 			return parse_assign_stmt(p)
-		} else if peek_token_is(p, .ASSIGN) {
-			return parse_reassign_stmt(p)
 		}
+	// } else if peek_token_is(p, .ASSIGN) {
+	// 	return parse_reassign_stmt(p)
+	// }
 	}
 
 	return parse_expr_stmt(p)
@@ -235,22 +241,19 @@ parse_loop_stmt :: proc(p: ^Parser) -> ast.Statement {
 	return nil
 }
 
-parse_reassign_stmt :: proc(p: ^Parser) -> ast.Statement {
-	stmt := new(ast.ReassignStatement, p.allocator)
-	stmt.tok = p.cur
-	name := parse_ident(p).(^ast.Identifier)
-	stmt.name = name
+parse_reassign_expr :: proc(p: ^Parser, left: ast.Expr) -> ast.Expr {
+	reassign := new(ast.ReassignExpr, p.allocator)
+	reassign.tok = p.cur
+	reassign.target = left
 
-	if !expect_peek(p, .ASSIGN) {
-		return nil
-	}
 	next_token(p)
-	stmt.value = parse_expr(p, .LOWEST)
+
+	reassign.value = parse_expr(p, .LOWEST)
 	if peek_token_is(p, .SEMI_COLON) {
 		next_token(p)
 	}
 
-	return stmt
+	return reassign
 }
 
 // Variations:

@@ -1,7 +1,4 @@
 fn main() {
-    test();
-}
-
-fn test() {
-    printf("Hello\n");
+    foo := [1,2];
+    printf("%d \n", foo[1]);
 }

@@ -196,20 +196,6 @@ qbe_gen_stmt :: proc(qbe: ^Qbe, stmt: ast.Statement) {
 	case ^ast.AssignStatement:
 		qbe_gen_assign_stmt(qbe, s)
 
-	case ^ast.ReassignStatement:
-		entry, found := qbe_lookup_symbol(qbe, s.name.value)
-		if !found {
-			qbe_error(qbe, "%s is not defined", s.name.value)
-			return
-		}
-		res := qbe_gen_expr(qbe, s.value)
-		qbe_emit(
-			qbe,
-			"  store%s %s, %s\n",
-			qbe_type_to_string(res.type),
-			res.value,
-			entry.register,
-		)
 	case ^ast.ExprStatement:
 		qbe_gen_expr(qbe, s.value)
 
@@ -720,11 +706,48 @@ qbe_gen_expr :: proc(qbe: ^Qbe, expr: ast.Expr) -> QbeResult {
 
 	case ^ast.IndexExpr:
 		return qbe_gen_index_expr(qbe, v)
+
+	case ^ast.ReassignExpr:
+		return qbe_gen_reassign_expr(qbe, v)
 	}
 	return qbe_make_result("", .Invalid)
 }
 
-qbe_gen_index_expr :: proc(qbe: ^Qbe, expr: ^ast.IndexExpr) -> QbeResult {
+qbe_gen_reassign_expr :: proc(qbe: ^Qbe, expr: ^ast.ReassignExpr) -> QbeResult {
+	addr := qbe_gen_lvalue_addr(qbe, expr.target)
+	if addr.type == .Invalid {
+		logger.error("invalid lvalue")
+		return addr
+	}
+
+	value_res := qbe_gen_expr(qbe, expr.value)
+	qbe_emit(
+		qbe,
+		"  store%s %s, %s\n",
+		qbe_type_to_string(value_res.type),
+		value_res.value,
+		addr.value,
+	)
+	return qbe_make_result("", .Void)
+}
+
+qbe_gen_lvalue_addr :: proc(qbe: ^Qbe, target: ast.Expr) -> QbeResult {
+	#partial switch v in target {
+	case ^ast.Identifier:
+		entry, found := qbe_lookup_symbol(qbe, v.value)
+		if !found {
+			qbe_error(qbe, "%s is not defined", v.value)
+			return qbe_make_result("", .Invalid)
+		}
+		return qbe_make_result(entry.register, .Long)
+	case ^ast.IndexExpr:
+		return qbe_gen_index_addr(qbe, v)
+	}
+	qbe_error(qbe, "%s is not a valid lvalue", ast.get_token_from_expr(target).type)
+	return qbe_make_result("", .Invalid)
+}
+
+qbe_gen_index_addr :: proc(qbe: ^Qbe, expr: ^ast.IndexExpr) -> QbeResult {
 	ident, ok := expr.left.(^ast.Identifier)
 	if !ok {
 		qbe_error(
@@ -745,43 +768,51 @@ qbe_gen_index_expr :: proc(qbe: ^Qbe, expr: ^ast.IndexExpr) -> QbeResult {
 	}
 	idx, okkk := expr.index.(^ast.IntLiteral)
 	if !okkk {
+		// TODO
+		// NOTE: For non-literal indices (e.g., 'a[i+1]'), you would 
+		// need to call qbe_gen_expr on expr.index to get the runtime index value
 		qbe_error(
 			qbe,
-			"Expected index to be integer, got %s",
+			"Expected index to be integer literal, got %s",
 			ast.get_token_from_expr(expr.index).type,
 		)
 		return qbe_make_result("", .Invalid)
-
 	}
+
 	typeinfo := symbol.typeinfo.data.(ast.ArrayTypeInfo)
 	element_size := qbe_lang_type_to_size(typeinfo.elements_type.kind)
+	base_reg := symbol.register
 
-	// if idx is 0, we use symbol.register
 	if idx.value == 0 {
-		reg := qbe_new_temp_reg(qbe)
-		type := qbe_type_to_string(qbe_lang_type_to_qbe_type(typeinfo.elements_type.kind))
-		qbe_emit(qbe, "  %s =%s load%s %s\n", reg, type, type, symbol.register)
-		return qbe_make_result(reg, qbe_lang_type_to_qbe_type(typeinfo.elements_type.kind))
-	} else {
-		add_reg := qbe_new_temp_reg(qbe)
-		element_size := qbe_lang_type_to_size(typeinfo.elements_type.kind)
-		size := element_size * idx.value
-		qbe_emit(
-			qbe,
-			"  %s =%s add %s, %d\n",
-			add_reg,
-			qbe_type_to_string(symbol.qbe_type),
-			symbol.register,
-			size,
-		)
-
-		reg := qbe_new_temp_reg(qbe)
-		type := qbe_type_to_string(qbe_lang_type_to_qbe_type(typeinfo.elements_type.kind))
-		qbe_emit(qbe, "  %s =%s load%s %s\n", reg, type, type, add_reg)
-		return qbe_make_result(reg, qbe_lang_type_to_qbe_type(typeinfo.elements_type.kind))
+		return qbe_make_result(base_reg, .Long)
 	}
 
-	return qbe_make_result("", .Invalid)
+	add_reg := qbe_new_temp_reg(qbe)
+	size := element_size * idx.value
+	qbe_emit(
+		qbe,
+		"  %s =%s add %s, %d\n",
+		add_reg,
+		qbe_type_to_string(symbol.qbe_type),
+		base_reg,
+		size,
+	)
+	return qbe_make_result(add_reg, .Long)
+}
+
+
+qbe_gen_index_expr :: proc(qbe: ^Qbe, expr: ^ast.IndexExpr) -> QbeResult {
+	addr := qbe_gen_index_addr(qbe, expr)
+	if addr.type == .Invalid {
+		return addr
+	}
+
+	element_qbe_type := qbe_lang_type_to_qbe_type(expr.resolved_type.kind)
+	type_str := qbe_type_to_string(element_qbe_type)
+
+	reg := qbe_new_temp_reg(qbe)
+	qbe_emit(qbe, "  %s =%s load%s %s\n", reg, type_str, type_str, addr.value)
+	return qbe_make_result(reg, element_qbe_type)
 }
 
 qbe_gen_array_expr :: proc(qbe: ^Qbe, v: ^ast.Array) -> QbeResult {

@@ -125,9 +125,6 @@ check_stmt :: proc(tc: ^TypeChecker, stmt: ast.Statement, expected_return_type: 
 	case ^ast.AssignStatement:
 		check_assign_stmt(tc, s)
 
-	case ^ast.ReassignStatement:
-		check_reassign_stmt(tc, s)
-
 	case ^ast.IfStatement:
 		check_if_stmt(tc, s, expected_return_type)
 
@@ -257,28 +254,6 @@ check_if_stmt :: proc(tc: ^TypeChecker, s: ^ast.IfStatement, expected_return_typ
 		}
 		symbols_pop_scope(tc)
 	}
-	return
-}
-
-check_reassign_stmt :: proc(tc: ^TypeChecker, s: ^ast.ReassignStatement) {
-	sym_type, found := lookup_symbol(tc, s.name.value)
-	if !found {
-		error(tc, s.tok, "%s is not defined, to assign a new variable use :=", s.name.value)
-		return
-	}
-	expr_type := check_expr(tc, s.value)
-	if sym_type.kind != expr_type.kind {
-		error(
-			tc,
-			s.tok,
-			"Type mismatch - %s is type %s, cannot reassign to type %s",
-			s.name.value,
-			sym_type.kind,
-			expr_type.kind,
-		)
-		return
-	}
-	s.resolved_type = sym_type
 	return
 }
 
@@ -413,13 +388,39 @@ check_expr :: proc(tc: ^TypeChecker, expr: ast.Expr) -> ^ast.TypeInfo {
 			return e.resolved_type
 		}
 		e.resolved_type = symbol_type
+		e.resolved_type.reassignable = true
 		return e.resolved_type
 	case ^ast.Array:
 		return check_array_expr(tc, e)
 	case ^ast.IndexExpr:
 		return check_index_expr(tc, e)
+	case ^ast.ReassignExpr:
+		return check_reassign_expr(tc, e)
 	}
 	logger.error("Unreachable - checking expr: %+v", expr)
+	return nil
+}
+
+check_reassign_expr :: proc(tc: ^TypeChecker, expr: ^ast.ReassignExpr) -> ^ast.TypeInfo {
+	lhs := check_expr(tc, expr.target)
+	if !lhs.reassignable {
+		error(tc, ast.get_token_from_expr(expr.target), "Cannot reassign to immutable expression")
+		expr.resolved_type = make_typeinfo(tc, .Invalid)
+		return expr.resolved_type
+	}
+	rhs := check_expr(tc, expr.value)
+	if lhs.kind != rhs.kind {
+		error(
+			tc,
+			ast.get_token_from_expr(expr.target),
+			"Cannot reassign value of type %s to type %s",
+			rhs.kind,
+			lhs.kind,
+		)
+		expr.resolved_type = make_typeinfo(tc, .Invalid)
+		return expr.resolved_type
+	}
+	expr.resolved_type = lhs
 	return nil
 }
 
@@ -449,7 +450,7 @@ check_index_expr :: proc(tc: ^TypeChecker, expr: ^ast.IndexExpr) -> ^ast.TypeInf
 	}
 
 	ident_arr_typeinfo := ident_typeinfo.data.(ast.ArrayTypeInfo)
-	expr.resolved_type = ident_arr_typeinfo.elements_type
+	expr.resolved_type = make_typeinfo(tc, ident_arr_typeinfo.elements_type.kind, true)
 
 	return expr.resolved_type
 }
@@ -523,6 +524,16 @@ check_call_expr :: proc(tc: ^TypeChecker, e: ^ast.CallExpr) -> ^ast.TypeInfo {
 		// TODO: add better builtin support
 		if e.func.value == "printf" {
 			// TODO: do i need to support variadics now?? (builtins)
+
+			// TODO: partially duplicating the logic that happens lower down because i don't have good builtin support :(
+			for arg, i in e.args {
+				arg_typeinfo := check_expr(tc, arg)
+				if arg_typeinfo.kind == .Invalid {
+					error(tc, ast.get_token_from_expr(arg), "invalid function parameter")
+					return make_typeinfo(tc, .Invalid)
+				}
+			}
+
 			return_type := make_typeinfo(tc, .Int)
 			f_typeinfo := make_typeinfo(tc, .Function)
 			f_typeinfo.data = ast.FunctionTypeInfo {
@@ -664,8 +675,13 @@ resolve_type_annotation :: proc(
 	return make_typeinfo(tc, .Invalid)
 }
 
-make_typeinfo :: proc(tc: ^TypeChecker, kind: ast.TypeKind) -> ^ast.TypeInfo {
+make_typeinfo :: proc(
+	tc: ^TypeChecker,
+	kind: ast.TypeKind,
+	reassignable := false,
+) -> ^ast.TypeInfo {
 	typeinfo := new(ast.TypeInfo, tc.allocator)
 	typeinfo.kind = kind
+	typeinfo.reassignable = reassignable
 	return typeinfo
 }
