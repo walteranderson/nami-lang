@@ -227,10 +227,11 @@ qbe_gen_assign_stmt :: proc(qbe: ^Qbe, s: ^ast.AssignStatement) {
 
 		if s.resolved_type.kind != .String &&
 		   s.resolved_type.kind != .Bool &&
-		   s.resolved_type.kind != .Int {
+		   s.resolved_type.kind != .Int &&
+		   s.resolved_type.kind != .Array {
 			qbe_error(
 				qbe,
-				"Unsupported constant - global constants can only be string, bool, or int",
+				"Unsupported constant - global constants can only be Array, String, Bool, or Int",
 			)
 			return
 		}
@@ -242,6 +243,22 @@ qbe_gen_assign_stmt :: proc(qbe: ^Qbe, s: ^ast.AssignStatement) {
 
 		symbol_register := strings.to_string(symbol_sb)
 		qbe_add_symbol(qbe, s.name.value, symbol_register, s.resolved_type, .Global)
+
+		if s.resolved_type.kind == .Array {
+			typeinfo := s.resolved_type.data.(ast.ArrayTypeInfo)
+			if s.value == nil {
+				qbe_emit(
+					qbe,
+					"data %s = {{ z %d }}\n",
+					symbol_register,
+					qbe_lang_type_to_size(s.resolved_type.kind) * typeinfo.size,
+				)
+				return
+			}
+
+			qbe_error(qbe, "TODO: global arrays with initial values not supported yet")
+			return
+		}
 
 		if s.value == nil {
 			qbe_emit(
