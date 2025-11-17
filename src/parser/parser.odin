@@ -500,11 +500,6 @@ parse_type_annotation :: proc(p: ^Parser) -> ^ast.TypeAnnotation {
 	next_token(p)
 
 	size_expr := parse_expr(p, .LOWEST)
-	_, ok := size_expr.(^ast.IntLiteral)
-	if !ok {
-		error(p, "Expected IntLiteral, got %s", ast.get_token_from_expr(size_expr).type)
-		return nil
-	}
 
 	if !expect_peek(p, .R_BRACKET) {
 		return nil

@@ -344,6 +344,7 @@ print_ast :: proc(node: AnyNode, indent_level: int) {
 		fmt.printf("%sBoolean: %t\n", indent, n.value)
 	case ^Identifier:
 		fmt.printf("%sIdentifier: %s\n", indent, n.value)
+		fmt.printf("%s  ResolvedType: %s\n", indent, n.resolved_type.kind)
 	case ^IntLiteral:
 		fmt.printf("%sIntLiteral: %d\n", indent, n.value)
 	case ^StringLiteral:
@@ -386,6 +387,7 @@ print_ast :: proc(node: AnyNode, indent_level: int) {
 		}
 	case ^IndexExpr:
 		fmt.printf("%sIndexExpression:\n", indent)
+		fmt.printf("%s  ResolvedType: %s\n", indent, n.resolved_type.kind)
 		fmt.printf("%s  Left:\n", indent)
 		print_expr(n.left, indent_level + 2)
 		fmt.printf("%s  Index:\n", indent)

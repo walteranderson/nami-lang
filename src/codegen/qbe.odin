@@ -783,16 +783,10 @@ qbe_gen_index_addr :: proc(qbe: ^Qbe, expr: ^ast.IndexExpr) -> QbeResult {
 		qbe_error(qbe, "Expected array, got %s", symbol.typeinfo.kind)
 		return qbe_make_result("", .Invalid)
 	}
-	idx, okkk := expr.index.(^ast.IntLiteral)
-	if !okkk {
-		// TODO
-		// NOTE: For non-literal indices (e.g., 'a[i+1]'), you would 
-		// need to call qbe_gen_expr on expr.index to get the runtime index value
-		qbe_error(
-			qbe,
-			"Expected index to be integer literal, got %s",
-			ast.get_token_from_expr(expr.index).type,
-		)
+
+	idx_res := qbe_gen_expr(qbe, expr.index)
+	if idx_res.type != .Word {
+		qbe_error(qbe, "Array index must evaluate to an integer type")
 		return qbe_make_result("", .Invalid)
 	}
 
@@ -800,19 +794,25 @@ qbe_gen_index_addr :: proc(qbe: ^Qbe, expr: ^ast.IndexExpr) -> QbeResult {
 	element_size := qbe_lang_type_to_size(typeinfo.elements_type.kind)
 	base_reg := symbol.register
 
-	if idx.value == 0 {
-		return qbe_make_result(base_reg, .Long)
-	}
-
-	add_reg := qbe_new_temp_reg(qbe)
-	size := element_size * idx.value
+	offset_reg := qbe_new_temp_reg(qbe)
+	qbe_emit(qbe, "  %s =w mul %s, %d\n", offset_reg, idx_res.value, element_size)
+	offset_cast_reg := qbe_new_temp_reg(qbe)
 	qbe_emit(
 		qbe,
-		"  %s =%s add %s, %d\n",
+		"  %s =%s extuw %s\n",
+		offset_cast_reg,
+		qbe_type_to_string(symbol.qbe_type),
+		offset_reg,
+	)
+
+	add_reg := qbe_new_temp_reg(qbe)
+	qbe_emit(
+		qbe,
+		"  %s =%s add %s, %s\n",
 		add_reg,
 		qbe_type_to_string(symbol.qbe_type),
 		base_reg,
-		size,
+		offset_cast_reg,
 	)
 	return qbe_make_result(add_reg, .Long)
 }
