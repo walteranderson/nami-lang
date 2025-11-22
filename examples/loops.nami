@@ -1,7 +1,7 @@
 fn main() {
     infinite_loop();
-    // when_loop();
-    // iterator_loop();
+    when_loop();
+    iterator_loop();
 }
 
 fn infinite_loop() {

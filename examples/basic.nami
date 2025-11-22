@@ -1,4 +1,3 @@
 fn main() {
-    foo := [1,2];
-    printf("%d \n", foo[1]);
+    return 1;
 }

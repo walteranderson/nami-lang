@@ -83,6 +83,12 @@ main :: proc() {
 			ir_start := time.now()
 			ctx := ir.new_context(allocator)
 			ir.from_ast(ctx, module)
+			if len(ctx.errors) != 0 {
+				for err in ctx.errors {
+					logger.compiler_error(opt.file_name, err)
+				}
+				os.exit(1)
+			}
 			qbe_codegen := qbecodegen.new_qbecodegen(allocator)
 			qbecodegen.from_ir(qbe_codegen, ctx.module)
 

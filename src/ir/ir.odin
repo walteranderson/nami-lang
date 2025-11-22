@@ -2,11 +2,14 @@ package ir
 
 import "core:mem"
 
+import "../logger"
+
 Context :: struct {
 	allocator:     mem.Allocator,
 	module:        ^Module,
 	next_tmp_id:   int,
 	next_label_id: int,
+	errors:        [dynamic]logger.CompilerError,
 }
 
 Module :: struct {

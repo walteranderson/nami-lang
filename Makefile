@@ -1,5 +1,7 @@
 # FLAGS=-out:nami -define:EXPERIMENTAL_IR=true
-FLAGS=-out:nami
+BASE_FLAGS=-out:nami
+EXTRA_FLAGS=
+FLAGS=$(BASE_FLAGS) $(EXTRA_FLAGS)
 SRC=./src
 
 .PHONY: build
