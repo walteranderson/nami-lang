@@ -1,7 +1,5 @@
+foo := false;
+
 fn main() {
-    "hello";
-    "foo";
-    "bar";
-    "baz";
     return 1;
 }

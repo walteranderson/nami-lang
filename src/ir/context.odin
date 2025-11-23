@@ -12,6 +12,15 @@ Context :: struct {
 	module:    ^Module,
 	errors:    [dynamic]logger.CompilerError,
 	str_count: int,
+	symbols:   [dynamic]SymbolTable,
+}
+
+SymbolTable :: map[string]^SymbolEntry
+SymbolEntry :: struct {
+	name:     string,
+	kind:     TypeKind,
+	typeinfo: ^ast.TypeInfo,
+	op_kind:  OperandKind,
 }
 
 new_context :: proc(allocator: mem.Allocator) -> ^Context {
@@ -19,6 +28,7 @@ new_context :: proc(allocator: mem.Allocator) -> ^Context {
 	ctx.allocator = allocator
 	ctx.module = new(Module, allocator)
 	ctx.errors = make([dynamic]logger.CompilerError, allocator)
+	push_symbol_scope(ctx)
 	return ctx
 }
 
@@ -42,7 +52,7 @@ gen_stmt :: proc(ctx: ^Context, stmt: ast.Statement) {
 	case ^ast.ExprStatement:
 		gen_expr(ctx, v.value)
 	case ^ast.AssignStatement:
-		error(ctx, v.tok, "TODO: implement AssignStatement")
+		gen_assign_stmt(ctx, v)
 	case ^ast.FunctionArg:
 		error(ctx, v.tok, "TODO: implement FunctionArg")
 	case ^ast.IfStatement:
@@ -54,6 +64,76 @@ gen_stmt :: proc(ctx: ^Context, stmt: ast.Statement) {
 	}
 }
 
+gen_assign_stmt :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) {
+	if len(ctx.symbols) == 1 {
+		gen_global_assign(ctx, stmt)
+		return
+	}
+	error(ctx, stmt.tok, "TODO: implement AssignStatement")
+}
+
+gen_global_assign :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) {
+	if stmt.resolved_type.kind != .String &&
+	   stmt.resolved_type.kind != .Bool &&
+	   stmt.resolved_type.kind != .Int &&
+	   stmt.resolved_type.kind != .Array {
+		error(
+			ctx,
+			stmt.tok,
+			"Unsupported constant - global constants can only be Array, String, Bool, or Int",
+		)
+		return
+	}
+
+	data := make_data(ctx)
+	data.name = stmt.name.value
+	data.linkage = .None
+	if stmt.value == nil {
+		size: int
+		if stmt.resolved_type.kind == .Array {
+			arr_typeinfo := stmt.resolved_type.data.(ast.ArrayTypeInfo)
+			size = type_to_size(stmt.resolved_type.kind) * arr_typeinfo.size
+		} else {
+			size = type_to_size(stmt.resolved_type.kind)
+		}
+		field := DataZeroInit {
+			size = type_to_size(stmt.resolved_type.kind),
+		}
+
+		content := DataContent{}
+		append(&content.fields, field)
+		data.content = content
+		push_data(ctx, data)
+		return
+	}
+
+	if stmt.resolved_type.kind == .Array {
+		error(ctx, stmt.tok, "Global arrays with initialized values not support yet")
+		return
+	}
+
+	if stmt.resolved_type.kind == .String {
+		str := stmt.value.(^ast.StringLiteral)
+		data.content = make_null_terminated_str_data_content(str.value)
+		push_data(ctx, data)
+		return
+	}
+
+	op := gen_expr(ctx, stmt.value)
+	type := type_ast_to_ir(stmt.resolved_type.kind)
+	content := DataContent{}
+	field := DataInit {
+		type = type,
+	}
+	// TODO: I'm converting the operand data union into a DataItem union. these are both union{string, int}
+	//       investigate more about wrapping this union to be the correct type (is this type-casting? what happens when either union changes?)
+	append(&field.items, DataItem(op.data))
+	append(&content.fields, field)
+	data.content = content
+	push_data(ctx, data)
+	return
+}
+
 gen_expr :: proc(ctx: ^Context, expr: ast.Expr) -> Operand {
 	switch e in expr {
 	case ^ast.IntLiteral:
@@ -63,7 +143,7 @@ gen_expr :: proc(ctx: ^Context, expr: ast.Expr) -> Operand {
 	case ^ast.Identifier:
 		error(ctx, e.tok, "TODO: implement Identifier")
 	case ^ast.Boolean:
-		error(ctx, e.tok, "TODO: implement Boolean")
+		return Operand{kind = .Integer, data = e.value ? 1 : 0}
 	case ^ast.PrefixExpr:
 		error(ctx, e.tok, "TODO: implement PrefixExpr")
 	case ^ast.InfixExpr:
@@ -81,31 +161,16 @@ gen_expr :: proc(ctx: ^Context, expr: ast.Expr) -> Operand {
 }
 
 gen_string_literal :: proc(ctx: ^Context, e: ^ast.StringLiteral) -> Operand {
-	def := new_data(ctx)
-	def.name = new_string_label(ctx)
+	def := make_data(ctx)
+	def.name = make_string_label(ctx)
 	def.linkage = .None
-
-	content := DataContent{}
-
-	str_field := DataInit {
-		type = .Byte,
-	}
-	append(&str_field.items, e.value)
-	append(&content.fields, str_field)
-
-	null_term_field := DataInit {
-		type = .Byte,
-	}
-	append(&null_term_field.items, 0)
-	append(&content.fields, null_term_field)
-
-	def.content = content
-	append(&ctx.module.data, def)
+	def.content = make_null_terminated_str_data_content(e.value)
+	push_data(ctx, def)
 	return Operand{kind = .GlobalSymbol, data = def.name}
 }
 
 gen_return_stmt :: proc(ctx: ^Context, ret: ^ast.ReturnStatement) {
-	jump := new_jump(ctx, .Ret)
+	jump := make_jump(ctx, .Ret)
 	value := gen_expr(ctx, ret.value)
 	jump.data = RetData{value}
 	block := get_last_block(ctx)
@@ -131,7 +196,7 @@ gen_function_stmt :: proc(ctx: ^Context, stmt: ^ast.FunctionStatement) {
 	def.return_type = type_ast_to_ir(typeinfo.return_type.kind)
 	def.name = stmt.name.value
 	// TODO def.params
-	block := new_block(ctx)
+	block := make_block(ctx)
 	block.label = "start"
 	append(&def.blocks, block)
 	append(&ctx.module.functions, def)
@@ -144,13 +209,13 @@ get_last_block :: proc(ctx: ^Context) -> ^Block {
 	return block
 }
 
-new_jump :: proc(ctx: ^Context, kind: JumpType) -> ^Jump {
+make_jump :: proc(ctx: ^Context, kind: JumpType) -> ^Jump {
 	jump := new(Jump, ctx.allocator)
 	jump.kind = kind
 	return jump
 }
 
-new_string_label :: proc(ctx: ^Context) -> string {
+make_string_label :: proc(ctx: ^Context) -> string {
 	ctx.str_count += 1
 	sb: strings.Builder
 	strings.builder_init(&sb, ctx.allocator)
@@ -159,22 +224,62 @@ new_string_label :: proc(ctx: ^Context) -> string {
 	return strings.to_string(sb)
 }
 
-null_terminated_string :: proc(ctx: ^Context, str: string) -> string {
-	sb: strings.Builder
-	strings.builder_init(&sb, ctx.allocator)
-	defer strings.builder_destroy(&sb)
-	fmt.sbprintf(&sb, "%s\\00", str)
-	return strings.to_string(sb)
+make_null_terminated_str_data_content :: proc(str: string) -> DataContent {
+	content := DataContent{}
+	str_field := DataInit {
+		type = .Byte,
+	}
+	append(&str_field.items, str)
+	append(&content.fields, str_field)
+	null_term_field := DataInit {
+		type = .Byte,
+	}
+	append(&null_term_field.items, 0)
+	append(&content.fields, null_term_field)
+	return content
 }
 
-new_data :: proc(ctx: ^Context) -> ^DataDef {
+make_data :: proc(ctx: ^Context) -> ^DataDef {
 	def := new(DataDef, ctx.allocator)
 	return def
 }
 
-new_block :: proc(ctx: ^Context) -> ^Block {
+push_data :: proc(ctx: ^Context, data: ^DataDef) {
+	append(&ctx.module.data, data)
+}
+
+make_block :: proc(ctx: ^Context) -> ^Block {
 	block := new(Block, ctx.allocator)
 	return block
+}
+
+push_symbol_scope :: proc(ctx: ^Context) {
+	scope := make(SymbolTable, ctx.allocator)
+	append(&ctx.symbols, scope)
+}
+
+pop_symbol_scope :: proc(ctx: ^Context) {
+	if len(ctx.symbols) <= 0 {
+		// TODO: better error handling when we don't have a token
+		panic("attempting to pop scope from an empty symbol stack")
+	}
+	popped := pop(&ctx.symbols)
+	delete(popped)
+}
+
+push_symbol_entry :: proc(
+	ctx: ^Context,
+	name: string,
+	kind: TypeKind,
+	typeinfo: ^ast.TypeInfo,
+	op_kind: OperandKind,
+) {
+	entry := new(SymbolEntry, ctx.allocator)
+	entry.name = name
+	entry.kind = kind
+	entry.typeinfo = typeinfo
+	entry.op_kind = op_kind
+	ctx.symbols[len(ctx.symbols) - 1][entry.name] = entry
 }
 
 type_ast_to_ir :: proc(type: ast.TypeKind) -> TypeKind {
@@ -195,6 +300,30 @@ type_ast_to_ir :: proc(type: ast.TypeKind) -> TypeKind {
 		panic("ERROR converting ast to ir - Invalid/Any type")
 	}
 	panic("Unhandled ast type in ir.type_ast_to_ir")
+}
+
+type_to_size :: proc(type: ast.TypeKind) -> int {
+	switch type {
+	case .Int:
+		return 4
+	case .Bool:
+		return 4
+	case .Array:
+		return 8
+	case .String:
+		return 8
+	case .Function:
+		// TODO: Kind of assuming that maybe in the future, function size will refer to a function pointer
+		return 8
+	case .Void:
+		return 0
+	case .Any:
+		// TODO: Any type - assuming that if we get an `any` at this point, maybe its a pointer?
+		return 8
+	case .Invalid:
+		return 0
+	}
+	return 0
 }
 
 error :: proc(ctx: ^Context, tok: token.Token, ft: string, args: ..any) {

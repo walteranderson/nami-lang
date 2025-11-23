@@ -43,7 +43,7 @@ gen_data :: proc(qbe: ^QbeCodegen, def: ^ir.DataDef) {
 			for item in f.items {
 				switch i in item {
 				case int:
-					emit(qbe, "%d ", i)
+					emit(qbe, "%d", i)
 				case string:
 					emit(qbe, "\"%s\"", i)
 				}
