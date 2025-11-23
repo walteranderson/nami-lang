@@ -7,8 +7,10 @@ import "core:strings"
 import "../../ir"
 
 QbeCodegen :: struct {
-	allocator: mem.Allocator,
-	sb:        strings.Builder,
+	allocator:     mem.Allocator,
+	sb:            strings.Builder,
+	next_label_id: int,
+	next_tmp_id:   int,
 }
 
 new_qbecodegen :: proc(allocator: mem.Allocator) -> ^QbeCodegen {
@@ -19,12 +21,44 @@ new_qbecodegen :: proc(allocator: mem.Allocator) -> ^QbeCodegen {
 }
 
 from_ir :: proc(qbe: ^QbeCodegen, module: ^ir.Module) {
+	for def in module.data {
+		gen_data(qbe, def)
+	}
 	for func in module.functions {
 		gen_func(qbe, func)
 	}
 }
 
+gen_data :: proc(qbe: ^QbeCodegen, def: ^ir.DataDef) {
+	if def.linkage == .Export {
+		emit(qbe, "export ")
+	}
+	emit(qbe, "data $%s = {{ ", def.name)
+	for field, idx in def.content.fields {
+		switch f in field {
+		case ir.DataZeroInit:
+			emit(qbe, "z %d", f.size)
+		case ir.DataInit:
+			emit(qbe, "%s ", type_to_str(f.type))
+			for item in f.items {
+				switch i in item {
+				case int:
+					emit(qbe, "%d ", i)
+				case string:
+					emit(qbe, "\"%s\"", i)
+				}
+			}
+		}
+		if idx < len(def.content.fields) - 1 {
+			emit(qbe, ", ")
+		}
+	}
+	emit(qbe, " }}\n")
+}
+
 gen_func :: proc(qbe: ^QbeCodegen, func: ^ir.FunctionDef) {
+	qbe.next_label_id = 0
+	qbe.next_tmp_id = 0
 	if func.linkage == .Export {
 		emit(qbe, "export ")
 	}
@@ -42,7 +76,7 @@ gen_func :: proc(qbe: ^QbeCodegen, func: ^ir.FunctionDef) {
 }
 
 gen_block :: proc(qbe: ^QbeCodegen, block: ^ir.Block) {
-	emit(qbe, "%s\n", block.label)
+	emit(qbe, "%s\n", new_label(qbe, block.label))
 	// TODO: instructions
 	gen_jump(qbe, block.terminator)
 }
@@ -64,15 +98,27 @@ gen_jump :: proc(qbe: ^QbeCodegen, jump: ^ir.Jump) {
 
 gen_operand :: proc(qbe: ^QbeCodegen, op: ir.Operand) -> string {
 	switch op.kind {
-	case .LiteralConst:
-		data := op.data.(ir.OperandConstantData)
-		return int_to_str(qbe, data.value)
+	case .Integer:
+		return int_to_str(qbe, op.data.(int))
+	case .Temporary:
+	// TODO
+	case .GlobalSymbol:
+	// TODO
 	}
 	panic("Unhandled Operand in ir.gen_operand")
 }
 
 emit :: proc(qbe: ^QbeCodegen, format: string, args: ..any) {
 	fmt.sbprintf(&qbe.sb, format, ..args)
+}
+
+new_label :: proc(qbe: ^QbeCodegen, name: string) -> string {
+	qbe.next_label_id += 1
+	sb: strings.Builder
+	strings.builder_init(&sb, qbe.allocator)
+	defer strings.builder_destroy(&sb)
+	fmt.sbprintf(&sb, "@%s.%d", name, qbe.next_label_id)
+	return strings.to_string(sb)
 }
 
 int_to_str :: proc(qbe: ^QbeCodegen, val: int) -> string {

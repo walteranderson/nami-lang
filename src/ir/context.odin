@@ -1,12 +1,18 @@
 package ir
 
-
 import "../ast"
 import "../logger"
 import "../token"
 import "core:fmt"
 import "core:mem"
 import "core:strings"
+
+Context :: struct {
+	allocator: mem.Allocator,
+	module:    ^Module,
+	errors:    [dynamic]logger.CompilerError,
+	str_count: int,
+}
 
 new_context :: proc(allocator: mem.Allocator) -> ^Context {
 	ctx := new(Context, allocator)
@@ -51,9 +57,9 @@ gen_stmt :: proc(ctx: ^Context, stmt: ast.Statement) {
 gen_expr :: proc(ctx: ^Context, expr: ast.Expr) -> Operand {
 	switch e in expr {
 	case ^ast.IntLiteral:
-		return Operand{kind = .LiteralConst, data = OperandConstantData{value = e.value}}
+		return Operand{kind = .Integer, data = e.value}
 	case ^ast.StringLiteral:
-		error(ctx, e.tok, "TODO: implement StringLiteral")
+		return gen_string_literal(ctx, e)
 	case ^ast.Identifier:
 		error(ctx, e.tok, "TODO: implement Identifier")
 	case ^ast.Boolean:
@@ -72,6 +78,30 @@ gen_expr :: proc(ctx: ^Context, expr: ast.Expr) -> Operand {
 		error(ctx, e.tok, "TODO: implement ReassignExpr")
 	}
 	return Operand{}
+}
+
+gen_string_literal :: proc(ctx: ^Context, e: ^ast.StringLiteral) -> Operand {
+	def := new_data(ctx)
+	def.name = new_string_label(ctx)
+	def.linkage = .None
+
+	content := DataContent{}
+
+	str_field := DataInit {
+		type = .Byte,
+	}
+	append(&str_field.items, e.value)
+	append(&content.fields, str_field)
+
+	null_term_field := DataInit {
+		type = .Byte,
+	}
+	append(&null_term_field.items, 0)
+	append(&content.fields, null_term_field)
+
+	def.content = content
+	append(&ctx.module.data, def)
+	return Operand{kind = .GlobalSymbol, data = def.name}
 }
 
 gen_return_stmt :: proc(ctx: ^Context, ret: ^ast.ReturnStatement) {
@@ -102,7 +132,7 @@ gen_function_stmt :: proc(ctx: ^Context, stmt: ^ast.FunctionStatement) {
 	def.name = stmt.name.value
 	// TODO def.params
 	block := new_block(ctx)
-	block.label = new_label(ctx, "start")
+	block.label = "start"
 	append(&def.blocks, block)
 	append(&ctx.module.functions, def)
 	gen_stmt(ctx, stmt.body)
@@ -120,13 +150,26 @@ new_jump :: proc(ctx: ^Context, kind: JumpType) -> ^Jump {
 	return jump
 }
 
-new_label :: proc(ctx: ^Context, name: string) -> string {
-	ctx.next_label_id += 1
+new_string_label :: proc(ctx: ^Context) -> string {
+	ctx.str_count += 1
 	sb: strings.Builder
 	strings.builder_init(&sb, ctx.allocator)
 	defer strings.builder_destroy(&sb)
-	fmt.sbprintf(&sb, "@%s.%d", name, ctx.next_label_id)
+	fmt.sbprintf(&sb, "str_%d", ctx.str_count)
 	return strings.to_string(sb)
+}
+
+null_terminated_string :: proc(ctx: ^Context, str: string) -> string {
+	sb: strings.Builder
+	strings.builder_init(&sb, ctx.allocator)
+	defer strings.builder_destroy(&sb)
+	fmt.sbprintf(&sb, "%s\\00", str)
+	return strings.to_string(sb)
+}
+
+new_data :: proc(ctx: ^Context) -> ^DataDef {
+	def := new(DataDef, ctx.allocator)
+	return def
 }
 
 new_block :: proc(ctx: ^Context) -> ^Block {

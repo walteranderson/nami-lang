@@ -4,17 +4,9 @@ import "core:mem"
 
 import "../logger"
 
-Context :: struct {
-	allocator:     mem.Allocator,
-	module:        ^Module,
-	next_tmp_id:   int,
-	next_label_id: int,
-	errors:        [dynamic]logger.CompilerError,
-}
-
 Module :: struct {
 	functions: [dynamic]^FunctionDef,
-	// data:      [dynamic]^DataDef,
+	data:      [dynamic]^DataDef,
 	// types:     [dynamic]^TypeDef,
 }
 
@@ -79,16 +71,17 @@ Operand :: struct {
 	kind: OperandKind,
 	// explicit_type: ...
 	data: union {
-		OperandConstantData,
+		// for Temporary, and GlobalSymbol
+		string,
+		// for Integer
+		int,
 	},
 }
 
 OperandKind :: enum {
-	LiteralConst,
-}
-
-OperandConstantData :: struct {
-	value: int,
+	Integer,
+	Temporary,
+	GlobalSymbol,
 }
 
 OpCode :: enum {
@@ -103,12 +96,30 @@ OpCode :: enum {
 DataDef :: struct {
 	name:    string,
 	linkage: Linkage,
-	type:    TypeKind,
-	value:   union {
-		int,
-		string,
-		bool,
-	},
+	content: DataContent,
+}
+
+DataContent :: struct {
+	fields: [dynamic]DataField,
+}
+
+DataField :: union {
+	DataZeroInit,
+	DataInit,
+}
+
+DataZeroInit :: struct {
+	size: int,
+}
+
+DataInit :: struct {
+	type:  TypeKind,
+	items: [dynamic]DataItem,
+}
+
+DataItem :: union {
+	string,
+	int,
 }
 
 Linkage :: enum {
