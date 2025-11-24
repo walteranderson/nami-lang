@@ -195,8 +195,15 @@ gen_expr :: proc(ctx: ^Context, expr: ast.Expr) -> Operand {
 gen_reassign :: proc(ctx: ^Context, expr: ^ast.ReassignExpr) -> Operand {
 	lvalue := get_lvalue_addr(ctx, expr.target)
 	rvalue := gen_expr(ctx, expr.value)
+	rvalue_typeinfo := ast.get_resolved_type_from_expr(expr.value)
 	block := get_last_block(ctx)
-	inst := make_instruction(ctx, .Store, result_type = .Long, src1 = rvalue, src2 = lvalue)
+	inst := make_instruction(
+		ctx,
+		.Store,
+		result_type = type_ast_to_ir(rvalue_typeinfo.kind),
+		src1 = rvalue,
+		src2 = lvalue,
+	)
 	append(&block.instructions, inst)
 	return lvalue
 }

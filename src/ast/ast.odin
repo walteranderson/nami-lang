@@ -264,6 +264,32 @@ get_token_from_expr :: proc(expr: Expr) -> t.Token {
 	panic("Unhandled expression type in ast.get_token_from_expr")
 }
 
+get_resolved_type_from_expr :: proc(expr: Expr) -> ^TypeInfo {
+	switch e in expr {
+	case ^StringLiteral:
+		return e.resolved_type
+	case ^IntLiteral:
+		return e.resolved_type
+	case ^Identifier:
+		return e.resolved_type
+	case ^Boolean:
+		return e.resolved_type
+	case ^PrefixExpr:
+		return e.resolved_type
+	case ^InfixExpr:
+		return e.resolved_type
+	case ^CallExpr:
+		return e.resolved_type
+	case ^Array:
+		return e.resolved_type
+	case ^IndexExpr:
+		return e.resolved_type
+	case ^ReassignExpr:
+		return e.resolved_type
+	}
+	panic("Unhandled expression type in ast.get_resolved_type_from_expr")
+}
+
 print_ast :: proc(node: AnyNode, indent_level: int) {
 	indent := strings.repeat("  ", indent_level)
 	switch n in node {
