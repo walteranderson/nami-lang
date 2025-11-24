@@ -72,13 +72,52 @@ gen_func :: proc(qbe: ^QbeCodegen, func: ^ir.FunctionDef) {
 	for block in func.blocks {
 		gen_block(qbe, block)
 	}
-	emit(qbe, "}")
+	emit(qbe, "}\n")
 }
 
 gen_block :: proc(qbe: ^QbeCodegen, block: ^ir.Block) {
 	emit(qbe, "%s\n", new_label(qbe, block.label))
-	// TODO: instructions
+	for inst in block.instructions {
+		gen_inst(qbe, inst)
+	}
 	gen_jump(qbe, block.terminator)
+}
+
+gen_inst :: proc(qbe: ^QbeCodegen, inst: ^ir.Instruction) {
+	emit(qbe, "  ")
+
+	// Destination
+	dest, ok := inst.dest.?
+	if ok {
+		emit(qbe, "%s", get_operand(qbe, dest))
+		res_type, ok := inst.result_type.?
+		if !ok {
+			panic("expected result_type when generating instruction that has a dest")
+		}
+		emit(qbe, " =%s ", type_to_str(res_type))
+	}
+
+	// Opcode
+	emit(qbe, "%s", opcode_to_str(inst.opcode))
+	if inst.alignment != 0 {
+		emit(qbe, "%d ", inst.alignment)
+	} else if inst.opcode == .Store || inst.opcode == .Load {
+		assert(inst.result_type != nil, "store/load instructions requires a result_type")
+		emit(qbe, "%s ", type_to_str(inst.result_type.?))
+	} else {
+		emit(qbe, " ")
+	}
+
+	// Src1
+	emit(qbe, "%s", get_operand(qbe, inst.src1))
+
+	// Src2
+	src2, okk := inst.src2.?
+	if okk {
+		emit(qbe, ", %s\n", get_operand(qbe, src2))
+	} else {
+		emit(qbe, "\n")
+	}
 }
 
 gen_jump :: proc(qbe: ^QbeCodegen, jump: ^ir.Jump) {
@@ -89,21 +128,29 @@ gen_jump :: proc(qbe: ^QbeCodegen, jump: ^ir.Jump) {
 		panic("TODO: Jmp not implemented")
 	case .Ret:
 		data := jump.data.(ir.RetData)
-		op := gen_operand(qbe, data.val)
+		op := get_operand(qbe, data.val)
 		emit(qbe, "  ret %s\n", op)
 	case .Hlt:
 		panic("TODO: Hlt not implemented")
 	}
 }
 
-gen_operand :: proc(qbe: ^QbeCodegen, op: ir.Operand) -> string {
+get_operand :: proc(qbe: ^QbeCodegen, op: ir.Operand) -> string {
 	switch op.kind {
 	case .Integer:
 		return int_to_str(qbe, op.data.(int))
 	case .Temporary:
-	// TODO
+		sb: strings.Builder
+		strings.builder_init(&sb, qbe.allocator)
+		defer strings.builder_destroy(&sb)
+		fmt.sbprintf(&sb, "%%%s", op.data.(string))
+		return strings.to_string(sb)
 	case .GlobalSymbol:
-	// TODO
+		sb: strings.Builder
+		strings.builder_init(&sb, qbe.allocator)
+		defer strings.builder_destroy(&sb)
+		fmt.sbprintf(&sb, "$%s", op.data.(string))
+		return strings.to_string(sb)
 	case .Invalid:
 		panic("Invalid operand")
 	}
@@ -129,6 +176,28 @@ int_to_str :: proc(qbe: ^QbeCodegen, val: int) -> string {
 	defer strings.builder_destroy(&sb)
 	fmt.sbprintf(&sb, "%d", val)
 	return strings.to_string(sb)
+}
+
+opcode_to_str :: proc(opcode: ir.OpCode) -> string {
+	switch opcode {
+	case .Alloc:
+		return "alloc"
+	case .Store:
+		return "store"
+	case .Add:
+		return "add"
+	case .Sub:
+		return "sub"
+	case .Mul:
+		return "mul"
+	case .Div:
+		return "div"
+	case .Call:
+		return "call"
+	case .Load:
+		return "load"
+	}
+	panic("Unhandled opcode in opcode_to_str")
 }
 
 type_to_str :: proc(type: ir.TypeKind) -> string {

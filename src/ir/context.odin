@@ -13,6 +13,7 @@ Context :: struct {
 	errors:    [dynamic]logger.CompilerError,
 	str_count: int,
 	symbols:   [dynamic]SymbolTable,
+	temp_ids:  map[string]int,
 }
 
 SymbolTable :: map[string]^SymbolEntry
@@ -69,7 +70,48 @@ gen_assign_stmt :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) {
 		gen_global_assign(ctx, stmt)
 		return
 	}
-	error(ctx, stmt.tok, "TODO: implement AssignStatement")
+
+	block := get_last_block(ctx)
+
+	dest_name := make_temp_name(ctx, stmt.name.value)
+	alloc_inst := make_instruction(
+		ctx,
+		.Alloc,
+		result_type = .Long,
+		src1 = Operand{.Integer, typeinfo_to_size(stmt.resolved_type)},
+		dest = Operand{.Temporary, dest_name},
+	)
+	if stmt.resolved_type.kind == .Array {
+		arr_typeinfo := stmt.resolved_type.data.(ast.ArrayTypeInfo)
+		alloc_inst.alignment = type_to_size(arr_typeinfo.elements_type.kind)
+	} else {
+		alloc_inst.alignment = type_to_size(stmt.resolved_type.kind)
+	}
+	append(&block.instructions, alloc_inst)
+
+
+	src1 := Operand{.Integer, 0}
+	if stmt.value != nil {
+		src1 = gen_expr(ctx, stmt.value)
+	}
+	src2 := Operand{.Temporary, dest_name}
+
+	store_inst := make_instruction(
+		ctx,
+		.Store,
+		src1 = src1,
+		src2 = src2,
+		result_type = type_ast_to_ir(stmt.resolved_type.kind),
+	)
+	append(&block.instructions, store_inst)
+
+	push_symbol_entry(
+		ctx,
+		name = stmt.name.value,
+		kind = type_ast_to_ir(stmt.resolved_type.kind),
+		typeinfo = stmt.resolved_type,
+		op = Operand{kind = .Temporary, data = dest_name},
+	)
 }
 
 gen_global_assign :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) {
@@ -158,7 +200,12 @@ gen_identifier :: proc(ctx: ^Context, expr: ^ast.Identifier) -> Operand {
 		error(ctx, expr.tok, "undefined identifier: %s", expr.value)
 		return Operand{.Invalid, -1}
 	}
-	return ident.op
+
+	block := get_last_block(ctx)
+	dest := Operand{.Temporary, make_temp_name(ctx, ident.name)}
+	inst := make_instruction(ctx, .Load, result_type = ident.kind, src1 = ident.op, dest = dest)
+	append(&block.instructions, inst)
+	return dest
 }
 
 gen_string_literal :: proc(ctx: ^Context, e: ^ast.StringLiteral) -> Operand {
@@ -196,12 +243,35 @@ gen_function_stmt :: proc(ctx: ^Context, stmt: ^ast.FunctionStatement) {
 
 	def.return_type = type_ast_to_ir(typeinfo.return_type.kind)
 	def.name = stmt.name.value
+
 	// TODO def.params
+
+	push_symbol_scope(ctx)
+	defer pop_symbol_scope(ctx)
+	clear(&ctx.temp_ids)
+
 	block := make_block(ctx)
 	block.label = "start"
 	append(&def.blocks, block)
 	append(&ctx.module.functions, def)
 	gen_stmt(ctx, stmt.body)
+}
+
+make_temp_name :: proc(ctx: ^Context, name: string) -> string {
+	id: int
+	cur, ok := ctx.temp_ids[name]
+	if !ok {
+		id = 1
+	} else {
+		id = cur + 1
+	}
+	ctx.temp_ids[name] = id
+
+	sb: strings.Builder
+	strings.builder_init(&sb, ctx.allocator)
+	defer strings.builder_destroy(&sb)
+	fmt.sbprintf(&sb, "%s_%d", name, id)
+	return strings.to_string(sb)
 }
 
 get_last_block :: proc(ctx: ^Context) -> ^Block {
@@ -238,6 +308,23 @@ make_null_terminated_str_data_content :: proc(str: string) -> DataContent {
 	append(&null_term_field.items, 0)
 	append(&content.fields, null_term_field)
 	return content
+}
+
+make_instruction :: proc(
+	ctx: ^Context,
+	opcode: OpCode,
+	src1: Operand,
+	src2: Maybe(Operand) = nil,
+	dest: Maybe(Operand) = nil,
+	result_type: Maybe(TypeKind) = nil,
+) -> ^Instruction {
+	inst := new(Instruction, ctx.allocator)
+	inst.opcode = opcode
+	inst.src1 = src1
+	inst.src2 = src2
+	inst.dest = dest
+	inst.result_type = result_type
+	return inst
 }
 
 make_data_content :: proc(fields: ..DataField) -> DataContent {

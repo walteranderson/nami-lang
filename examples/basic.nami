@@ -1,7 +1,12 @@
 foo: Int;
 bar: [4]Int;
 baz := "asdf";
+bax := 42;
 
 fn main() {
-    return 1;
+    box := 13;
+    return box;
+}
+fn test() Int {
+    return bax;
 }

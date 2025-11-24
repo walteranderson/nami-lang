@@ -60,11 +60,12 @@ RetData :: struct {
 }
 
 Instruction :: struct {
-	return_type: TypeKind,
+	dest:        Maybe(Operand),
 	opcode:      OpCode,
-	dest:        Operand,
 	src1:        Operand,
-	src2:        Operand,
+	src2:        Maybe(Operand),
+	alignment:   int,
+	result_type: Maybe(TypeKind),
 }
 
 Operand :: struct {
@@ -91,7 +92,9 @@ OpCode :: enum {
 	Mul,
 	Div,
 	Call,
-	// Alloc,
+	Alloc,
+	Store,
+	Load,
 }
 
 DataDef :: struct {
