@@ -19,9 +19,16 @@ Context :: struct {
 SymbolTable :: map[string]^SymbolEntry
 SymbolEntry :: struct {
 	name:     string,
-	kind:     TypeKind,
+	kind:     SymbolKind,
+	ir_kind:  TypeKind,
 	typeinfo: ^ast.TypeInfo,
 	op:       Operand,
+}
+SymbolKind :: enum {
+	Local,
+	Global,
+	Func,
+	FuncParam,
 }
 
 new_context :: proc(allocator: mem.Allocator) -> ^Context {
@@ -55,7 +62,7 @@ gen_stmt :: proc(ctx: ^Context, stmt: ast.Statement) {
 	case ^ast.AssignStatement:
 		gen_assign_stmt(ctx, v)
 	case ^ast.FunctionArg:
-		error(ctx, v.tok, "TODO: implement FunctionArg")
+		error(ctx, v.tok, "Unreachable - function_arg")
 	case ^ast.IfStatement:
 		error(ctx, v.tok, "TODO: implement IfStatement")
 	case ^ast.LoopStatement:
@@ -108,7 +115,8 @@ gen_assign_stmt :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) {
 	push_symbol_entry(
 		ctx,
 		name = stmt.name.value,
-		kind = type_ast_to_ir(stmt.resolved_type.kind),
+		kind = .Local,
+		ir_kind = type_ast_to_ir(stmt.resolved_type.kind),
 		typeinfo = stmt.resolved_type,
 		op = Operand{kind = .Temporary, data = dest_name},
 	)
@@ -158,7 +166,8 @@ gen_global_assign :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) {
 	push_symbol_entry(
 		ctx,
 		name = stmt.name.value,
-		kind = type_ast_to_ir(stmt.resolved_type.kind),
+		kind = .Global,
+		ir_kind = type_ast_to_ir(stmt.resolved_type.kind),
 		typeinfo = stmt.resolved_type,
 		op = Operand{kind = .GlobalSymbol, data = stmt.name.value},
 	)
@@ -233,10 +242,23 @@ gen_identifier :: proc(ctx: ^Context, expr: ^ast.Identifier) -> Operand {
 	}
 
 	block := get_last_block(ctx)
-	dest := Operand{.Temporary, make_temp_name(ctx, ident.name)}
-	inst := make_instruction(ctx, .Load, result_type = ident.kind, src1 = ident.op, dest = dest)
-	append(&block.instructions, inst)
-	return dest
+
+	switch ident.kind {
+	case .FuncParam, .Global, .Func:
+		return ident.op
+	case .Local:
+		dest := Operand{.Temporary, make_temp_name(ctx, ident.name)}
+		inst := make_instruction(
+			ctx,
+			.Load,
+			result_type = ident.ir_kind,
+			src1 = ident.op,
+			dest = dest,
+		)
+		append(&block.instructions, inst)
+		return dest
+	}
+	panic("unhandled ident kind in gen_identifer")
 }
 
 gen_string_literal :: proc(ctx: ^Context, e: ^ast.StringLiteral) -> Operand {
@@ -275,11 +297,25 @@ gen_function_stmt :: proc(ctx: ^Context, stmt: ^ast.FunctionStatement) {
 	def.return_type = type_ast_to_ir(typeinfo.return_type.kind)
 	def.name = stmt.name.value
 
-	// TODO def.params
-
 	push_symbol_scope(ctx)
 	defer pop_symbol_scope(ctx)
 	clear(&ctx.temp_ids)
+
+	for arg in stmt.args {
+		param := FunctionParam {
+			type = type_ast_to_ir(arg.resolved_type.kind),
+			op   = Operand{.Temporary, make_temp_name(ctx, arg.ident.value)},
+		}
+		push_symbol_entry(
+			ctx,
+			name = arg.ident.value,
+			kind = .FuncParam,
+			ir_kind = param.type,
+			typeinfo = arg.resolved_type,
+			op = param.op,
+		)
+		append(&def.params, param)
+	}
 
 	block := make_block(ctx)
 	block.label = "start"
@@ -405,13 +441,15 @@ pop_symbol_scope :: proc(ctx: ^Context) {
 push_symbol_entry :: proc(
 	ctx: ^Context,
 	name: string,
-	kind: TypeKind,
+	kind: SymbolKind,
+	ir_kind: TypeKind,
 	typeinfo: ^ast.TypeInfo,
 	op: Operand,
 ) {
 	entry := new(SymbolEntry, ctx.allocator)
 	entry.name = name
 	entry.kind = kind
+	entry.ir_kind = ir_kind
 	entry.typeinfo = typeinfo
 	entry.op = op
 	ctx.symbols[len(ctx.symbols) - 1][entry.name] = entry

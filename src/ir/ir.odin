@@ -19,8 +19,8 @@ FunctionDef :: struct {
 }
 
 FunctionParam :: struct {
-	tmp_id: int,
-	type:   TypeKind,
+	type: TypeKind,
+	op:   Operand,
 }
 
 Block :: struct {

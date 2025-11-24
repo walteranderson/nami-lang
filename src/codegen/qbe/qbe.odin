@@ -66,9 +66,17 @@ gen_func :: proc(qbe: ^QbeCodegen, func: ^ir.FunctionDef) {
 	if func.return_type != .Void {
 		emit(qbe, "%s ", type_to_str(func.return_type))
 	}
-	emit(qbe, "$%s(", func.name)
-	// TODO: params
+	emit(qbe, "$%s", func.name)
+
+	emit(qbe, "(")
+	for param, idx in func.params {
+		emit(qbe, "%s %s", type_to_str(param.type), get_operand(qbe, param.op))
+		if idx < len(func.params) - 1 {
+			emit(qbe, ", ")
+		}
+	}
 	emit(qbe, ") {{\n")
+
 	for block in func.blocks {
 		gen_block(qbe, block)
 	}

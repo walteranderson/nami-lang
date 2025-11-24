@@ -1,6 +1,7 @@
-foo := 0;
-
 fn main() {
-    foo = 5;
-    return foo;
+    return 0;
+}
+
+fn test(a: Int) Int {
+    return a;
 }
