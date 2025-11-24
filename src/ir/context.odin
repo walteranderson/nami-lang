@@ -179,14 +179,16 @@ gen_expr :: proc(ctx: ^Context, expr: ast.Expr) -> Operand {
 	switch e in expr {
 	case ^ast.IntLiteral:
 		return Operand{kind = .Integer, data = e.value}
+	case ^ast.Boolean:
+		return Operand{kind = .Integer, data = e.value ? 1 : 0}
 	case ^ast.StringLiteral:
 		return gen_string_literal(ctx, e)
 	case ^ast.Identifier:
 		return gen_identifier(ctx, e)
-	case ^ast.Boolean:
-		return Operand{kind = .Integer, data = e.value ? 1 : 0}
+	case ^ast.ReassignExpr:
+		return gen_reassign(ctx, e)
 	case ^ast.PrefixExpr:
-		error(ctx, e.tok, "TODO: implement PrefixExpr")
+		return gen_prefix_expr(ctx, e)
 	case ^ast.InfixExpr:
 		error(ctx, e.tok, "TODO: implement InfixExpr")
 	case ^ast.CallExpr:
@@ -195,10 +197,56 @@ gen_expr :: proc(ctx: ^Context, expr: ast.Expr) -> Operand {
 		error(ctx, e.tok, "TODO: implement Array")
 	case ^ast.IndexExpr:
 		error(ctx, e.tok, "TODO: implement IndexExpr")
-	case ^ast.ReassignExpr:
-		return gen_reassign(ctx, e)
 	}
 	return Operand{}
+}
+
+gen_prefix_expr :: proc(ctx: ^Context, expr: ^ast.PrefixExpr) -> Operand {
+	// if this is being checked in the typechecker, do i also need it here?
+	if expr.op != "-" && expr.op != "!" {
+		error(ctx, expr.tok, "Unsupported prefix operator: %s", expr.op)
+		return Operand{}
+	}
+
+	block := get_last_block(ctx)
+
+	rvalue := gen_expr(ctx, expr.right)
+	rvalue_typeinfo := ast.get_resolved_type_from_expr(expr.right)
+	copy_dest := Operand{.Temporary, make_temp_name(ctx, "copy")}
+	copy_inst := make_instruction(
+		ctx,
+		.Copy,
+		dest = copy_dest,
+		result_type = type_ast_to_ir(rvalue_typeinfo.kind),
+		src1 = rvalue,
+	)
+	append(&block.instructions, copy_inst)
+
+	dest: Operand
+	switch expr.op {
+	case "-":
+		dest = Operand{.Temporary, make_temp_name(ctx, "neg")}
+		neg_inst := make_instruction(
+			ctx,
+			.Neg,
+			dest = dest,
+			result_type = type_ast_to_ir(rvalue_typeinfo.kind),
+			src1 = copy_dest,
+		)
+		append(&block.instructions, neg_inst)
+	case "!":
+		dest = Operand{.Temporary, make_temp_name(ctx, "not")}
+		not_inst := make_instruction(
+			ctx,
+			.Ceq,
+			dest = dest,
+			result_type = type_ast_to_ir(rvalue_typeinfo.kind),
+			src1 = copy_dest,
+			src2 = Operand{.Integer, 0},
+		)
+		append(&block.instructions, not_inst)
+	}
+	return dest
 }
 
 gen_reassign :: proc(ctx: ^Context, expr: ^ast.ReassignExpr) -> Operand {

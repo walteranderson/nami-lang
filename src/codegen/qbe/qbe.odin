@@ -109,7 +109,7 @@ gen_inst :: proc(qbe: ^QbeCodegen, inst: ^ir.Instruction) {
 	emit(qbe, "%s", opcode_to_str(inst.opcode))
 	if inst.alignment != 0 {
 		emit(qbe, "%d ", inst.alignment)
-	} else if inst.opcode == .Store || inst.opcode == .Load {
+	} else if inst.opcode == .Store || inst.opcode == .Load || inst.opcode == .Ceq {
 		assert(inst.result_type != nil, "store/load instructions requires a result_type")
 		emit(qbe, "%s ", type_to_str(inst.result_type.?))
 	} else {
@@ -188,10 +188,6 @@ int_to_str :: proc(qbe: ^QbeCodegen, val: int) -> string {
 
 opcode_to_str :: proc(opcode: ir.OpCode) -> string {
 	switch opcode {
-	case .Alloc:
-		return "alloc"
-	case .Store:
-		return "store"
 	case .Add:
 		return "add"
 	case .Sub:
@@ -200,10 +196,20 @@ opcode_to_str :: proc(opcode: ir.OpCode) -> string {
 		return "mul"
 	case .Div:
 		return "div"
-	case .Call:
-		return "call"
+	case .Neg:
+		return "neg"
+	case .Store:
+		return "store"
 	case .Load:
 		return "load"
+	case .Alloc:
+		return "alloc"
+	case .Call:
+		return "call"
+	case .Copy:
+		return "copy"
+	case .Ceq:
+		return "ceq"
 	}
 	panic("Unhandled opcode in opcode_to_str")
 }

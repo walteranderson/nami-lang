@@ -15,4 +15,12 @@ An experimental programming language. Don't use this.
 $ make
 $ ./nami examples/hello.nami
 $ ./examples/hello
+Hello world!
 ```
+
+#### Development Goals
+
+- [X] Compiles to a native executable (via QBE)
+- [X] Statically typed
+- [ ] Turing complete
+- [ ] Self-hosted

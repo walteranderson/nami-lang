@@ -87,14 +87,21 @@ OperandKind :: enum {
 }
 
 OpCode :: enum {
+	// arithmetic
 	Add,
 	Sub,
 	Mul,
 	Div,
-	Call,
-	Alloc,
+	Neg,
+	// memory
 	Store,
 	Load,
+	Alloc,
+	// control & metadata
+	Call,
+	Copy,
+	// TODO: handle these are a generic "Comparison" with the variation being in some kind of metadata
+	Ceq,
 }
 
 DataDef :: struct {

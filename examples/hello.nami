@@ -1,4 +1,3 @@
 fn main() {
-  answer := (10 * 2) * 2 + 2;
-  printf("the answer is %d\n", answer);
+  printf("Hello world!\n");
 }
