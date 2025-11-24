@@ -79,6 +79,7 @@ Operand :: struct {
 }
 
 OperandKind :: enum {
+	Invalid,
 	Integer,
 	Temporary,
 	GlobalSymbol,

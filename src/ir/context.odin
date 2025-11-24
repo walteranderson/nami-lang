@@ -20,7 +20,7 @@ SymbolEntry :: struct {
 	name:     string,
 	kind:     TypeKind,
 	typeinfo: ^ast.TypeInfo,
-	op_kind:  OperandKind,
+	op:       Operand,
 }
 
 new_context :: proc(allocator: mem.Allocator) -> ^Context {
@@ -120,7 +120,7 @@ gen_global_assign :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) {
 		name = stmt.name.value,
 		kind = type_ast_to_ir(stmt.resolved_type.kind),
 		typeinfo = stmt.resolved_type,
-		op_kind = .GlobalSymbol,
+		op = Operand{kind = .GlobalSymbol, data = stmt.name.value},
 	)
 	push_data(ctx, data)
 	return
@@ -133,7 +133,7 @@ gen_expr :: proc(ctx: ^Context, expr: ast.Expr) -> Operand {
 	case ^ast.StringLiteral:
 		return gen_string_literal(ctx, e)
 	case ^ast.Identifier:
-		error(ctx, e.tok, "TODO: implement Identifier")
+		return gen_identifier(ctx, e)
 	case ^ast.Boolean:
 		return Operand{kind = .Integer, data = e.value ? 1 : 0}
 	case ^ast.PrefixExpr:
@@ -150,6 +150,15 @@ gen_expr :: proc(ctx: ^Context, expr: ast.Expr) -> Operand {
 		error(ctx, e.tok, "TODO: implement ReassignExpr")
 	}
 	return Operand{}
+}
+
+gen_identifier :: proc(ctx: ^Context, expr: ^ast.Identifier) -> Operand {
+	ident, found := lookup_symbol(ctx, expr.value)
+	if !found {
+		error(ctx, expr.tok, "undefined identifier: %s", expr.value)
+		return Operand{.Invalid, -1}
+	}
+	return ident.op
 }
 
 gen_string_literal :: proc(ctx: ^Context, e: ^ast.StringLiteral) -> Operand {
@@ -251,6 +260,16 @@ make_block :: proc(ctx: ^Context) -> ^Block {
 	return block
 }
 
+lookup_symbol :: proc(ctx: ^Context, name: string) -> (^SymbolEntry, bool) {
+	for i := len(ctx.symbols) - 1; i >= 0; i -= 1 {
+		scope := ctx.symbols[i]
+		if val, ok := scope[name]; ok {
+			return val, true
+		}
+	}
+	return nil, false
+}
+
 push_symbol_scope :: proc(ctx: ^Context) {
 	scope := make(SymbolTable, ctx.allocator)
 	append(&ctx.symbols, scope)
@@ -270,13 +289,13 @@ push_symbol_entry :: proc(
 	name: string,
 	kind: TypeKind,
 	typeinfo: ^ast.TypeInfo,
-	op_kind: OperandKind,
+	op: Operand,
 ) {
 	entry := new(SymbolEntry, ctx.allocator)
 	entry.name = name
 	entry.kind = kind
 	entry.typeinfo = typeinfo
-	entry.op_kind = op_kind
+	entry.op = op
 	ctx.symbols[len(ctx.symbols) - 1][entry.name] = entry
 }
 

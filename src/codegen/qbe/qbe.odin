@@ -104,6 +104,8 @@ gen_operand :: proc(qbe: ^QbeCodegen, op: ir.Operand) -> string {
 	// TODO
 	case .GlobalSymbol:
 	// TODO
+	case .Invalid:
+		panic("Invalid operand")
 	}
 	panic("Unhandled Operand in ir.gen_operand")
 }
