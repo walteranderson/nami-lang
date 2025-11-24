@@ -1,4 +1,6 @@
-foo := false;
+foo: Int;
+bar: [4]Int;
+baz := "asdf";
 
 fn main() {
     return 1;

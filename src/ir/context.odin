@@ -89,47 +89,39 @@ gen_global_assign :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) {
 	data.name = stmt.name.value
 	data.linkage = .None
 	if stmt.value == nil {
-		size: int
-		if stmt.resolved_type.kind == .Array {
-			arr_typeinfo := stmt.resolved_type.data.(ast.ArrayTypeInfo)
-			size = type_to_size(stmt.resolved_type.kind) * arr_typeinfo.size
-		} else {
-			size = type_to_size(stmt.resolved_type.kind)
-		}
-		field := DataZeroInit {
-			size = type_to_size(stmt.resolved_type.kind),
-		}
-
-		content := DataContent{}
-		append(&content.fields, field)
-		data.content = content
+		field := DataZeroInit{typeinfo_to_size(stmt.resolved_type)}
+		data.content = make_data_content(field)
 		push_data(ctx, data)
 		return
 	}
 
-	if stmt.resolved_type.kind == .Array {
-		error(ctx, stmt.tok, "Global arrays with initialized values not support yet")
+	#partial switch stmt.resolved_type.kind {
+	case .Array:
+		error(ctx, stmt.tok, "TODO: Global arrays with initialized values not support yet")
 		return
-	}
-
-	if stmt.resolved_type.kind == .String {
+	case .String:
 		str := stmt.value.(^ast.StringLiteral)
 		data.content = make_null_terminated_str_data_content(str.value)
-		push_data(ctx, data)
-		return
+	case:
+		content := DataContent{}
+		field := DataInit {
+			type = type_ast_to_ir(stmt.resolved_type.kind),
+		}
+		op := gen_expr(ctx, stmt.value)
+		// TODO: I'm converting the operand data union into a DataItem union. these are both union{string, int}
+		//       investigate more about wrapping this union to be the correct type (is this type-casting? what happens when either union changes?)
+		append(&field.items, DataItem(op.data))
+		append(&content.fields, field)
+		data.content = content
 	}
 
-	op := gen_expr(ctx, stmt.value)
-	type := type_ast_to_ir(stmt.resolved_type.kind)
-	content := DataContent{}
-	field := DataInit {
-		type = type,
-	}
-	// TODO: I'm converting the operand data union into a DataItem union. these are both union{string, int}
-	//       investigate more about wrapping this union to be the correct type (is this type-casting? what happens when either union changes?)
-	append(&field.items, DataItem(op.data))
-	append(&content.fields, field)
-	data.content = content
+	push_symbol_entry(
+		ctx,
+		name = stmt.name.value,
+		kind = type_ast_to_ir(stmt.resolved_type.kind),
+		typeinfo = stmt.resolved_type,
+		op_kind = .GlobalSymbol,
+	)
 	push_data(ctx, data)
 	return
 }
@@ -239,6 +231,12 @@ make_null_terminated_str_data_content :: proc(str: string) -> DataContent {
 	return content
 }
 
+make_data_content :: proc(fields: ..DataField) -> DataContent {
+	content := DataContent{}
+	append(&content.fields, ..fields)
+	return content
+}
+
 make_data :: proc(ctx: ^Context) -> ^DataDef {
 	def := new(DataDef, ctx.allocator)
 	return def
@@ -300,6 +298,15 @@ type_ast_to_ir :: proc(type: ast.TypeKind) -> TypeKind {
 		panic("ERROR converting ast to ir - Invalid/Any type")
 	}
 	panic("Unhandled ast type in ir.type_ast_to_ir")
+}
+
+typeinfo_to_size :: proc(typeinfo: ^ast.TypeInfo) -> int {
+	if typeinfo.kind == .Array {
+		arr_typeinfo := typeinfo.data.(ast.ArrayTypeInfo)
+		return type_to_size(typeinfo.kind) * arr_typeinfo.size
+	} else {
+		return type_to_size(typeinfo.kind)
+	}
 }
 
 type_to_size :: proc(type: ast.TypeKind) -> int {
