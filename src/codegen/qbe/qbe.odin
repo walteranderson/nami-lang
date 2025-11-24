@@ -98,23 +98,24 @@ gen_inst :: proc(qbe: ^QbeCodegen, inst: ^ir.Instruction) {
 	dest, ok := inst.dest.?
 	if ok {
 		emit(qbe, "%s", get_operand(qbe, dest))
-		res_type, ok := inst.result_type.?
-		if !ok {
-			panic("expected result_type when generating instruction that has a dest")
-		}
-		emit(qbe, " =%s ", type_to_str(res_type))
+		assert(inst.dest_type != nil, "instructions with dest requires a result_type")
+		emit(qbe, " =%s ", type_to_str(inst.dest_type.?))
 	}
 
 	// Opcode
 	emit(qbe, "%s", opcode_to_str(inst.opcode))
 	if inst.alignment != 0 {
-		emit(qbe, "%d ", inst.alignment)
-	} else if inst.opcode == .Store || inst.opcode == .Load || inst.opcode == .Ceq {
-		assert(inst.result_type != nil, "store/load instructions requires a result_type")
-		emit(qbe, "%s ", type_to_str(inst.result_type.?))
-	} else {
-		emit(qbe, " ")
+		emit(qbe, "%d", inst.alignment)
 	}
+
+	if inst.comparison_type != .None {
+		emit(qbe, "%s", comparison_type_to_str(inst.comparison_type))
+	}
+
+	if inst.opcode_type != nil {
+		emit(qbe, "%s", type_to_str(inst.opcode_type.?))
+	}
+	emit(qbe, " ")
 
 	// Src1
 	emit(qbe, "%s", get_operand(qbe, inst.src1))
@@ -122,10 +123,10 @@ gen_inst :: proc(qbe: ^QbeCodegen, inst: ^ir.Instruction) {
 	// Src2
 	src2, okk := inst.src2.?
 	if okk {
-		emit(qbe, ", %s\n", get_operand(qbe, src2))
-	} else {
-		emit(qbe, "\n")
+		emit(qbe, ", %s", get_operand(qbe, src2))
 	}
+
+	emit(qbe, "\n")
 }
 
 gen_jump :: proc(qbe: ^QbeCodegen, jump: ^ir.Jump) {
@@ -186,6 +187,34 @@ int_to_str :: proc(qbe: ^QbeCodegen, val: int) -> string {
 	return strings.to_string(sb)
 }
 
+comparison_type_to_str :: proc(type: ir.ComparisonType) -> string {
+	switch type {
+	case .None:
+		return ""
+	case .Equal:
+		return "eq"
+	case .NotEqual:
+		return "ne"
+	case .SignedLess:
+		return "slt"
+	case .SignedLessEqual:
+		return "slte"
+	case .SignedGreater:
+		return "sgt"
+	case .SignedGreaterEqual:
+		return "sgte"
+	case .UnsignedLess:
+		return "ult"
+	case .UnsignedLessEqual:
+		return "ulte"
+	case .UnsignedGreater:
+		return "ugt"
+	case .UnsignedGreaterEqual:
+		return "ugte"
+	}
+	panic("Unhandled comparison type")
+}
+
 opcode_to_str :: proc(opcode: ir.OpCode) -> string {
 	switch opcode {
 	case .Add:
@@ -208,8 +237,8 @@ opcode_to_str :: proc(opcode: ir.OpCode) -> string {
 		return "call"
 	case .Copy:
 		return "copy"
-	case .Ceq:
-		return "ceq"
+	case .Compare:
+		return "c"
 	}
 	panic("Unhandled opcode in opcode_to_str")
 }

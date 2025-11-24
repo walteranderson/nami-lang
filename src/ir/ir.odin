@@ -60,12 +60,14 @@ RetData :: struct {
 }
 
 Instruction :: struct {
-	dest:        Maybe(Operand),
-	opcode:      OpCode,
-	src1:        Operand,
-	src2:        Maybe(Operand),
-	alignment:   int,
-	result_type: Maybe(TypeKind),
+	dest:            Maybe(Operand),
+	dest_type:       Maybe(TypeKind),
+	opcode:          OpCode,
+	opcode_type:     Maybe(TypeKind),
+	src1:            Operand,
+	src2:            Maybe(Operand),
+	alignment:       int,
+	comparison_type: ComparisonType,
 }
 
 Operand :: struct {
@@ -100,8 +102,23 @@ OpCode :: enum {
 	// control & metadata
 	Call,
 	Copy,
-	// TODO: handle these are a generic "Comparison" with the variation being in some kind of metadata
-	Ceq,
+
+	//
+	Compare,
+}
+
+ComparisonType :: enum {
+	None,
+	Equal,
+	NotEqual,
+	SignedLess,
+	SignedLessEqual,
+	SignedGreater,
+	SignedGreaterEqual,
+	UnsignedLess,
+	UnsignedLessEqual,
+	UnsignedGreater,
+	UnsignedGreaterEqual,
 }
 
 DataDef :: struct {

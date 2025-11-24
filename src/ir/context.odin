@@ -84,9 +84,9 @@ gen_assign_stmt :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) {
 	alloc_inst := make_instruction(
 		ctx,
 		.Alloc,
-		result_type = .Long,
-		src1 = Operand{.Integer, typeinfo_to_size(stmt.resolved_type)},
 		dest = Operand{.Temporary, dest_name},
+		dest_type = .Long,
+		src1 = Operand{.Integer, typeinfo_to_size(stmt.resolved_type)},
 	)
 	if stmt.resolved_type.kind == .Array {
 		arr_typeinfo := stmt.resolved_type.data.(ast.ArrayTypeInfo)
@@ -106,9 +106,9 @@ gen_assign_stmt :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) {
 	store_inst := make_instruction(
 		ctx,
 		.Store,
+		opcode_type = type_ast_to_ir(stmt.resolved_type.kind),
 		src1 = src1,
 		src2 = src2,
-		result_type = type_ast_to_ir(stmt.resolved_type.kind),
 	)
 	append(&block.instructions, store_inst)
 
@@ -190,7 +190,7 @@ gen_expr :: proc(ctx: ^Context, expr: ast.Expr) -> Operand {
 	case ^ast.PrefixExpr:
 		return gen_prefix_expr(ctx, e)
 	case ^ast.InfixExpr:
-		error(ctx, e.tok, "TODO: implement InfixExpr")
+		return gen_infix_expr(ctx, e)
 	case ^ast.CallExpr:
 		error(ctx, e.tok, "TODO: implement CallExpr")
 	case ^ast.Array:
@@ -201,13 +201,86 @@ gen_expr :: proc(ctx: ^Context, expr: ast.Expr) -> Operand {
 	return Operand{}
 }
 
-gen_prefix_expr :: proc(ctx: ^Context, expr: ^ast.PrefixExpr) -> Operand {
-	// if this is being checked in the typechecker, do i also need it here?
-	if expr.op != "-" && expr.op != "!" {
-		error(ctx, expr.tok, "Unsupported prefix operator: %s", expr.op)
+gen_infix_expr :: proc(ctx: ^Context, expr: ^ast.InfixExpr) -> Operand {
+	lhs := gen_expr(ctx, expr.left)
+	rhs := gen_expr(ctx, expr.right)
+	if lhs.kind == .Invalid || rhs.kind == .Invalid {
+		logger.error("One of the expressions was invalid")
 		return Operand{}
 	}
 
+	lhs_typeinfo := ast.get_resolved_type_from_expr(expr.left)
+	rhs_typeinfo := ast.get_resolved_type_from_expr(expr.right)
+	if lhs_typeinfo.kind != rhs_typeinfo.kind {
+		logger.error("Infix expressions can only be done on expressions of the same type")
+		return Operand{}
+	}
+
+	dest := Operand{.Temporary, make_temp_name(ctx, ".")}
+	type := type_ast_to_ir(lhs_typeinfo.kind)
+
+	dest_type: Maybe(TypeKind) = type
+	opcode_type: Maybe(TypeKind) = type
+
+	opcode: OpCode
+	comparison_type: ComparisonType = .None
+	#partial switch expr.tok.type {
+	case .AND, .OR:
+		logger.error("TODO: implement AND and OR infix expressions")
+		return Operand{}
+	case .PLUS:
+		opcode = .Add
+		opcode_type = nil
+	case .MINUS:
+		opcode = .Sub
+		opcode_type = nil
+	case .STAR:
+		opcode = .Mul
+		opcode_type = nil
+	case .SLASH:
+		opcode = .Div
+		opcode_type = nil
+	case .EQ:
+		opcode = .Compare
+		comparison_type = .Equal
+	case .NOT_EQ:
+		opcode = .Compare
+		comparison_type = .NotEqual
+	case .GT:
+		opcode = .Compare
+		comparison_type = .SignedGreater
+	case .GTE:
+		opcode = .Compare
+		comparison_type = .SignedGreaterEqual
+	case .LT:
+		opcode = .Compare
+		comparison_type = .SignedLess
+	case .LTE:
+		opcode = .Compare
+		comparison_type = .SignedLessEqual
+	case:
+		logger.error("Unsupported operator: %s", expr.tok.type)
+		return Operand{}
+	}
+
+	inst := make_instruction(
+		ctx,
+		dest = dest,
+		dest_type = dest_type,
+		opcode = opcode,
+		opcode_type = opcode_type,
+		comparison_type = comparison_type,
+		src1 = lhs,
+		src2 = rhs,
+	)
+
+	block := get_last_block(ctx)
+	append(&block.instructions, inst)
+
+	return dest
+}
+
+gen_prefix_expr :: proc(ctx: ^Context, expr: ^ast.PrefixExpr) -> Operand {
 	block := get_last_block(ctx)
 
 	rvalue := gen_expr(ctx, expr.right)
@@ -217,30 +290,32 @@ gen_prefix_expr :: proc(ctx: ^Context, expr: ^ast.PrefixExpr) -> Operand {
 		ctx,
 		.Copy,
 		dest = copy_dest,
-		result_type = type_ast_to_ir(rvalue_typeinfo.kind),
+		dest_type = type_ast_to_ir(rvalue_typeinfo.kind),
 		src1 = rvalue,
 	)
 	append(&block.instructions, copy_inst)
 
-	dest: Operand
-	switch expr.op {
-	case "-":
+	dest := Operand{}
+	#partial switch expr.tok.type {
+	case .MINUS:
 		dest = Operand{.Temporary, make_temp_name(ctx, "neg")}
 		neg_inst := make_instruction(
 			ctx,
 			.Neg,
 			dest = dest,
-			result_type = type_ast_to_ir(rvalue_typeinfo.kind),
+			dest_type = type_ast_to_ir(rvalue_typeinfo.kind),
 			src1 = copy_dest,
 		)
 		append(&block.instructions, neg_inst)
-	case "!":
+	case .BANG:
 		dest = Operand{.Temporary, make_temp_name(ctx, "not")}
 		not_inst := make_instruction(
 			ctx,
-			.Ceq,
+			.Compare,
+			comparison_type = .Equal,
+			opcode_type = type_ast_to_ir(rvalue_typeinfo.kind),
 			dest = dest,
-			result_type = type_ast_to_ir(rvalue_typeinfo.kind),
+			dest_type = type_ast_to_ir(rvalue_typeinfo.kind),
 			src1 = copy_dest,
 			src2 = Operand{.Integer, 0},
 		)
@@ -257,7 +332,7 @@ gen_reassign :: proc(ctx: ^Context, expr: ^ast.ReassignExpr) -> Operand {
 	inst := make_instruction(
 		ctx,
 		.Store,
-		result_type = type_ast_to_ir(rvalue_typeinfo.kind),
+		opcode_type = type_ast_to_ir(rvalue_typeinfo.kind),
 		src1 = rvalue,
 		src2 = lvalue,
 	)
@@ -299,7 +374,8 @@ gen_identifier :: proc(ctx: ^Context, expr: ^ast.Identifier) -> Operand {
 		inst := make_instruction(
 			ctx,
 			.Load,
-			result_type = ident.ir_kind,
+			dest_type = ident.ir_kind,
+			opcode_type = ident.ir_kind,
 			src1 = ident.op,
 			dest = dest,
 		)
@@ -431,14 +507,18 @@ make_instruction :: proc(
 	src1: Operand,
 	src2: Maybe(Operand) = nil,
 	dest: Maybe(Operand) = nil,
-	result_type: Maybe(TypeKind) = nil,
+	dest_type: Maybe(TypeKind) = nil,
+	opcode_type: Maybe(TypeKind) = nil,
+	comparison_type: ComparisonType = .None,
 ) -> ^Instruction {
 	inst := new(Instruction, ctx.allocator)
 	inst.opcode = opcode
 	inst.src1 = src1
 	inst.src2 = src2
 	inst.dest = dest
-	inst.result_type = result_type
+	inst.opcode_type = opcode_type
+	inst.dest_type = dest_type
+	inst.comparison_type = comparison_type
 	return inst
 }
 

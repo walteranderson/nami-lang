@@ -1,7 +1,5 @@
 fn main() {
-    return 0;
-}
-
-fn test(a: Int) Int {
-    return a;
+    foo := 1 + 1;
+    foo = foo * 2;
+    return foo;
 }
