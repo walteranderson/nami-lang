@@ -133,28 +133,26 @@ gen_global_assign :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) {
 	if stmt.value == nil {
 		field := DataZeroInit{typeinfo_to_size(stmt.resolved_type)}
 		data.content = make_data_content(field)
-		push_data(ctx, data)
-		return
-	}
-
-	#partial switch stmt.resolved_type.kind {
-	case .Array:
-		error(ctx, stmt.tok, "TODO: Global arrays with initialized values not support yet")
-		return
-	case .String:
-		str := stmt.value.(^ast.StringLiteral)
-		data.content = make_null_terminated_str_data_content(str.value)
-	case:
-		content := DataContent{}
-		field := DataInit {
-			type = type_ast_to_ir(stmt.resolved_type.kind),
+	} else {
+		#partial switch stmt.resolved_type.kind {
+		case .Array:
+			error(ctx, stmt.tok, "TODO: Global arrays with initialized values not support yet")
+			return
+		case .String:
+			str := stmt.value.(^ast.StringLiteral)
+			data.content = make_null_terminated_str_data_content(str.value)
+		case:
+			content := DataContent{}
+			field := DataInit {
+				type = type_ast_to_ir(stmt.resolved_type.kind),
+			}
+			op := gen_expr(ctx, stmt.value)
+			// TODO: I'm converting the operand data union into a DataItem union. these are both union{string, int}
+			//       investigate more about wrapping this union to be the correct type (is this type-casting? what happens when either union changes?)
+			append(&field.items, DataItem(op.data))
+			append(&content.fields, field)
+			data.content = content
 		}
-		op := gen_expr(ctx, stmt.value)
-		// TODO: I'm converting the operand data union into a DataItem union. these are both union{string, int}
-		//       investigate more about wrapping this union to be the correct type (is this type-casting? what happens when either union changes?)
-		append(&field.items, DataItem(op.data))
-		append(&content.fields, field)
-		data.content = content
 	}
 
 	push_symbol_entry(
@@ -189,8 +187,34 @@ gen_expr :: proc(ctx: ^Context, expr: ast.Expr) -> Operand {
 	case ^ast.IndexExpr:
 		error(ctx, e.tok, "TODO: implement IndexExpr")
 	case ^ast.ReassignExpr:
-		error(ctx, e.tok, "TODO: implement ReassignExpr")
+		return gen_reassign(ctx, e)
 	}
+	return Operand{}
+}
+
+gen_reassign :: proc(ctx: ^Context, expr: ^ast.ReassignExpr) -> Operand {
+	lvalue := get_lvalue_addr(ctx, expr.target)
+	rvalue := gen_expr(ctx, expr.value)
+	block := get_last_block(ctx)
+	inst := make_instruction(ctx, .Store, result_type = .Long, src1 = rvalue, src2 = lvalue)
+	append(&block.instructions, inst)
+	return lvalue
+}
+
+get_lvalue_addr :: proc(ctx: ^Context, target: ast.Expr) -> Operand {
+	#partial switch e in target {
+	case ^ast.Identifier:
+		ident, found := lookup_symbol(ctx, e.value)
+		if !found {
+			error(ctx, e.tok, "lvalue undefined identifier: %s", e.value)
+			return Operand{}
+		}
+		return ident.op
+	case ^ast.IndexExpr:
+	// TODO
+	}
+	tok := ast.get_token_from_expr(target)
+	error(ctx, tok, "%s is not a valid lvalue", tok.type)
 	return Operand{}
 }
 

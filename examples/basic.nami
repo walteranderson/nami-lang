@@ -1,12 +1,6 @@
-foo: Int;
-bar: [4]Int;
-baz := "asdf";
-bax := 42;
+foo := 0;
 
 fn main() {
-    box := 13;
-    return box;
-}
-fn test() Int {
-    return bax;
+    foo = 5;
+    return foo;
 }
