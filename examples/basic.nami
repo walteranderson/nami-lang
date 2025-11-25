@@ -1,14 +1,4 @@
 fn main() {
-    foo := true;
-    bar := false;
-
-    if foo {
-        if bar {
-            return 1;
-        } else {
-            printf("Bar is false\n");
-        }
-    }
-
-    return 0;
+    bar := [9,2,3];
+    printf("%d\n", bar);
 }

@@ -147,14 +147,39 @@ gen_if_stmt :: proc(ctx: ^Context, stmt: ^ast.IfStatement) {
 	}
 }
 
+gen_empty_arr :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) -> Operand {
+	empty_arr := new(ast.Array, ctx.allocator)
+	empty_arr.node = ast.Node {
+		tok           = stmt.declared_type.tok,
+		resolved_type = stmt.resolved_type,
+	}
+	return gen_array_expr(ctx, empty_arr)
+}
+
+gen_array_assign :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) {
+	operand := stmt.value != nil ? gen_expr(ctx, stmt.value) : gen_empty_arr(ctx, stmt)
+	push_symbol_entry(
+		ctx,
+		name = stmt.name.value,
+		kind = .Local,
+		ir_kind = type_ast_to_ir(stmt.resolved_type.kind),
+		typeinfo = stmt.resolved_type,
+		op = operand,
+	)
+}
+
 gen_assign_stmt :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) {
 	if len(ctx.symbol_stack) == 1 {
 		gen_global_assign(ctx, stmt)
 		return
 	}
 
-	block := get_last_block(ctx)
+	if stmt.resolved_type.kind == .Array {
+		gen_array_assign(ctx, stmt)
+		return
+	}
 
+	block := get_last_block(ctx)
 	dest_name := make_temp(ctx)
 	alloc_inst := make_instruction(
 		ctx,
@@ -163,14 +188,8 @@ gen_assign_stmt :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) {
 		dest_type = .Long,
 		src1 = Operand{.Integer, typeinfo_to_size(stmt.resolved_type)},
 	)
-	if stmt.resolved_type.kind == .Array {
-		arr_typeinfo := stmt.resolved_type.data.(ast.ArrayTypeInfo)
-		alloc_inst.alignment = type_to_size(arr_typeinfo.elements_type.kind)
-	} else {
-		alloc_inst.alignment = type_to_size(stmt.resolved_type.kind)
-	}
+	alloc_inst.alignment = type_to_size(stmt.resolved_type.kind)
 	append(&block.instructions, alloc_inst)
-
 
 	src1 := Operand{.Integer, 0}
 	if stmt.value != nil {
@@ -269,11 +288,67 @@ gen_expr :: proc(ctx: ^Context, expr: ast.Expr) -> Operand {
 	case ^ast.CallExpr:
 		return gen_call_expr(ctx, e)
 	case ^ast.Array:
-		error(ctx, e.tok, "TODO: implement Array")
+		return gen_array_expr(ctx, e)
 	case ^ast.IndexExpr:
 		error(ctx, e.tok, "TODO: implement IndexExpr")
 	}
+	typeinfo := ast.get_resolved_type_from_expr(expr)
+	tok := ast.get_token_from_expr(expr)
+	error(ctx, tok, "Unhandled expression type %s", typeinfo.kind)
 	return invalid_op()
+}
+
+//
+// TODO: handle zero-initialization
+//
+gen_array_expr :: proc(ctx: ^Context, arr: ^ast.Array) -> Operand {
+	block := get_last_block(ctx)
+	typeinfo := arr.resolved_type.data.(ast.ArrayTypeInfo)
+	head_dest := Operand{.Temporary, make_temp(ctx)}
+	alignment := type_to_size(typeinfo.elements_type.kind)
+	element_type := type_ast_to_ir(typeinfo.elements_type.kind)
+	alloc_inst := make_instruction(
+		ctx,
+		.Alloc,
+		dest = head_dest,
+		dest_type = type_ast_to_ir(arr.resolved_type.kind),
+		src1 = Operand{.Integer, typeinfo_to_size(arr.resolved_type)},
+		alignment = alignment,
+	)
+	append(&block.instructions, alloc_inst)
+
+	for el_expr, idx in arr.elements {
+		offset := alignment * idx
+		src1 := gen_expr(ctx, el_expr)
+
+		// If index is 0, we want to store the head pointer
+		// otherwise do some pointer arithmatic to get the correct offset and use that instead
+		src2 := head_dest
+		if idx > 0 {
+			add_dest := Operand{.Temporary, make_temp(ctx)}
+			add_inst := make_instruction(
+				ctx,
+				opcode = .Add,
+				dest = add_dest,
+				dest_type = .Long,
+				src1 = head_dest,
+				src2 = Operand{.Integer, offset},
+			)
+			append(&block.instructions, add_inst)
+			src2 = add_dest
+		}
+
+		store_inst := make_instruction(
+			ctx,
+			opcode = .Store,
+			opcode_type = element_type,
+			src1 = src1,
+			src2 = src2,
+		)
+		append(&block.instructions, store_inst)
+	}
+
+	return head_dest
 }
 
 gen_integer :: proc(data: int) -> Operand {
@@ -711,6 +786,7 @@ make_instruction :: proc(
 	dest_type: Maybe(TypeKind) = nil,
 	opcode_type: Maybe(TypeKind) = nil,
 	comparison_type: ComparisonType = .None,
+	alignment: int = 0,
 ) -> ^Instruction {
 	inst := new(Instruction, ctx.allocator)
 	inst.opcode = opcode
@@ -720,6 +796,7 @@ make_instruction :: proc(
 	inst.opcode_type = opcode_type
 	inst.dest_type = dest_type
 	inst.comparison_type = comparison_type
+	inst.alignment = alignment
 	return inst
 }
 
@@ -810,7 +887,7 @@ type_ast_to_ir :: proc(type: ast.TypeKind) -> TypeKind {
 typeinfo_to_size :: proc(typeinfo: ^ast.TypeInfo) -> int {
 	if typeinfo.kind == .Array {
 		arr_typeinfo := typeinfo.data.(ast.ArrayTypeInfo)
-		return type_to_size(typeinfo.kind) * arr_typeinfo.size
+		return type_to_size(arr_typeinfo.elements_type.kind) * arr_typeinfo.size
 	} else {
 		return type_to_size(typeinfo.kind)
 	}
