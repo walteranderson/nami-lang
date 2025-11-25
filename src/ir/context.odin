@@ -8,12 +8,13 @@ import "core:mem"
 import "core:strings"
 
 Context :: struct {
-	allocator: mem.Allocator,
-	module:    ^Module,
-	errors:    [dynamic]logger.CompilerError,
-	str_count: int,
-	symbols:   [dynamic]SymbolTable,
-	temp_ids:  map[string]int,
+	allocator:    mem.Allocator,
+	module:       ^Module,
+	errors:       [dynamic]logger.CompilerError,
+	str_count:    int,
+	symbols:      [dynamic]SymbolTable,
+	next_temp_id: int,
+	temp_ids:     map[string]int,
 }
 
 SymbolTable :: map[string]^SymbolEntry
@@ -80,7 +81,7 @@ gen_assign_stmt :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) {
 
 	block := get_last_block(ctx)
 
-	dest_name := make_temp_name(ctx, stmt.name.value)
+	dest_name := make_temp_name(ctx)
 	alloc_inst := make_instruction(
 		ctx,
 		.Alloc,
@@ -216,7 +217,7 @@ gen_infix_expr :: proc(ctx: ^Context, expr: ^ast.InfixExpr) -> Operand {
 		return Operand{}
 	}
 
-	dest := Operand{.Temporary, make_temp_name(ctx, ".")}
+	dest := Operand{.Temporary, make_temp_name(ctx)}
 	type := type_ast_to_ir(lhs_typeinfo.kind)
 
 	dest_type: Maybe(TypeKind) = type
@@ -285,7 +286,7 @@ gen_prefix_expr :: proc(ctx: ^Context, expr: ^ast.PrefixExpr) -> Operand {
 
 	rvalue := gen_expr(ctx, expr.right)
 	rvalue_typeinfo := ast.get_resolved_type_from_expr(expr.right)
-	copy_dest := Operand{.Temporary, make_temp_name(ctx, "copy")}
+	copy_dest := Operand{.Temporary, make_temp_name(ctx)}
 	copy_inst := make_instruction(
 		ctx,
 		.Copy,
@@ -298,7 +299,7 @@ gen_prefix_expr :: proc(ctx: ^Context, expr: ^ast.PrefixExpr) -> Operand {
 	dest := Operand{}
 	#partial switch expr.tok.type {
 	case .MINUS:
-		dest = Operand{.Temporary, make_temp_name(ctx, "neg")}
+		dest = Operand{.Temporary, make_temp_name(ctx)}
 		neg_inst := make_instruction(
 			ctx,
 			.Neg,
@@ -308,7 +309,7 @@ gen_prefix_expr :: proc(ctx: ^Context, expr: ^ast.PrefixExpr) -> Operand {
 		)
 		append(&block.instructions, neg_inst)
 	case .BANG:
-		dest = Operand{.Temporary, make_temp_name(ctx, "not")}
+		dest = Operand{.Temporary, make_temp_name(ctx)}
 		not_inst := make_instruction(
 			ctx,
 			.Compare,
@@ -370,7 +371,7 @@ gen_identifier :: proc(ctx: ^Context, expr: ^ast.Identifier) -> Operand {
 	case .FuncParam, .Global, .Func:
 		return ident.op
 	case .Local:
-		dest := Operand{.Temporary, make_temp_name(ctx, ident.name)}
+		dest := Operand{.Temporary, make_temp_name(ctx)}
 		inst := make_instruction(
 			ctx,
 			.Load,
@@ -428,7 +429,7 @@ gen_function_stmt :: proc(ctx: ^Context, stmt: ^ast.FunctionStatement) {
 	for arg in stmt.args {
 		param := FunctionParam {
 			type = type_ast_to_ir(arg.resolved_type.kind),
-			op   = Operand{.Temporary, make_temp_name(ctx, arg.ident.value)},
+			op   = Operand{.Temporary, make_temp_name(ctx)},
 		}
 		push_symbol_entry(
 			ctx,
@@ -448,20 +449,13 @@ gen_function_stmt :: proc(ctx: ^Context, stmt: ^ast.FunctionStatement) {
 	gen_stmt(ctx, stmt.body)
 }
 
-make_temp_name :: proc(ctx: ^Context, name: string) -> string {
-	id: int
-	cur, ok := ctx.temp_ids[name]
-	if !ok {
-		id = 1
-	} else {
-		id = cur + 1
-	}
-	ctx.temp_ids[name] = id
+make_temp_name :: proc(ctx: ^Context) -> string {
+	ctx.next_temp_id += 1
 
 	sb: strings.Builder
 	strings.builder_init(&sb, ctx.allocator)
 	defer strings.builder_destroy(&sb)
-	fmt.sbprintf(&sb, "%s_%d", name, id)
+	fmt.sbprintf(&sb, ".%d", ctx.next_temp_id)
 	return strings.to_string(sb)
 }
 
