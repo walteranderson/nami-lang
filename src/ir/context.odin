@@ -8,13 +8,13 @@ import "core:mem"
 import "core:strings"
 
 Context :: struct {
-	allocator:    mem.Allocator,
-	module:       ^Module,
-	errors:       [dynamic]logger.CompilerError,
-	str_count:    int,
-	symbols:      [dynamic]SymbolTable,
-	next_temp_id: int,
-	temp_ids:     map[string]int,
+	allocator:     mem.Allocator,
+	module:        ^Module,
+	errors:        [dynamic]logger.CompilerError,
+	str_count:     int,
+	symbol_stack:  [dynamic]SymbolTable,
+	next_temp_id:  int,
+	next_label_id: int,
 }
 
 SymbolTable :: map[string]^SymbolEntry
@@ -99,43 +99,63 @@ gen_stmt :: proc(ctx: ^Context, stmt: ast.Statement) {
 }
 
 gen_if_stmt :: proc(ctx: ^Context, stmt: ^ast.IfStatement) {
-	error(ctx, stmt.tok, "TODO: implement IfStatement")
+	if get_last_block(ctx).terminator != nil {
+		error(ctx, stmt.tok, "if statement after already declared terminator")
+		return
+	}
 
-	// last_block := get_last_block(ctx)
-	// if last_block.terminator != nil {
-	// 	error(ctx, stmt.tok, "if statement after already declared terminator")
-	// 	return
-	// }
-	//
-	// true_block := make_block(ctx, "if_true")
-	// false_block := make_block(ctx, "if_false")
-	//
-	// condition := gen_expr(ctx, stmt.condition)
-	// if condition.kind == .Invalid {
-	// 	return
-	// }
-	//
-	// jump := make_jump(ctx, .Jnz)
-	// jump.data = JnzData {
-	// 	condition   = condition,
-	// 	true_label  = true_block.label,
-	// 	false_label = false_block.label,
-	// }
-	// last_block.terminator = jump
-	//
-	// add_block(ctx, true_block)
-	// gen_stmt(ctx, stmt.consequence)
+	true_block := make_block(ctx, "if_true")
+	false_block := make_block(ctx, "if_false")
+
+	condition := gen_expr(ctx, stmt.condition)
+	if condition.kind == .Invalid {
+		return
+	}
+
+	jump := make_jump(ctx, .Jnz)
+	jump.data = JnzData {
+		condition   = condition,
+		true_label  = true_block.label,
+		false_label = false_block.label,
+	}
+	get_last_block(ctx).terminator = jump
+
+	add_block(ctx, true_block)
+
+	gen_stmt(ctx, stmt.consequence)
+
+	join_label: string
+	// If there's a "else" block in this if statement, then we'll need to add a "join" label after it so that
+	// when if the "consequence" block finished executing it knows to skip the "else" block.
+	// Exception is when there's a return statement inside the consquence block.
+	if stmt.alternative != nil && get_last_block(ctx).terminator == nil {
+		join_label = make_label(ctx, "if_join")
+		jump := make_jump(ctx, .Jmp)
+		jump.data = JmpData{join_label}
+		get_last_block(ctx).terminator = jump
+	}
+
+	add_block(ctx, false_block)
+
+	if stmt.alternative != nil {
+		gen_stmt(ctx, stmt.alternative)
+		if join_label != "" {
+			join_block := make_block(ctx, "")
+			join_block.label = join_label
+			add_block(ctx, join_block)
+		}
+	}
 }
 
 gen_assign_stmt :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) {
-	if len(ctx.symbols) == 1 {
+	if len(ctx.symbol_stack) == 1 {
 		gen_global_assign(ctx, stmt)
 		return
 	}
 
 	block := get_last_block(ctx)
 
-	dest_name := make_temp_name(ctx)
+	dest_name := make_temp(ctx)
 	alloc_inst := make_instruction(
 		ctx,
 		.Alloc,
@@ -260,7 +280,7 @@ gen_expr :: proc(ctx: ^Context, expr: ast.Expr) -> Operand {
 // TODO: need better support for libc builtins
 //
 gen_printf :: proc(ctx: ^Context, expr: ^ast.CallExpr) -> Operand {
-	dest := Operand{.Temporary, make_temp_name(ctx)}
+	dest := Operand{.Temporary, make_temp(ctx)}
 	inst := make_instruction(
 		ctx,
 		opcode = .Call,
@@ -307,7 +327,7 @@ gen_call_expr :: proc(ctx: ^Context, expr: ^ast.CallExpr) -> Operand {
 		return invalid_op()
 	}
 
-	dest := Operand{.Temporary, make_temp_name(ctx)}
+	dest := Operand{.Temporary, make_temp(ctx)}
 	inst := make_instruction(
 		ctx,
 		opcode = .Call,
@@ -339,7 +359,7 @@ gen_infix_expr :: proc(ctx: ^Context, expr: ^ast.InfixExpr) -> Operand {
 		return invalid_op()
 	}
 
-	dest := Operand{.Temporary, make_temp_name(ctx)}
+	dest := Operand{.Temporary, make_temp(ctx)}
 	type := type_ast_to_ir(lhs_typeinfo.kind)
 
 	dest_type: Maybe(TypeKind) = type
@@ -408,7 +428,7 @@ gen_prefix_expr :: proc(ctx: ^Context, expr: ^ast.PrefixExpr) -> Operand {
 
 	rvalue := gen_expr(ctx, expr.right)
 	rvalue_typeinfo := ast.get_resolved_type_from_expr(expr.right)
-	copy_dest := Operand{.Temporary, make_temp_name(ctx)}
+	copy_dest := Operand{.Temporary, make_temp(ctx)}
 	copy_inst := make_instruction(
 		ctx,
 		.Copy,
@@ -421,7 +441,7 @@ gen_prefix_expr :: proc(ctx: ^Context, expr: ^ast.PrefixExpr) -> Operand {
 	dest := Operand{}
 	#partial switch expr.tok.type {
 	case .MINUS:
-		dest = Operand{.Temporary, make_temp_name(ctx)}
+		dest = Operand{.Temporary, make_temp(ctx)}
 		neg_inst := make_instruction(
 			ctx,
 			.Neg,
@@ -431,7 +451,7 @@ gen_prefix_expr :: proc(ctx: ^Context, expr: ^ast.PrefixExpr) -> Operand {
 		)
 		append(&block.instructions, neg_inst)
 	case .BANG:
-		dest = Operand{.Temporary, make_temp_name(ctx)}
+		dest = Operand{.Temporary, make_temp(ctx)}
 		not_inst := make_instruction(
 			ctx,
 			.Compare,
@@ -493,7 +513,7 @@ gen_identifier :: proc(ctx: ^Context, expr: ^ast.Identifier) -> Operand {
 	case .FuncParam, .Global, .Func:
 		return ident.op
 	case .Local:
-		dest := Operand{.Temporary, make_temp_name(ctx)}
+		dest := Operand{.Temporary, make_temp(ctx)}
 		inst := make_instruction(
 			ctx,
 			.Load,
@@ -518,11 +538,20 @@ gen_string_literal :: proc(ctx: ^Context, e: ^ast.StringLiteral) -> Operand {
 }
 
 gen_return_stmt :: proc(ctx: ^Context, ret: ^ast.ReturnStatement) {
+	if len(ctx.symbol_stack) == 1 {
+		error(ctx, ret.tok, "Return statement found outside of a function")
+		return
+	}
+
 	jump := make_jump(ctx, .Ret)
-	value := gen_expr(ctx, ret.value)
-	jump.data = RetData{value}
-	block := get_last_block(ctx)
-	block.terminator = jump
+	if ret.value != nil {
+		value := gen_expr(ctx, ret.value)
+		jump.data = RetData{value}
+	} else {
+		jump.data = RetData{}
+	}
+
+	get_last_block(ctx).terminator = jump
 }
 
 gen_block_stmt :: proc(ctx: ^Context, block: ^ast.BlockStatement) {
@@ -532,10 +561,14 @@ gen_block_stmt :: proc(ctx: ^Context, block: ^ast.BlockStatement) {
 }
 
 gen_function_stmt :: proc(ctx: ^Context, stmt: ^ast.FunctionStatement) {
+	ctx.next_temp_id = 0
+	ctx.next_label_id = 0
+
 	def := new(FunctionDef, ctx.allocator)
 	typeinfo := stmt.resolved_type.data.(ast.FunctionTypeInfo)
+	is_main := stmt.name.value == "main"
 
-	if stmt.name.value == "main" {
+	if is_main {
 		def.linkage = .Export
 	} else {
 		def.linkage = .None
@@ -555,12 +588,11 @@ gen_function_stmt :: proc(ctx: ^Context, stmt: ^ast.FunctionStatement) {
 
 	push_symbol_scope(ctx)
 	defer pop_symbol_scope(ctx)
-	clear(&ctx.temp_ids)
 
 	for arg in stmt.args {
 		param := FunctionParam {
 			type = type_ast_to_ir(arg.resolved_type.kind),
-			op   = Operand{.Temporary, make_temp_name(ctx)},
+			op   = Operand{.Temporary, make_temp(ctx)},
 		}
 		push_symbol_entry(
 			ctx,
@@ -576,16 +608,48 @@ gen_function_stmt :: proc(ctx: ^Context, stmt: ^ast.FunctionStatement) {
 	block := make_block(ctx, "start")
 	append(&def.blocks, block)
 	append(&ctx.module.functions, def)
+
 	gen_stmt(ctx, stmt.body)
+
+	if get_last_block(ctx).terminator == nil {
+		if is_main {
+			jump := make_jump(ctx, .Ret)
+			operand := Operand{.Integer, 0}
+			jump.data = RetData{operand}
+			get_last_block(ctx).terminator = jump
+		} else if def.return_type == .Void {
+			jump := make_jump(ctx, .Ret)
+			jump.data = RetData{}
+			block := get_last_block(ctx)
+			get_last_block(ctx).terminator = jump
+		} else {
+			error(
+				ctx,
+				stmt.tok,
+				"Non-void function does not return a value. Expected return type %s",
+				def.return_type,
+			)
+		}
+	}
 }
 
-make_temp_name :: proc(ctx: ^Context) -> string {
+make_temp :: proc(ctx: ^Context) -> string {
 	ctx.next_temp_id += 1
 
 	sb: strings.Builder
 	strings.builder_init(&sb, ctx.allocator)
 	defer strings.builder_destroy(&sb)
 	fmt.sbprintf(&sb, ".%d", ctx.next_temp_id)
+	return strings.to_string(sb)
+}
+
+make_label :: proc(ctx: ^Context, name: string) -> string {
+	ctx.next_label_id += 1
+
+	sb: strings.Builder
+	strings.builder_init(&sb, ctx.allocator)
+	defer strings.builder_destroy(&sb)
+	fmt.sbprintf(&sb, "%s.%d", name, ctx.next_label_id)
 	return strings.to_string(sb)
 }
 
@@ -672,13 +736,15 @@ push_data :: proc(ctx: ^Context, data: ^DataDef) {
 
 make_block :: proc(ctx: ^Context, label: string) -> ^Block {
 	block := new(Block, ctx.allocator)
-	block.label = label
+	if label != "" {
+		block.label = make_label(ctx, label)
+	}
 	return block
 }
 
 lookup_symbol :: proc(ctx: ^Context, name: string) -> (^SymbolEntry, bool) {
-	for i := len(ctx.symbols) - 1; i >= 0; i -= 1 {
-		scope := ctx.symbols[i]
+	for i := len(ctx.symbol_stack) - 1; i >= 0; i -= 1 {
+		scope := ctx.symbol_stack[i]
 		if val, ok := scope[name]; ok {
 			return val, true
 		}
@@ -688,15 +754,15 @@ lookup_symbol :: proc(ctx: ^Context, name: string) -> (^SymbolEntry, bool) {
 
 push_symbol_scope :: proc(ctx: ^Context) {
 	scope := make(SymbolTable, ctx.allocator)
-	append(&ctx.symbols, scope)
+	append(&ctx.symbol_stack, scope)
 }
 
 pop_symbol_scope :: proc(ctx: ^Context) {
-	if len(ctx.symbols) <= 0 {
+	if len(ctx.symbol_stack) <= 0 {
 		// TODO: better error handling when we don't have a token
 		panic("attempting to pop scope from an empty symbol stack")
 	}
-	popped := pop(&ctx.symbols)
+	popped := pop(&ctx.symbol_stack)
 	delete(popped)
 }
 
@@ -714,7 +780,7 @@ push_symbol_entry :: proc(
 	entry.ir_kind = ir_kind
 	entry.typeinfo = typeinfo
 	entry.op = op
-	ctx.symbols[len(ctx.symbols) - 1][entry.name] = entry
+	ctx.symbol_stack[len(ctx.symbol_stack) - 1][entry.name] = entry
 }
 
 type_ast_to_ir :: proc(type: ast.TypeKind) -> TypeKind {

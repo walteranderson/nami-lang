@@ -1,8 +1,14 @@
 fn main() {
-    return test();
-}
+    foo := true;
+    bar := false;
 
-fn test() Int {
+    if foo {
+        if bar {
+            return 1;
+        } else {
+            printf("Bar is false\n");
+        }
+    }
+
     return 0;
 }
-

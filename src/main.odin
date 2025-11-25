@@ -82,6 +82,7 @@ main :: proc() {
 			logger.info("Generating EXPERIMENTAL_IR")
 			ir_start := time.now()
 			ctx := ir.new_context(typechecker.symbols[0], allocator)
+			logger.info("> Creating IR Module...")
 			ir.from_ast(ctx, module)
 			if len(ctx.errors) != 0 {
 				for err in ctx.errors {
@@ -89,10 +90,11 @@ main :: proc() {
 				}
 				os.exit(1)
 			}
+			logger.info("> QBE codegen...")
 			qbe_codegen := qbecodegen.new_qbecodegen(allocator)
 			qbecodegen.from_ir(qbe_codegen, ctx.module)
 
-			logger.info("Starting compilation")
+			logger.info("> Starting compilation...")
 			comp_start := time.now()
 			program_name := fs.extract_base_name(opt.file_name)
 			ok := codegen.compile_qbe(&qbe_codegen.sb, program_name)

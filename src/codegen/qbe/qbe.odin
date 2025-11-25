@@ -5,12 +5,11 @@ import "core:mem"
 import "core:strings"
 
 import "../../ir"
+import "../../logger"
 
 QbeCodegen :: struct {
-	allocator:     mem.Allocator,
-	sb:            strings.Builder,
-	next_label_id: int,
-	next_tmp_id:   int,
+	allocator: mem.Allocator,
+	sb:        strings.Builder,
 }
 
 new_qbecodegen :: proc(allocator: mem.Allocator) -> ^QbeCodegen {
@@ -57,8 +56,6 @@ gen_data :: proc(qbe: ^QbeCodegen, def: ^ir.DataDef) {
 }
 
 gen_func :: proc(qbe: ^QbeCodegen, func: ^ir.FunctionDef) {
-	qbe.next_label_id = 0
-	qbe.next_tmp_id = 0
 	if func.linkage == .Export {
 		emit(qbe, "export ")
 	}
@@ -84,10 +81,16 @@ gen_func :: proc(qbe: ^QbeCodegen, func: ^ir.FunctionDef) {
 }
 
 gen_block :: proc(qbe: ^QbeCodegen, block: ^ir.Block) {
-	emit(qbe, "%s\n", new_label(qbe, block.label))
+	emit(qbe, "%s\n", get_label(qbe, block.label))
 	for inst in block.instructions {
 		gen_inst(qbe, inst)
 	}
+
+	if block.terminator == nil {
+		logger.error("%s block does not have a terminator", block.label)
+		return
+	}
+
 	gen_jump(qbe, block.terminator)
 }
 
@@ -147,13 +150,25 @@ gen_inst :: proc(qbe: ^QbeCodegen, inst: ^ir.Instruction) {
 gen_jump :: proc(qbe: ^QbeCodegen, jump: ^ir.Jump) {
 	switch jump.kind {
 	case .Jnz:
-		panic("TODO: Jnz not implemented")
+		data := jump.data.(ir.JnzData)
+		emit(
+			qbe,
+			"  jnz %s, %s, %s\n",
+			get_operand(qbe, data.condition),
+			get_label(qbe, data.true_label),
+			get_label(qbe, data.false_label),
+		)
 	case .Jmp:
-		panic("TODO: Jmp not implemented")
+		data := jump.data.(ir.JmpData)
+		emit(qbe, "  jmp %s\n", get_label(qbe, data.label))
 	case .Ret:
 		data := jump.data.(ir.RetData)
-		op := get_operand(qbe, data.val)
-		emit(qbe, "  ret %s\n", op)
+		val, ok := data.val.?
+		if ok {
+			emit(qbe, "  ret %s\n", get_operand(qbe, val))
+		} else {
+			emit(qbe, "  ret\n")
+		}
 	case .Hlt:
 		panic("TODO: Hlt not implemented")
 	}
@@ -181,17 +196,16 @@ get_operand :: proc(qbe: ^QbeCodegen, op: ir.Operand) -> string {
 	panic("Unhandled Operand in ir.gen_operand")
 }
 
-emit :: proc(qbe: ^QbeCodegen, format: string, args: ..any) {
-	fmt.sbprintf(&qbe.sb, format, ..args)
-}
-
-new_label :: proc(qbe: ^QbeCodegen, name: string) -> string {
-	qbe.next_label_id += 1
+get_label :: proc(qbe: ^QbeCodegen, label: string) -> string {
 	sb: strings.Builder
 	strings.builder_init(&sb, qbe.allocator)
 	defer strings.builder_destroy(&sb)
-	fmt.sbprintf(&sb, "@%s.%d", name, qbe.next_label_id)
+	fmt.sbprintf(&sb, "@%s", label)
 	return strings.to_string(sb)
+}
+
+emit :: proc(qbe: ^QbeCodegen, format: string, args: ..any) {
+	fmt.sbprintf(&qbe.sb, format, ..args)
 }
 
 int_to_str :: proc(qbe: ^QbeCodegen, val: int) -> string {

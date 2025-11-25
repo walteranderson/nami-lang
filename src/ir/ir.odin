@@ -56,7 +56,7 @@ JnzData :: struct {
 }
 
 RetData :: struct {
-	val: Operand,
+	val: Maybe(Operand),
 }
 
 Instruction :: struct {
@@ -82,15 +82,6 @@ Operand :: struct {
 		// for Integer
 		int,
 	},
-}
-
-CallArgument :: struct {
-	kind:  enum {
-		Regular,
-		Variadic,
-	},
-	type:  TypeKind,
-	value: Operand,
 }
 
 OperandKind :: enum {
@@ -131,6 +122,15 @@ ComparisonType :: enum {
 	UnsignedLessEqual,
 	UnsignedGreater,
 	UnsignedGreaterEqual,
+}
+
+CallArgument :: struct {
+	kind:  enum {
+		Regular,
+		Variadic,
+	},
+	type:  TypeKind,
+	value: Operand,
 }
 
 DataDef :: struct {
