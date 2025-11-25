@@ -117,13 +117,28 @@ gen_inst :: proc(qbe: ^QbeCodegen, inst: ^ir.Instruction) {
 	}
 	emit(qbe, " ")
 
-	// Src1
-	emit(qbe, "%s", get_operand(qbe, inst.src1))
+	// src1, src2
+	// $func(...)
 
-	// Src2
-	src2, okk := inst.src2.?
-	if okk {
-		emit(qbe, ", %s", get_operand(qbe, src2))
+	emit(qbe, "%s", get_operand(qbe, inst.src1))
+	if len(inst.call_args) > 0 {
+		emit(qbe, "(")
+		for arg, idx in inst.call_args {
+			if arg.kind == .Variadic {
+				emit(qbe, "...")
+			} else {
+				emit(qbe, "%s %s", type_to_str(arg.type), get_operand(qbe, arg.value))
+			}
+			if idx < len(inst.call_args) - 1 {
+				emit(qbe, ", ")
+			}
+		}
+		emit(qbe, ")")
+	} else {
+		src2, okk := inst.src2.?
+		if okk {
+			emit(qbe, ", %s", get_operand(qbe, src2))
+		}
 	}
 
 	emit(qbe, "\n")

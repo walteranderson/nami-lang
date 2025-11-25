@@ -66,8 +66,11 @@ Instruction :: struct {
 	opcode_type:     Maybe(TypeKind),
 	src1:            Operand,
 	src2:            Maybe(Operand),
+
+	// optional metadata depending on the opcode
 	alignment:       int,
 	comparison_type: ComparisonType,
+	call_args:       [dynamic]CallArgument,
 }
 
 Operand :: struct {
@@ -79,6 +82,15 @@ Operand :: struct {
 		// for Integer
 		int,
 	},
+}
+
+CallArgument :: struct {
+	kind:  enum {
+		Regular,
+		Variadic,
+	},
+	type:  TypeKind,
+	value: Operand,
 }
 
 OperandKind :: enum {

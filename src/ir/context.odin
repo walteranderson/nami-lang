@@ -193,13 +193,80 @@ gen_expr :: proc(ctx: ^Context, expr: ast.Expr) -> Operand {
 	case ^ast.InfixExpr:
 		return gen_infix_expr(ctx, e)
 	case ^ast.CallExpr:
-		error(ctx, e.tok, "TODO: implement CallExpr")
+		return gen_call_expr(ctx, e)
 	case ^ast.Array:
 		error(ctx, e.tok, "TODO: implement Array")
 	case ^ast.IndexExpr:
 		error(ctx, e.tok, "TODO: implement IndexExpr")
 	}
-	return Operand{}
+	return invalid_op()
+}
+
+//
+// TODO: need better support for libc builtins
+//
+gen_printf :: proc(ctx: ^Context, expr: ^ast.CallExpr) -> Operand {
+	dest := Operand{.Temporary, make_temp_name(ctx)}
+	inst := make_instruction(
+		ctx,
+		opcode = .Call,
+		src1 = Operand{.GlobalSymbol, expr.func.value},
+		dest = dest,
+		dest_type = .Word,
+	)
+
+	call_args := gen_call_args(ctx, expr)
+	if len(call_args) > 1 {
+		inject_at(&call_args, 1, CallArgument{kind = .Variadic})
+	}
+	inst.call_args = call_args
+
+	block := get_last_block(ctx)
+	append(&block.instructions, inst)
+
+	return dest
+}
+
+gen_call_args :: proc(ctx: ^Context, expr: ^ast.CallExpr) -> [dynamic]CallArgument {
+	call_args := make([dynamic]CallArgument, ctx.allocator)
+	for arg, idx in expr.args {
+		op := gen_expr(ctx, arg)
+		typeinfo := ast.get_resolved_type_from_expr(arg)
+		call_arg := CallArgument {
+			kind  = .Regular,
+			type  = type_ast_to_ir(typeinfo.kind),
+			value = op,
+		}
+		append(&call_args, call_arg)
+	}
+	return call_args
+}
+
+gen_call_expr :: proc(ctx: ^Context, expr: ^ast.CallExpr) -> Operand {
+	if expr.func.value == "printf" {
+		return gen_printf(ctx, expr)
+	}
+
+	ident, found := lookup_symbol(ctx, expr.func.value)
+	if !found {
+		error(ctx, expr.tok, "Identifier not found %s", expr.func.value)
+		return invalid_op()
+	}
+
+	dest := Operand{.Temporary, make_temp_name(ctx)}
+	inst := make_instruction(
+		ctx,
+		opcode = .Call,
+		src1 = ident.op,
+		dest = dest,
+		dest_type = type_ast_to_ir(expr.resolved_type.kind),
+	)
+	inst.call_args = gen_call_args(ctx, expr)
+
+	block := get_last_block(ctx)
+	append(&block.instructions, inst)
+
+	return dest
 }
 
 gen_infix_expr :: proc(ctx: ^Context, expr: ^ast.InfixExpr) -> Operand {
@@ -207,14 +274,14 @@ gen_infix_expr :: proc(ctx: ^Context, expr: ^ast.InfixExpr) -> Operand {
 	rhs := gen_expr(ctx, expr.right)
 	if lhs.kind == .Invalid || rhs.kind == .Invalid {
 		logger.error("One of the expressions was invalid")
-		return Operand{}
+		return invalid_op()
 	}
 
 	lhs_typeinfo := ast.get_resolved_type_from_expr(expr.left)
 	rhs_typeinfo := ast.get_resolved_type_from_expr(expr.right)
 	if lhs_typeinfo.kind != rhs_typeinfo.kind {
 		logger.error("Infix expressions can only be done on expressions of the same type")
-		return Operand{}
+		return invalid_op()
 	}
 
 	dest := Operand{.Temporary, make_temp_name(ctx)}
@@ -228,7 +295,7 @@ gen_infix_expr :: proc(ctx: ^Context, expr: ^ast.InfixExpr) -> Operand {
 	#partial switch expr.tok.type {
 	case .AND, .OR:
 		logger.error("TODO: implement AND and OR infix expressions")
-		return Operand{}
+		return invalid_op()
 	case .PLUS:
 		opcode = .Add
 		opcode_type = nil
@@ -261,7 +328,7 @@ gen_infix_expr :: proc(ctx: ^Context, expr: ^ast.InfixExpr) -> Operand {
 		comparison_type = .SignedLessEqual
 	case:
 		logger.error("Unsupported operator: %s", expr.tok.type)
-		return Operand{}
+		return invalid_op()
 	}
 
 	inst := make_instruction(
@@ -347,7 +414,7 @@ get_lvalue_addr :: proc(ctx: ^Context, target: ast.Expr) -> Operand {
 		ident, found := lookup_symbol(ctx, e.value)
 		if !found {
 			error(ctx, e.tok, "lvalue undefined identifier: %s", e.value)
-			return Operand{}
+			return invalid_op()
 		}
 		return ident.op
 	case ^ast.IndexExpr:
@@ -355,7 +422,7 @@ get_lvalue_addr :: proc(ctx: ^Context, target: ast.Expr) -> Operand {
 	}
 	tok := ast.get_token_from_expr(target)
 	error(ctx, tok, "%s is not a valid lvalue", tok.type)
-	return Operand{}
+	return invalid_op()
 }
 
 gen_identifier :: proc(ctx: ^Context, expr: ^ast.Identifier) -> Operand {
@@ -422,6 +489,15 @@ gen_function_stmt :: proc(ctx: ^Context, stmt: ^ast.FunctionStatement) {
 	def.return_type = type_ast_to_ir(typeinfo.return_type.kind)
 	def.name = stmt.name.value
 
+	push_symbol_entry(
+		ctx,
+		name = def.name,
+		kind = .Func,
+		ir_kind = type_ast_to_ir(stmt.resolved_type.kind),
+		typeinfo = stmt.resolved_type,
+		op = Operand{.GlobalSymbol, def.name},
+	)
+
 	push_symbol_scope(ctx)
 	defer pop_symbol_scope(ctx)
 	clear(&ctx.temp_ids)
@@ -463,6 +539,10 @@ get_last_block :: proc(ctx: ^Context) -> ^Block {
 	func := ctx.module.functions[len(ctx.module.functions) - 1]
 	block := func.blocks[len(func.blocks) - 1]
 	return block
+}
+
+invalid_op :: proc() -> Operand {
+	return Operand{.Invalid, -1}
 }
 
 make_jump :: proc(ctx: ^Context, kind: JumpType) -> ^Jump {
