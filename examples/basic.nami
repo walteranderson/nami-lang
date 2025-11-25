@@ -1,5 +1,8 @@
 fn main() {
-    printf("Hello %s!\n", "worlddd");
+    return test();
+}
+
+fn test() Int {
     return 0;
 }
 

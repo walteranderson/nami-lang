@@ -81,7 +81,7 @@ main :: proc() {
 		{
 			logger.info("Generating EXPERIMENTAL_IR")
 			ir_start := time.now()
-			ctx := ir.new_context(allocator)
+			ctx := ir.new_context(typechecker.symbols[0], allocator)
 			ir.from_ast(ctx, module)
 			if len(ctx.errors) != 0 {
 				for err in ctx.errors {

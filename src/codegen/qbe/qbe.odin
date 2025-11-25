@@ -121,7 +121,7 @@ gen_inst :: proc(qbe: ^QbeCodegen, inst: ^ir.Instruction) {
 	// $func(...)
 
 	emit(qbe, "%s", get_operand(qbe, inst.src1))
-	if len(inst.call_args) > 0 {
+	if inst.opcode == .Call {
 		emit(qbe, "(")
 		for arg, idx in inst.call_args {
 			if arg.kind == .Variadic {

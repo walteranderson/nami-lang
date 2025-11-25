@@ -32,18 +32,42 @@ SymbolKind :: enum {
 	FuncParam,
 }
 
-new_context :: proc(allocator: mem.Allocator) -> ^Context {
+new_context :: proc(
+	global_symbols: map[string]^ast.TypeInfo,
+	allocator: mem.Allocator,
+) -> ^Context {
 	ctx := new(Context, allocator)
 	ctx.allocator = allocator
 	ctx.module = new(Module, allocator)
 	ctx.errors = make([dynamic]logger.CompilerError, allocator)
 	push_symbol_scope(ctx)
+	add_global_symbols(ctx, global_symbols)
 	return ctx
 }
 
-from_ast :: proc(c: ^Context, module: ^ast.Module) {
+add_global_symbols :: proc(ctx: ^Context, global_symbols: map[string]^ast.TypeInfo) {
+	for key, value in global_symbols {
+		kind: SymbolKind
+		#partial switch value.kind {
+		case .Function:
+			kind = .Func
+		case:
+			kind = .Global
+		}
+		push_symbol_entry(
+			ctx,
+			name = key,
+			kind = kind,
+			ir_kind = type_ast_to_ir(value.kind),
+			typeinfo = value,
+			op = Operand{.GlobalSymbol, key},
+		)
+	}
+}
+
+from_ast :: proc(ctx: ^Context, module: ^ast.Module) {
 	for stmt in module.stmts {
-		gen_stmt(c, stmt)
+		gen_stmt(ctx, stmt)
 	}
 }
 
@@ -247,7 +271,7 @@ gen_call_expr :: proc(ctx: ^Context, expr: ^ast.CallExpr) -> Operand {
 		return gen_printf(ctx, expr)
 	}
 
-	ident, found := lookup_symbol(ctx, expr.func.value)
+	func, found := lookup_symbol(ctx, expr.func.value)
 	if !found {
 		error(ctx, expr.tok, "Identifier not found %s", expr.func.value)
 		return invalid_op()
@@ -257,11 +281,12 @@ gen_call_expr :: proc(ctx: ^Context, expr: ^ast.CallExpr) -> Operand {
 	inst := make_instruction(
 		ctx,
 		opcode = .Call,
-		src1 = ident.op,
+		src1 = func.op,
 		dest = dest,
 		dest_type = type_ast_to_ir(expr.resolved_type.kind),
 	)
-	inst.call_args = gen_call_args(ctx, expr)
+	call_args := gen_call_args(ctx, expr)
+	inst.call_args = call_args
 
 	block := get_last_block(ctx)
 	append(&block.instructions, inst)
