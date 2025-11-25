@@ -184,6 +184,9 @@ parse_index_expr :: proc(p: ^Parser, left: ast.Expr) -> ast.Expr {
 parse_break_stmt :: proc(p: ^Parser) -> ast.Statement {
 	stmt := new(ast.BreakStatement, p.allocator)
 	stmt.tok = p.cur
+	if peek_token_is(p, .SEMI_COLON) {
+		next_token(p)
+	}
 	return stmt
 }
 
