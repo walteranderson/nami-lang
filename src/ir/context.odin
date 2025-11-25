@@ -253,9 +253,9 @@ gen_global_assign :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) {
 gen_expr :: proc(ctx: ^Context, expr: ast.Expr) -> Operand {
 	switch e in expr {
 	case ^ast.IntLiteral:
-		return Operand{kind = .Integer, data = e.value}
+		return gen_integer(e.value)
 	case ^ast.Boolean:
-		return Operand{kind = .Integer, data = e.value ? 1 : 0}
+		return gen_integer(e.value ? 1 : 0)
 	case ^ast.StringLiteral:
 		return gen_string_literal(ctx, e)
 	case ^ast.Identifier:
@@ -274,6 +274,10 @@ gen_expr :: proc(ctx: ^Context, expr: ast.Expr) -> Operand {
 		error(ctx, e.tok, "TODO: implement IndexExpr")
 	}
 	return invalid_op()
+}
+
+gen_integer :: proc(data: int) -> Operand {
+	return Operand{kind = .Integer, data = data}
 }
 
 //
