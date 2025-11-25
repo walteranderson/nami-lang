@@ -8,13 +8,14 @@ import "core:mem"
 import "core:strings"
 
 Context :: struct {
-	allocator:     mem.Allocator,
-	module:        ^Module,
-	errors:        [dynamic]logger.CompilerError,
-	str_count:     int,
-	symbol_stack:  [dynamic]SymbolTable,
-	next_temp_id:  int,
-	next_label_id: int,
+	allocator:       mem.Allocator,
+	module:          ^Module,
+	errors:          [dynamic]logger.CompilerError,
+	str_count:       int,
+	symbol_stack:    [dynamic]SymbolTable,
+	next_temp_id:    int,
+	next_label_id:   int,
+	loop_end_labels: [dynamic]string,
 }
 
 SymbolTable :: map[string]^SymbolEntry
@@ -92,9 +93,77 @@ gen_stmt :: proc(ctx: ^Context, stmt: ast.Statement) {
 	case ^ast.IfStatement:
 		gen_if_stmt(ctx, v)
 	case ^ast.LoopStatement:
-		error(ctx, v.tok, "TODO: implement LoopStatement")
+		gen_loop_stmt(ctx, v)
 	case ^ast.BreakStatement:
-		error(ctx, v.tok, "TODO: implement BreakStatement")
+		gen_break_stmt(ctx, v)
+	}
+}
+
+gen_break_stmt :: proc(ctx: ^Context, stmt: ^ast.BreakStatement) {
+	if len(ctx.loop_end_labels) <= 0 {
+		error(ctx, stmt.tok, "Break statement found outside of a loop")
+		return
+	}
+
+	current_loop_end_label := ctx.loop_end_labels[len(ctx.loop_end_labels) - 1]
+
+	jmp := make_jump(ctx, .Jmp)
+	jmp.data = JmpData{current_loop_end_label}
+	get_last_block(ctx).terminator = jmp
+}
+
+gen_infinite_loop :: proc(ctx: ^Context, loop: ^ast.LoopStatement) {
+	begin := make_block(ctx, "loop_begin")
+	end := make_block(ctx, "loop_end")
+	add_block(ctx, begin)
+	push_loop_end_label(ctx, end.label)
+
+	gen_stmt(ctx, loop.block)
+
+	jmp := make_jump(ctx, .Jmp)
+	jmp.data = JmpData{begin.label}
+	get_last_block(ctx).terminator = jmp
+
+	add_block(ctx, end)
+	pop_loop_end_label(ctx)
+}
+
+gen_when_loop :: proc(ctx: ^Context, loop: ^ast.LoopStatement) {
+	begin := make_block(ctx, "loop_begin")
+	end := make_block(ctx, "loop_end")
+	body := make_block(ctx, "loop_body")
+
+	add_block(ctx, begin)
+	push_loop_end_label(ctx, end.label)
+
+	condition := gen_expr(ctx, loop.wehn)
+	jnz := make_jump(ctx, .Jnz)
+	jnz.data = JnzData {
+		condition   = condition,
+		true_label  = body.label,
+		false_label = end.label,
+	}
+	get_last_block(ctx).terminator = jnz
+
+	add_block(ctx, body)
+	gen_stmt(ctx, loop.block)
+
+	jmp := make_jump(ctx, .Jmp)
+	jmp.data = JmpData{begin.label}
+	get_last_block(ctx).terminator = jmp
+
+	add_block(ctx, end)
+	pop_loop_end_label(ctx)
+}
+
+gen_loop_stmt :: proc(ctx: ^Context, loop: ^ast.LoopStatement) {
+	switch loop.kind {
+	case .Infinite:
+		gen_infinite_loop(ctx, loop)
+	case .When:
+		gen_when_loop(ctx, loop)
+	case .Iterator:
+		error(ctx, loop.tok, "TODO: implement iterator loop")
 	}
 }
 
@@ -862,6 +931,17 @@ push_symbol_entry :: proc(
 	entry.typeinfo = typeinfo
 	entry.op = op
 	ctx.symbol_stack[len(ctx.symbol_stack) - 1][entry.name] = entry
+}
+
+push_loop_end_label :: proc(ctx: ^Context, label: string) {
+	append(&ctx.loop_end_labels, label)
+}
+
+pop_loop_end_label :: proc(ctx: ^Context) {
+	if len(ctx.loop_end_labels) <= 0 {
+		panic("attempting to pop scope from an empty loop_end stack")
+	}
+	pop(&ctx.loop_end_labels)
 }
 
 type_ast_to_ir :: proc(type: ast.TypeKind) -> TypeKind {
