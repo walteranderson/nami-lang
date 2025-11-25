@@ -78,6 +78,9 @@ gen_stmt :: proc(ctx: ^Context, stmt: ast.Statement) {
 		return
 	case ^ast.FunctionStatement:
 		gen_function_stmt(ctx, v)
+	case ^ast.FunctionArg:
+		// function args are processed as part of FunctionStatement
+		error(ctx, v.tok, "Unreachable - function_arg")
 	case ^ast.BlockStatement:
 		gen_block_stmt(ctx, v)
 	case ^ast.ReturnStatement:
@@ -86,15 +89,42 @@ gen_stmt :: proc(ctx: ^Context, stmt: ast.Statement) {
 		gen_expr(ctx, v.value)
 	case ^ast.AssignStatement:
 		gen_assign_stmt(ctx, v)
-	case ^ast.FunctionArg:
-		error(ctx, v.tok, "Unreachable - function_arg")
 	case ^ast.IfStatement:
-		error(ctx, v.tok, "TODO: implement IfStatement")
+		gen_if_stmt(ctx, v)
 	case ^ast.LoopStatement:
 		error(ctx, v.tok, "TODO: implement LoopStatement")
 	case ^ast.BreakStatement:
 		error(ctx, v.tok, "TODO: implement BreakStatement")
 	}
+}
+
+gen_if_stmt :: proc(ctx: ^Context, stmt: ^ast.IfStatement) {
+	error(ctx, stmt.tok, "TODO: implement IfStatement")
+
+	// last_block := get_last_block(ctx)
+	// if last_block.terminator != nil {
+	// 	error(ctx, stmt.tok, "if statement after already declared terminator")
+	// 	return
+	// }
+	//
+	// true_block := make_block(ctx, "if_true")
+	// false_block := make_block(ctx, "if_false")
+	//
+	// condition := gen_expr(ctx, stmt.condition)
+	// if condition.kind == .Invalid {
+	// 	return
+	// }
+	//
+	// jump := make_jump(ctx, .Jnz)
+	// jump.data = JnzData {
+	// 	condition   = condition,
+	// 	true_label  = true_block.label,
+	// 	false_label = false_block.label,
+	// }
+	// last_block.terminator = jump
+	//
+	// add_block(ctx, true_block)
+	// gen_stmt(ctx, stmt.consequence)
 }
 
 gen_assign_stmt :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) {
@@ -543,8 +573,7 @@ gen_function_stmt :: proc(ctx: ^Context, stmt: ^ast.FunctionStatement) {
 		append(&def.params, param)
 	}
 
-	block := make_block(ctx)
-	block.label = "start"
+	block := make_block(ctx, "start")
 	append(&def.blocks, block)
 	append(&ctx.module.functions, def)
 	gen_stmt(ctx, stmt.body)
@@ -558,6 +587,11 @@ make_temp_name :: proc(ctx: ^Context) -> string {
 	defer strings.builder_destroy(&sb)
 	fmt.sbprintf(&sb, ".%d", ctx.next_temp_id)
 	return strings.to_string(sb)
+}
+
+add_block :: proc(ctx: ^Context, block: ^Block) {
+	func := ctx.module.functions[len(ctx.module.functions) - 1]
+	append(&func.blocks, block)
 }
 
 get_last_block :: proc(ctx: ^Context) -> ^Block {
@@ -636,8 +670,9 @@ push_data :: proc(ctx: ^Context, data: ^DataDef) {
 	append(&ctx.module.data, data)
 }
 
-make_block :: proc(ctx: ^Context) -> ^Block {
+make_block :: proc(ctx: ^Context, label: string) -> ^Block {
 	block := new(Block, ctx.allocator)
+	block.label = label
 	return block
 }
 
