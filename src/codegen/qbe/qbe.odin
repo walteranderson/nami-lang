@@ -77,6 +77,7 @@ gen_func :: proc(qbe: ^QbeCodegen, func: ^ir.FunctionDef) {
 	for block in func.blocks {
 		gen_block(qbe, block)
 	}
+
 	emit(qbe, "}\n")
 }
 
@@ -87,7 +88,7 @@ gen_block :: proc(qbe: ^QbeCodegen, block: ^ir.Block) {
 	}
 
 	if block.terminator == nil {
-		logger.error("%s block does not have a terminator", block.label)
+		logger.error("block %s does not have a terminator", block.label)
 		return
 	}
 
@@ -105,20 +106,7 @@ gen_inst :: proc(qbe: ^QbeCodegen, inst: ^ir.Instruction) {
 		emit(qbe, " =%s ", type_to_str(inst.dest_type.?))
 	}
 
-	// Opcode
-	emit(qbe, "%s", opcode_to_str(inst.opcode))
-	if inst.alignment != 0 {
-		emit(qbe, "%d", inst.alignment)
-	}
-
-	if inst.comparison_type != .None {
-		emit(qbe, "%s", comparison_type_to_str(inst.comparison_type))
-	}
-
-	if inst.opcode_type != nil {
-		emit(qbe, "%s", type_to_str(inst.opcode_type.?))
-	}
-	emit(qbe, " ")
+	emit(qbe, "%s ", opcode_to_str(qbe, inst))
 
 	// src1, src2
 	// $func(...)
@@ -244,8 +232,8 @@ comparison_type_to_str :: proc(type: ir.ComparisonType) -> string {
 	panic("Unhandled comparison type")
 }
 
-opcode_to_str :: proc(opcode: ir.OpCode) -> string {
-	switch opcode {
+opcode_to_str :: proc(qbe: ^QbeCodegen, inst: ^ir.Instruction) -> string {
+	switch inst.opcode {
 	case .Add:
 		return "add"
 	case .Sub:
@@ -257,19 +245,73 @@ opcode_to_str :: proc(opcode: ir.OpCode) -> string {
 	case .Neg:
 		return "neg"
 	case .Store:
-		return "store"
+		return fmt_str(qbe, "store%s", type_to_str(inst.opcode_type.?))
 	case .Load:
-		return "load"
+		return fmt_str(qbe, "load%s", type_to_str(inst.opcode_type.?))
 	case .Alloc:
-		return "alloc"
+		return fmt_str(qbe, "alloc%d", inst.alignment)
 	case .Call:
 		return "call"
 	case .Copy:
 		return "copy"
 	case .Compare:
-		return "c"
+		return fmt_str(
+			qbe,
+			"c%s%s",
+			comparison_type_to_str(inst.comparison_type),
+			type_to_str(inst.opcode_type.?),
+		)
+	case .Convert:
+		return conversion_type_to_str(inst.conversion_type)
 	}
 	panic("Unhandled opcode in opcode_to_str")
+}
+
+conversion_type_to_str :: proc(conversion_type: ir.ConversionType) -> string {
+	switch conversion_type {
+	case .EXT_SIGNED_WORD:
+		return "extsw"
+	case .EXT_UNSIGNED_WORD:
+		return "extuw"
+	case .EXT_SIGNED_HALF:
+		return "extsh"
+	case .EXT_UNSIGNED_HALF:
+		return "extuh"
+	case .EXT_SIGNED_BYTE:
+		return "extsb"
+	case .EXT_UNSIGNED_BYTE:
+		return "extub"
+	case .EXTEND_SINGLE:
+		return "exts"
+	case .TRUNCATE_DOUBLE:
+		return "truncd"
+	case .STOSI:
+		return "stosi"
+	case .STOUI:
+		return "stoui"
+	case .DTOSI:
+		return "dtosi"
+	case .DTOUI:
+		return "dtoui"
+	case .SWTOF:
+		return "swtof"
+	case .UWTOF:
+		return "uwtof"
+	case .SLTOF:
+		return "sltof"
+	case .ULTOF:
+		return "ultof"
+	}
+	panic("Unhandled converstion_type in conversion_type_to_str")
+}
+
+fmt_str :: proc(qbe: ^QbeCodegen, ft: string, args: ..any) -> string {
+	sb: strings.Builder
+	strings.builder_init(&sb, qbe.allocator)
+	defer strings.builder_destroy(&sb)
+
+	fmt.sbprintf(&sb, ft, ..args)
+	return strings.to_string(sb)
 }
 
 type_to_str :: proc(type: ir.TypeKind) -> string {

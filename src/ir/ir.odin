@@ -70,6 +70,7 @@ Instruction :: struct {
 	// optional metadata depending on the opcode
 	alignment:       int,
 	comparison_type: ComparisonType,
+	conversion_type: ConversionType,
 	call_args:       [dynamic]CallArgument,
 }
 
@@ -98,6 +99,7 @@ OpCode :: enum {
 	Mul,
 	Div,
 	Neg,
+	Convert,
 	// memory
 	Store,
 	Load,
@@ -105,9 +107,34 @@ OpCode :: enum {
 	// control & metadata
 	Call,
 	Copy,
-
-	//
 	Compare,
+}
+
+
+ConversionType :: enum {
+	// 1. Integer Precision Extension (Sub-Word/Word to Long/Word)
+	EXT_SIGNED_WORD, // extsw (w -> l)
+	EXT_UNSIGNED_WORD, // extuw (w -> l)
+	EXT_SIGNED_HALF, // extsh (h -> w/l)
+	EXT_UNSIGNED_HALF, // extuh (h -> w/l)
+	EXT_SIGNED_BYTE, // extsb (b -> w/l)
+	EXT_UNSIGNED_BYTE, // extub (b -> w/l)
+
+	// 2. Floating-Point Precision Change (d <-> s)
+	EXTEND_SINGLE, // exts (s -> d)
+	TRUNCATE_DOUBLE, // truncd (d -> s)
+
+	// 3. Floating-Point to Integer Conversion (Float -> Integer)
+	STOSI, // stosi (single to signed integer)
+	STOUI, // stoui (single to unsigned integer)
+	DTOSI, // dtosi (double to signed integer)
+	DTOUI, // dtoui (double to unsigned integer)
+
+	// 4. Integer to Floating-Point Conversion (Integer -> Float)
+	SWTOF, // swtof (signed word to float)
+	UWTOF, // uwtof (unsigned word to float)
+	SLTOF, // sltof (signed long to float)
+	ULTOF, // ultof (unsigned long to float)
 }
 
 ComparisonType :: enum {
