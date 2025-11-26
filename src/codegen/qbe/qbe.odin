@@ -38,6 +38,7 @@ gen_data :: proc(qbe: ^QbeCodegen, def: ^ir.DataDef) {
 		case ir.DataZeroInit:
 			emit(qbe, "z %d", f.size)
 		case ir.DataInit:
+			assert(f.type != .Void)
 			emit(qbe, "%s ", type_to_str(f.type))
 			for item in f.items {
 				switch i in item {
@@ -61,12 +62,14 @@ gen_func :: proc(qbe: ^QbeCodegen, func: ^ir.FunctionDef) {
 	}
 	emit(qbe, "function ")
 	if func.return_type != .Void {
+		assert(func.return_type != .Void)
 		emit(qbe, "%s ", type_to_str(func.return_type))
 	}
 	emit(qbe, "$%s", func.name)
 
 	emit(qbe, "(")
 	for param, idx in func.params {
+		assert(param.type != .Void)
 		emit(qbe, "%s %s", type_to_str(param.type), get_operand(qbe, param.op))
 		if idx < len(func.params) - 1 {
 			emit(qbe, ", ")
@@ -103,6 +106,7 @@ gen_inst :: proc(qbe: ^QbeCodegen, inst: ^ir.Instruction) {
 	if ok {
 		emit(qbe, "%s", get_operand(qbe, dest))
 		assert(inst.dest_type != nil, "instructions with dest requires a result_type")
+		assert(inst.dest_type.? != .Void, fmt.tprintf("%+v", inst))
 		emit(qbe, " =%s ", type_to_str(inst.dest_type.?))
 	}
 
@@ -118,6 +122,7 @@ gen_inst :: proc(qbe: ^QbeCodegen, inst: ^ir.Instruction) {
 			if arg.kind == .Variadic {
 				emit(qbe, "...")
 			} else {
+				assert(arg.type != .Void)
 				emit(qbe, "%s %s", type_to_str(arg.type), get_operand(qbe, arg.value))
 			}
 			if idx < len(inst.call_args) - 1 {
@@ -301,6 +306,8 @@ conversion_type_to_str :: proc(conversion_type: ir.ConversionType) -> string {
 		return "sltof"
 	case .ULTOF:
 		return "ultof"
+	case .None:
+		panic("Unexpected conversion type of None")
 	}
 	panic("Unhandled converstion_type in conversion_type_to_str")
 }

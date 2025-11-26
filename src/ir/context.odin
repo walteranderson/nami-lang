@@ -156,6 +156,224 @@ gen_when_loop :: proc(ctx: ^Context, loop: ^ast.LoopStatement) {
 	pop_loop_end_label(ctx)
 }
 
+
+gen_iterator_loop :: proc(ctx: ^Context, loop: ^ast.LoopStatement) {
+	loop_begin := make_block(ctx, "loop_begin")
+	loop_end := make_block(ctx, "loop_end")
+	loop_cond := make_block(ctx, "loop_cond")
+	loop_body := make_block(ctx, "loop_body")
+
+	// ----------------------
+	// Loop Begin
+	// ----------------------
+
+	add_block(ctx, loop_begin)
+	push_loop_end_label(ctx, loop_end.label)
+
+	idx_operand := gen_iterator_create_idx(ctx, loop)
+	jmp := make_jump(ctx, .Jmp)
+	jmp.data = JmpData{loop_cond.label}
+	loop_begin.terminator = jmp
+
+	// ----------------------
+	// Loop Cond
+	// ----------------------
+
+	add_block(ctx, loop_cond)
+
+	item_ident := loop.item.(^ast.Identifier)
+	items_ident := loop.items.(^ast.Identifier)
+	items_symbol, ok := lookup_symbol(ctx, items_ident.value)
+	if !ok {
+		error(ctx, items_ident.tok, "Identifier not found %s", items_ident.value)
+		return
+	}
+	array_element_typeinfo := items_symbol.typeinfo.data.(ast.ArrayTypeInfo)
+
+	load_idx := gen_iterator_load_idx(ctx, idx_operand)
+
+	// Do the comparison: if idx is less than the length of the array
+	condition := Operand{.Temporary, make_temp(ctx)}
+	cond_inst := make_instruction(
+		ctx,
+		dest = condition,
+		dest_type = .Word,
+		opcode = .Compare,
+		comparison_type = .SignedLess,
+		opcode_type = .Word,
+		src1 = load_idx,
+		// TODO: since we only support fixed-size arrays,
+		// hardcoding the array size here for figuring out when we're done iterating the array
+		src2 = Operand{.Integer, array_element_typeinfo.size},
+	)
+	append(&loop_cond.instructions, cond_inst)
+
+	jnz := make_jump(ctx, .Jnz)
+	jnz.data = JnzData {
+		condition   = condition,
+		true_label  = loop_body.label,
+		false_label = loop_end.label,
+	}
+	loop_cond.terminator = jnz
+
+	// ----------------------
+	// Loop Body
+	// ----------------------
+
+	add_block(ctx, loop_body)
+
+	gen_iterator_item(ctx, idx_operand, items_symbol, item_ident, array_element_typeinfo)
+	gen_stmt(ctx, loop.block)
+	gen_iterator_increment_idx(ctx, idx_operand)
+
+	jump := make_jump(ctx, .Jmp)
+	jump.data = JmpData{loop_cond.label}
+	get_last_block(ctx).terminator = jump
+
+	add_block(ctx, loop_end)
+	pop_loop_end_label(ctx)
+}
+
+gen_iterator_create_idx :: proc(ctx: ^Context, loop: ^ast.LoopStatement) -> Operand {
+	idx := Operand{.Temporary, make_temp(ctx)}
+	idx_alloc_inst := make_instruction(
+		ctx,
+		opcode = .Alloc,
+		dest = idx,
+		dest_type = .Long,
+		alignment = 4,
+		src1 = Operand{.Integer, 4},
+	)
+	block := get_last_block(ctx)
+	append(&block.instructions, idx_alloc_inst)
+
+	idx_store_inst := make_instruction(
+		ctx,
+		opcode = .Store,
+		opcode_type = .Word,
+		src1 = Operand{.Integer, 0},
+		src2 = idx,
+	)
+	append(&block.instructions, idx_store_inst)
+
+	if loop.idx != nil {
+		ident, ok := loop.idx.(^ast.Identifier)
+		if !ok {
+			error(ctx, ast.get_token_from_expr(loop.idx), "expected index to be identifier")
+			return invalid_op()
+		}
+		push_symbol_entry(
+			ctx,
+			name = ident.value,
+			kind = .Local,
+			ir_kind = .Word,
+			typeinfo = ident.resolved_type,
+			op = idx,
+		)
+	}
+	return idx
+}
+
+gen_iterator_load_idx :: proc(ctx: ^Context, idx_operand: Operand) -> Operand {
+	load_idx := Operand{.Temporary, make_temp(ctx)}
+	load_idx_inst := make_instruction(
+		ctx,
+		opcode = .Load,
+		opcode_type = .Word,
+		dest = load_idx,
+		dest_type = .Word,
+		src1 = idx_operand,
+	)
+	block := get_last_block(ctx)
+	append(&block.instructions, load_idx_inst)
+	return load_idx
+}
+
+gen_iterator_increment_idx :: proc(ctx: ^Context, idx_operand: Operand) {
+	block := get_last_block(ctx)
+	load_idx := gen_iterator_load_idx(ctx, idx_operand)
+
+	next_operand := Operand{.Temporary, make_temp(ctx)}
+	add_inst := make_instruction(
+		ctx,
+		opcode = .Add,
+		dest = next_operand,
+		dest_type = .Word,
+		src1 = load_idx,
+		src2 = Operand{.Integer, 1},
+	)
+	append(&block.instructions, add_inst)
+
+	store_inst := make_instruction(
+		ctx,
+		opcode = .Store,
+		opcode_type = .Word,
+		src1 = next_operand,
+		src2 = idx_operand,
+	)
+	append(&block.instructions, store_inst)
+}
+
+gen_iterator_item :: proc(
+	ctx: ^Context,
+	idx_operand: Operand,
+	items_symbol: ^SymbolEntry,
+	item_ident: ^ast.Identifier,
+	arr_typeinfo: ast.ArrayTypeInfo,
+) {
+	block := get_last_block(ctx)
+	element_size := type_to_size(arr_typeinfo.elements_type.kind)
+
+	// load the index
+	load_idx := gen_iterator_load_idx(ctx, idx_operand)
+
+	// multiply index by the element size to get the array offset
+	mul_dest := Operand{.Temporary, make_temp(ctx)}
+	mul_inst := make_instruction(
+		ctx,
+		opcode = .Mul,
+		dest = mul_dest,
+		dest_type = .Word,
+		src1 = load_idx,
+		src2 = Operand{.Integer, element_size},
+	)
+	append(&block.instructions, mul_inst)
+
+	// convert from .Word to .Long so its able to be added to the array pointer
+	conv_dest := Operand{.Temporary, make_temp(ctx)}
+	conv_inst := make_instruction(
+		ctx,
+		opcode = .Convert,
+		conversion_type = .EXT_SIGNED_WORD,
+		dest = conv_dest,
+		dest_type = .Long,
+		src1 = mul_dest,
+	)
+	append(&block.instructions, conv_inst)
+
+	// add to the array pointer
+	add_dest := Operand{.Temporary, make_temp(ctx)}
+	add_inst := make_instruction(
+		ctx,
+		opcode = .Add,
+		dest = add_dest,
+		dest_type = .Long,
+		src1 = items_symbol.op,
+		src2 = conv_dest,
+	)
+	append(&block.instructions, add_inst)
+
+	// add symbol to symbol_table
+	push_symbol_entry(
+		ctx,
+		name = item_ident.value,
+		kind = .Local,
+		ir_kind = type_ast_to_ir(item_ident.resolved_type.kind),
+		typeinfo = item_ident.resolved_type,
+		op = add_dest,
+	)
+}
+
 gen_loop_stmt :: proc(ctx: ^Context, loop: ^ast.LoopStatement) {
 	switch loop.kind {
 	case .Infinite:
@@ -163,7 +381,7 @@ gen_loop_stmt :: proc(ctx: ^Context, loop: ^ast.LoopStatement) {
 	case .When:
 		gen_when_loop(ctx, loop)
 	case .Iterator:
-		error(ctx, loop.tok, "TODO: implement iterator loop")
+		gen_iterator_loop(ctx, loop)
 	}
 }
 
@@ -256,8 +474,8 @@ gen_assign_stmt :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) {
 		dest = Operand{.Temporary, dest_name},
 		dest_type = .Long,
 		src1 = Operand{.Integer, typeinfo_to_size(stmt.resolved_type)},
+		alignment = type_to_size(stmt.resolved_type.kind),
 	)
-	alloc_inst.alignment = type_to_size(stmt.resolved_type.kind)
 	append(&block.instructions, alloc_inst)
 
 	src1 := Operand{.Integer, 0}
@@ -475,13 +693,20 @@ gen_call_expr :: proc(ctx: ^Context, expr: ^ast.CallExpr) -> Operand {
 		return invalid_op()
 	}
 
-	dest := Operand{.Temporary, make_temp(ctx)}
+	dest: Maybe(Operand) = nil
+	dest_type: Maybe(TypeKind) = nil
+
+	if func.typeinfo.kind != .Void {
+		dest = Operand{.Temporary, make_temp(ctx)}
+		dest_type = type_ast_to_ir(func.typeinfo.kind)
+	}
+
 	inst := make_instruction(
 		ctx,
 		opcode = .Call,
 		src1 = func.op,
 		dest = dest,
-		dest_type = type_ast_to_ir(expr.resolved_type.kind),
+		dest_type = dest_type,
 	)
 	call_args := gen_call_args(ctx, expr)
 	inst.call_args = call_args
@@ -489,7 +714,11 @@ gen_call_expr :: proc(ctx: ^Context, expr: ^ast.CallExpr) -> Operand {
 	block := get_last_block(ctx)
 	append(&block.instructions, inst)
 
-	return dest
+	d, ok := dest.?
+	if !ok {
+		return Operand{}
+	}
+	return d
 }
 
 gen_infix_expr :: proc(ctx: ^Context, expr: ^ast.InfixExpr) -> Operand {
@@ -855,6 +1084,7 @@ make_instruction :: proc(
 	dest_type: Maybe(TypeKind) = nil,
 	opcode_type: Maybe(TypeKind) = nil,
 	comparison_type: ComparisonType = .None,
+	conversion_type: ConversionType = .None,
 	alignment: int = 0,
 ) -> ^Instruction {
 	inst := new(Instruction, ctx.allocator)
@@ -866,6 +1096,7 @@ make_instruction :: proc(
 	inst.dest_type = dest_type
 	inst.comparison_type = comparison_type
 	inst.alignment = alignment
+	inst.conversion_type = conversion_type
 	return inst
 }
 

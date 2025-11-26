@@ -112,6 +112,7 @@ OpCode :: enum {
 
 
 ConversionType :: enum {
+	None,
 	// 1. Integer Precision Extension (Sub-Word/Word to Long/Word)
 	EXT_SIGNED_WORD, // extsw (w -> l)
 	EXT_UNSIGNED_WORD, // extuw (w -> l)

@@ -1,4 +1,6 @@
 fn main() {
-    bar := [9,2,3];
-    printf("%d\n", bar);
+    items := [9,2,3];
+    loop item in items {
+        printf("item = %d\n", item);
+    }
 }
