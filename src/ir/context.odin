@@ -81,6 +81,7 @@ gen_stmt :: proc(ctx: ^Context, stmt: ast.Statement) {
 		gen_function_stmt(ctx, v)
 	case ^ast.FunctionArg:
 		// function args are processed as part of FunctionStatement
+		// TODO: maybe this should be an expression instead?
 		error(ctx, v.tok, "Unreachable - function_arg")
 	case ^ast.BlockStatement:
 		gen_block_stmt(ctx, v)
