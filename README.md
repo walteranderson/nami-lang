@@ -6,8 +6,8 @@ An experimental programming language. Don't use this.
 
 #### Prerequisites
 - [Odin](https://odin-lang.org/)
-- [QBE](https://c9x.me/compile/) - this should be available in your `$PATH`
-- GCC
+- [QBE](https://c9x.me/compile/)
+- [GCC](https://gcc.gnu.org/)
 
 #### Usage
 
