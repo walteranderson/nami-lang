@@ -376,6 +376,9 @@ gen_iterator_item :: proc(
 }
 
 gen_loop_stmt :: proc(ctx: ^Context, loop: ^ast.LoopStatement) {
+	push_symbol_scope(ctx)
+	defer pop_symbol_scope(ctx)
+
 	switch loop.kind {
 	case .Infinite:
 		gen_infinite_loop(ctx, loop)
@@ -391,6 +394,8 @@ gen_if_stmt :: proc(ctx: ^Context, stmt: ^ast.IfStatement) {
 		error(ctx, stmt.tok, "if statement after already declared terminator")
 		return
 	}
+	push_symbol_scope(ctx)
+	defer pop_symbol_scope(ctx)
 
 	true_block := make_block(ctx, "if_true")
 	false_block := make_block(ctx, "if_false")
