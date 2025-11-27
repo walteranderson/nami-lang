@@ -1,7 +1,5 @@
 fn main() {
     items := [9,2,3];
-    foo := "hello";
-    loop item in items {
-        printf("foo = %s, item = %d\n", foo, item);
-    }
+    i := 1 + 1;
+    printf("%d\n", items[i]);
 }

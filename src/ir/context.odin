@@ -583,12 +583,97 @@ gen_expr :: proc(ctx: ^Context, expr: ast.Expr) -> Operand {
 	case ^ast.Array:
 		return gen_array_expr(ctx, e)
 	case ^ast.IndexExpr:
-		error(ctx, e.tok, "TODO: implement IndexExpr")
+		return gen_index_expr(ctx, e)
 	}
 	typeinfo := ast.get_resolved_type_from_expr(expr)
 	tok := ast.get_token_from_expr(expr)
 	error(ctx, tok, "Unhandled expression type %s", typeinfo.kind)
 	return invalid_op()
+}
+
+gen_index_expr :: proc(ctx: ^Context, expr: ^ast.IndexExpr) -> Operand {
+	addr_operand := gen_index_addr(ctx, expr)
+	if addr_operand.kind == .Invalid {
+		return addr_operand
+	}
+
+	type := type_ast_to_ir(expr.resolved_type.kind)
+
+	dest := Operand{.Temporary, make_temp(ctx)}
+	inst := make_instruction(
+		ctx,
+		.Load,
+		dest = dest,
+		dest_type = type,
+		opcode_type = type,
+		src1 = addr_operand,
+	)
+
+	block := get_last_block(ctx)
+	append(&block.instructions, inst)
+	return dest
+}
+
+gen_index_addr :: proc(ctx: ^Context, expr: ^ast.IndexExpr) -> Operand {
+	ident, ok := expr.left.(^ast.Identifier)
+	if !ok {
+		tok := ast.get_token_from_expr(expr.left)
+		error(ctx, tok, "Expected identifier when using index expression, got %s", tok.type)
+		return invalid_op()
+	}
+	symbol, okk := lookup_symbol(ctx, ident.value)
+	if !okk {
+		error(ctx, ident.tok, "Identifier not found: %s", ident.value)
+		return invalid_op()
+	}
+	if symbol.typeinfo.kind != .Array {
+		error(ctx, ident.tok, "Expected array, got %s", symbol.typeinfo.kind)
+		return invalid_op()
+	}
+
+	index_operand := gen_expr(ctx, expr.index)
+
+	arr_typeinfo := symbol.typeinfo.data.(ast.ArrayTypeInfo)
+	element_size := type_to_size(arr_typeinfo.elements_type.kind)
+	block := get_last_block(ctx)
+
+	// multiply index by the element size to get the array offset
+	mul_dest := Operand{.Temporary, make_temp(ctx)}
+	mul_inst := make_instruction(
+		ctx,
+		opcode = .Mul,
+		dest = mul_dest,
+		dest_type = .Word,
+		src1 = index_operand,
+		src2 = Operand{.Integer, element_size},
+	)
+	append(&block.instructions, mul_inst)
+
+	// convert from .Word to .Long so its able to be added to the array pointer
+	conv_dest := Operand{.Temporary, make_temp(ctx)}
+	conv_inst := make_instruction(
+		ctx,
+		opcode = .Convert,
+		conversion_type = .EXT_SIGNED_WORD,
+		dest = conv_dest,
+		dest_type = .Long,
+		src1 = mul_dest,
+	)
+	append(&block.instructions, conv_inst)
+
+	// add to the array pointer
+	add_dest := Operand{.Temporary, make_temp(ctx)}
+	add_inst := make_instruction(
+		ctx,
+		opcode = .Add,
+		dest = add_dest,
+		dest_type = .Long,
+		src1 = symbol.op,
+		src2 = conv_dest,
+	)
+	append(&block.instructions, add_inst)
+
+	return add_dest
 }
 
 //
@@ -876,7 +961,7 @@ get_lvalue_addr :: proc(ctx: ^Context, target: ast.Expr) -> Operand {
 		}
 		return ident.op
 	case ^ast.IndexExpr:
-	// TODO
+		return gen_index_addr(ctx, e)
 	}
 	tok := ast.get_token_from_expr(target)
 	error(ctx, tok, "%s is not a valid lvalue", tok.type)
