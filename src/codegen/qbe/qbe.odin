@@ -90,12 +90,9 @@ gen_block :: proc(qbe: ^QbeCodegen, block: ^ir.Block) {
 		gen_inst(qbe, inst)
 	}
 
-	if block.terminator == nil {
-		logger.error("block %s does not have a terminator", block.label)
-		return
+	if block.terminator != nil {
+		gen_jump(qbe, block.terminator)
 	}
-
-	gen_jump(qbe, block.terminator)
 }
 
 gen_inst :: proc(qbe: ^QbeCodegen, inst: ^ir.Instruction) {
@@ -220,19 +217,19 @@ comparison_type_to_str :: proc(type: ir.ComparisonType) -> string {
 	case .SignedLess:
 		return "slt"
 	case .SignedLessEqual:
-		return "slte"
+		return "sle"
 	case .SignedGreater:
 		return "sgt"
 	case .SignedGreaterEqual:
-		return "sgte"
+		return "sge"
 	case .UnsignedLess:
 		return "ult"
 	case .UnsignedLessEqual:
-		return "ulte"
+		return "ule"
 	case .UnsignedGreater:
 		return "ugt"
 	case .UnsignedGreaterEqual:
-		return "ugte"
+		return "uge"
 	}
 	panic("Unhandled comparison type")
 }
