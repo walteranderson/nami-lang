@@ -847,8 +847,7 @@ gen_infix_expr :: proc(ctx: ^Context, expr: ^ast.InfixExpr) -> Operand {
 	comparison_type: ComparisonType = .None
 	#partial switch expr.tok.type {
 	case .AND, .OR:
-		logger.error("TODO: implement AND and OR infix expressions")
-		return invalid_op()
+		return gen_logical_operators(ctx, expr)
 	case .PLUS:
 		opcode = .Add
 		opcode_type = nil
@@ -899,6 +898,59 @@ gen_infix_expr :: proc(ctx: ^Context, expr: ^ast.InfixExpr) -> Operand {
 	append(&block.instructions, inst)
 
 	return dest
+}
+
+gen_logical_operators :: proc(ctx: ^Context, expr: ^ast.InfixExpr) -> Operand {
+	logic_right := make_block(ctx, "logic_right")
+	true_merge := make_block(ctx, "true_merge")
+	false_merge := make_block(ctx, "false_merge")
+	assign_merge := make_block(ctx, "assign_merge")
+
+	left_operand := gen_expr(ctx, expr.left)
+	is_and := expr.tok.type == .AND
+	first_jnz := make_jump(ctx, .Jnz)
+	first_jnz.data = JnzData {
+		condition   = left_operand,
+		true_label  = is_and ? logic_right.label : true_merge.label,
+		false_label = is_and ? false_merge.label : logic_right.label,
+	}
+	get_last_block(ctx).terminator = first_jnz
+
+	add_block(ctx, logic_right)
+	right_operand := gen_expr(ctx, expr.right)
+
+	second_jnz := make_jump(ctx, .Jnz)
+	second_jnz.data = JnzData {
+		condition   = right_operand,
+		true_label  = true_merge.label,
+		false_label = false_merge.label,
+	}
+	get_last_block(ctx).terminator = second_jnz
+
+	add_block(ctx, true_merge)
+	jmp := make_jump(ctx, .Jmp)
+	jmp.data = JmpData{assign_merge.label}
+	get_last_block(ctx).terminator = jmp
+
+	add_block(ctx, false_merge)
+	get_last_block(ctx).terminator = jmp
+
+	add_block(ctx, assign_merge)
+
+	result_operand := Operand{.Temporary, make_temp(ctx)}
+	inst := make_phi(
+		ctx,
+		dest = result_operand,
+		dest_type = type_ast_to_ir(expr.resolved_type.kind),
+		src1_label = true_merge.label,
+		src1_operand = Operand{.Integer, 1},
+		src2_label = false_merge.label,
+		src2_operand = Operand{.Integer, 0},
+	)
+	b := get_last_block(ctx)
+	append(&b.instructions, inst)
+
+	return result_operand
 }
 
 gen_prefix_expr :: proc(ctx: ^Context, expr: ^ast.PrefixExpr) -> Operand {
@@ -988,6 +1040,9 @@ gen_identifier :: proc(ctx: ^Context, expr: ^ast.Identifier) -> Operand {
 	block := get_last_block(ctx)
 
 	switch ident.kind {
+	//
+	// TODO: sometimes I will need to load the global variable instead of passing the pointer
+	//
 	case .FuncParam, .Global, .Func:
 		return ident.op
 	case .Local:
@@ -1174,6 +1229,28 @@ make_null_terminated_str_data_content :: proc(str: string) -> DataContent {
 	append(&null_term_field.items, 0)
 	append(&content.fields, null_term_field)
 	return content
+}
+
+make_phi :: proc(
+	ctx: ^Context,
+	dest: Maybe(Operand) = nil,
+	dest_type: Maybe(TypeKind) = nil,
+	src1_label: string,
+	src1_operand: Operand,
+	src2_label: string,
+	src2_operand: Operand,
+) -> ^Instruction {
+	inst := new(Instruction, ctx.allocator)
+	inst.opcode = .Phi
+	inst.dest = dest
+	inst.dest_type = dest_type
+	sources := new(PhiSources, ctx.allocator)
+	sources.src1_label = src1_label
+	sources.src1_operand = src1_operand
+	sources.src2_label = src2_label
+	sources.src2_operand = src2_operand
+	inst.phi_sources = sources
+	return inst
 }
 
 make_instruction :: proc(

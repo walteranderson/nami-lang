@@ -109,10 +109,23 @@ gen_inst :: proc(qbe: ^QbeCodegen, inst: ^ir.Instruction) {
 
 	emit(qbe, "%s ", opcode_to_str(qbe, inst))
 
-	// src1, src2
-	// $func(...)
+	if inst.opcode == .Phi {
+		assert(inst.phi_sources != nil)
+		emit(
+			qbe,
+			"%s %s, %s %s\n",
+			get_label(qbe, inst.phi_sources.src1_label),
+			get_operand(qbe, inst.phi_sources.src1_operand),
+			get_label(qbe, inst.phi_sources.src2_label),
+			get_operand(qbe, inst.phi_sources.src2_operand),
+		)
+		return
+	}
 
-	emit(qbe, "%s", get_operand(qbe, inst.src1))
+	src1, okk := inst.src1.?
+	if okk {
+		emit(qbe, "%s", get_operand(qbe, src1))
+	}
 	if inst.opcode == .Call {
 		emit(qbe, "(")
 		for arg, idx in inst.call_args {
@@ -236,6 +249,8 @@ comparison_type_to_str :: proc(type: ir.ComparisonType) -> string {
 
 opcode_to_str :: proc(qbe: ^QbeCodegen, inst: ^ir.Instruction) -> string {
 	switch inst.opcode {
+	case .Phi:
+		return "phi"
 	case .Add:
 		return "add"
 	case .Sub:

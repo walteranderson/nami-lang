@@ -64,7 +64,7 @@ Instruction :: struct {
 	dest_type:       Maybe(TypeKind),
 	opcode:          OpCode,
 	opcode_type:     Maybe(TypeKind),
-	src1:            Operand,
+	src1:            Maybe(Operand),
 	src2:            Maybe(Operand),
 
 	// optional metadata depending on the opcode
@@ -72,6 +72,14 @@ Instruction :: struct {
 	comparison_type: ComparisonType,
 	conversion_type: ConversionType,
 	call_args:       [dynamic]CallArgument,
+	phi_sources:     ^PhiSources,
+}
+
+PhiSources :: struct {
+	src1_label:   string,
+	src1_operand: Operand,
+	src2_label:   string,
+	src2_operand: Operand,
 }
 
 Operand :: struct {
@@ -108,6 +116,7 @@ OpCode :: enum {
 	Call,
 	Copy,
 	Compare,
+	Phi,
 }
 
 
