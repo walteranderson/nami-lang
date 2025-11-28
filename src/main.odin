@@ -77,57 +77,30 @@ main :: proc() {
 	}
 
 	// QBE codegen
-	when EXPERIMENTAL_IR {
-		{
-			logger.info("Generating EXPERIMENTAL_IR")
-			ir_start := time.now()
-			ctx := ir.new_context(typechecker.symbols[0], allocator)
-			logger.info("> Creating IR Module...")
-			ir.from_ast(ctx, module)
-			if len(ctx.errors) != 0 {
-				for err in ctx.errors {
-					logger.compiler_error(opt.file_name, err)
-				}
-				os.exit(1)
+	{
+		logger.info("Generating IR")
+		ir_start := time.now()
+		ctx := ir.new_context(typechecker.symbols[0], allocator)
+		logger.info("> Creating IR Module...")
+		ir.from_ast(ctx, module)
+		if len(ctx.errors) != 0 {
+			for err in ctx.errors {
+				logger.compiler_error(opt.file_name, err)
 			}
-			logger.info("> QBE codegen...")
-			qbe_codegen := qbecodegen.new_qbecodegen(allocator)
-			qbecodegen.from_ir(qbe_codegen, ctx.module)
-
-			logger.info("> Starting compilation...")
-			comp_start := time.now()
-			program_name := fs.extract_base_name(opt.file_name)
-			ok := codegen.compile_qbe(&qbe_codegen.sb, program_name)
-			if !ok {
-				os.exit(1)
-			}
-			logger.info("EXPERIMENTAL_IR complete: %v", time.diff(ir_start, time.now()))
+			os.exit(1)
 		}
-	} else {
-		{
-			logger.info("Generating QBE")
-			qbe_start := time.now()
-			qbe: codegen.Qbe
-			codegen.qbe_init(&qbe, module, typechecker.symbols[0], allocator)
-			codegen.qbe_generate(&qbe)
-			if len(qbe.errors) > 0 {
-				logger.error("QBE codegen errors:")
-				for err in qbe.errors {
-					logger.error(err)
-				}
-				os.exit(1)
-			}
-			logger.info("Codegen complete: %v", time.diff(qbe_start, time.now()))
+		logger.info("> QBE codegen...")
+		qbe_codegen := qbecodegen.new_qbecodegen(allocator)
+		qbecodegen.from_ir(qbe_codegen, ctx.module)
 
-			logger.info("Starting compilation")
-			comp_start := time.now()
-			program_name := fs.extract_base_name(opt.file_name)
-			ok := codegen.compile_qbe(&qbe.sb, program_name)
-			if !ok {
-				os.exit(1)
-			}
-			logger.info("Compilation complete: %v", time.diff(comp_start, time.now()))
+		logger.info("> Starting compilation...")
+		comp_start := time.now()
+		program_name := fs.extract_base_name(opt.file_name)
+		ok := codegen.compile_qbe(&qbe_codegen.sb, program_name)
+		if !ok {
+			os.exit(1)
 		}
+		logger.info("IR complete: %v", time.diff(ir_start, time.now()))
 	}
 
 	logger.info("Finished: Duration: %v", time.diff(start, time.now()))

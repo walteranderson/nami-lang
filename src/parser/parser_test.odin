@@ -1,9 +1,11 @@
 package parser
 
 import vmem "core:mem/virtual"
+import "core:os"
 import "core:testing"
 
 import "../ast"
+import "../logger"
 
 @(test)
 test_parser :: proc(t: ^testing.T) {
@@ -17,16 +19,18 @@ test_parser :: proc(t: ^testing.T) {
 
 
 	arena: vmem.Arena
-	allocator, arena_err := arena_init(&arena)
+	arena_err := vmem.arena_init_growing(&arena)
 	if arena_err != nil {
-		return
+		logger.error("Error allocating arena: %v", arena_err)
+		os.exit(1)
 	}
+	allocator := vmem.arena_allocator(&arena)
 	defer vmem.arena_free_all(&arena)
 
 	parser: Parser
-	parser_init(&parser, input, allocator)
+	init(&parser, input, allocator)
 
-	program := parser_parse_program(&parser)
+	program := parse_module(&parser)
 	testing.expectf(t, len(parser.errors) == 0, "expected no errors")
 	testing.expect(t, len(program.stmts) > 0, "expected more than one global statement")
 
