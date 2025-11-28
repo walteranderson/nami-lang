@@ -661,6 +661,9 @@ resolve_type_annotation :: proc(
 			return make_typeinfo(tc, .Invalid)
 		}
 
+		//
+		// TODO: support anything that evaluates to an int
+		//
 		size := arr_annotation.size_expr.(^ast.IntLiteral).value
 		elements_type := resolve_type_annotation(tc, arr_annotation.elements_type)
 

@@ -76,7 +76,6 @@ gen_stmt :: proc(ctx: ^Context, stmt: ast.Statement) {
 	switch v in stmt {
 	case ^ast.Module:
 		error(ctx, v.tok, "Unexpected module")
-		return
 	case ^ast.FunctionStatement:
 		gen_function_stmt(ctx, v)
 	case ^ast.FunctionArg:
