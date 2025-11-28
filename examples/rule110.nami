@@ -1,10 +1,137 @@
+row_a: [40]Int;
+row_b: [40]Int;
+// TODO: fix global state variable references
+// side := 0;
+
 fn main() {
-    row := [0, 0, 0, 0, 0, 0, 0, 0, 0, 1];
-    loop cell in row {
+    row_a[39] = 1;
+    side := 0;
+
+    iteration := 0
+    loop {
+        if iteration > 40 { break }
+        print_row(side);
+        update_row(side);
+        if side == 0 {
+            side = 1;
+        } else {
+            side = 0;
+        }
+        iteration = iteration + 1;
+    }
+}
+
+fn update_row(side: Int) {
+    if side == 0 {
+        update_a();
+    } else {
+        update_b();
+    }
+}
+
+fn update_a() {
+    loop cell, idx in row_a {
+        prev: Int;
+        cur := cell;
+        next: Int;
+
+        if idx - 1 <= 0 {
+            prev = 0;
+        } else {
+            prev = row_a[idx - 1];
+        }
+
+        // TODO: need to add a `array.length` function
+        if idx + 1 >= 40 {
+            next = 0;
+        } else {
+            next = row_a[idx + 1];
+        }
+
+        new_value := get_new_value(prev, cur, next);
+        row_b[idx] = new_value;
+    }
+}
+
+fn update_b() {
+    loop cell, idx in row_b {
+        prev: Int;
+        cur := cell;
+        next: Int;
+
+        if idx - 1 <= 0 {
+            prev = 0;
+        } else {
+            prev = row_b[idx - 1];
+        }
+
+        // TODO: need to add a `array.length` function
+        if idx + 1 >= 40 {
+            next = 0;
+        } else {
+            next = row_b[idx + 1];
+        }
+
+        new_value := get_new_value(prev, cur, next);
+        row_a[idx] = new_value;
+    }
+}
+
+// Current pattern	          111	110	101	100	011	010	001	000
+// New state for center cell	0	1	1	0	1	1	1	0
+fn get_new_value(prev: Int, cur: Int, next: Int) Int {
+    if prev == 1 && cur == 1 && next == 1 {
+        return 0;
+    }
+    if prev == 1 && cur == 1 && next == 0 {
+        return 1;
+    }
+    if prev == 1 && cur == 0 && next == 1 {
+        return 1;
+    }
+    if prev == 1 && cur == 0 && next == 0 {
+        return 0;
+    }
+    if prev == 0 && cur == 1 && next == 1 {
+        return 1;
+    }
+    if prev == 0 && cur == 1 && next == 0 {
+        return 1;
+    }
+    if prev == 0 && cur == 0 && next == 1 {
+        return 1;
+    }
+    if prev == 0 && cur == 0 && next == 0 {
+        return 0;
+    }
+    return 0;
+}
+
+fn print_row(side: Int) {
+    if side == 0 {
+        print_a();
+    } else {
+        print_b();
+    }
+}
+
+fn print_a() {
+    loop cell in row_a {
         if cell == 0 {
             printf(" ");
         } else {
-            printf("x");
+            printf("X");
+        }
+    }
+    printf("\n");
+}
+
+fn print_b() {
+    loop cell in row_b {
+        if cell == 0 {
+            printf(" ");
+        } else {
+            printf("X");
         }
     }
     printf("\n");
