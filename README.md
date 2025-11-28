@@ -22,5 +22,5 @@ Hello world!
 
 - [X] Compiles to a native executable (via QBE)
 - [X] Statically typed
-- [ ] Turing complete
+- [X] Turing complete
 - [ ] Self-hosted
