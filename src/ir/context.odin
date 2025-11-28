@@ -783,10 +783,21 @@ gen_call_expr :: proc(ctx: ^Context, expr: ^ast.CallExpr) -> Operand {
 		return invalid_op()
 	}
 
+	if func.kind != .Func {
+		error(
+			ctx,
+			expr.tok,
+			"Call expression from something thats not a function, got %s",
+			func.kind,
+		)
+		return invalid_op()
+	}
+	func_typeinfo := func.typeinfo.data.(ast.FunctionTypeInfo)
+
 	dest: Maybe(Operand) = nil
 	dest_type: Maybe(TypeKind) = nil
 
-	if func.typeinfo.kind != .Void {
+	if func_typeinfo.return_type.kind != .Void {
 		dest = Operand{.Temporary, make_temp(ctx)}
 		dest_type = type_ast_to_ir(func.typeinfo.kind)
 	}
