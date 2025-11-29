@@ -14,8 +14,6 @@ import "logger"
 import "parser"
 import tc "typechecker"
 
-EXPERIMENTAL_IR :: #config(EXPERIMENTAL_IR, false)
-
 Options :: struct {
 	file_name: string `args:"pos=0,required" usage:"Path to file, ex: ./example.nami"`,
 	ast:       bool `usage:"Prints the AST"`,
