@@ -1040,12 +1040,9 @@ gen_identifier :: proc(ctx: ^Context, expr: ^ast.Identifier) -> Operand {
 	block := get_last_block(ctx)
 
 	switch ident.kind {
-	//
-	// TODO: sometimes I will need to load the global variable instead of passing the pointer
-	//
-	case .FuncParam, .Global, .Func:
+	case .FuncParam, .Func:
 		return ident.op
-	case .Local:
+	case .Local, .Global:
 		dest := Operand{.Temporary, make_temp(ctx)}
 		inst := make_instruction(
 			ctx,
