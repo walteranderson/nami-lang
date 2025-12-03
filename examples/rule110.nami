@@ -1,17 +1,15 @@
 row_a: [40]Int;
 row_b: [40]Int;
-// TODO: fix global state variable references
-// side := 0;
+side := 0;
 
 fn main() {
     row_a[39] = 1;
-    side := 0;
 
     iteration := 0
     loop {
         if iteration > 40 { break }
-        print_row(side);
-        update_row(side);
+        print_row();
+        update_row();
         if side == 0 {
             side = 1;
         } else {
@@ -21,7 +19,7 @@ fn main() {
     }
 }
 
-fn update_row(side: Int) {
+fn update_row() {
     if side == 0 {
         update_a();
     } else {
@@ -107,7 +105,7 @@ fn get_new_value(prev: Int, cur: Int, next: Int) Int {
     return 0;
 }
 
-fn print_row(side: Int) {
+fn print_row() {
     if side == 0 {
         print_a();
     } else {
