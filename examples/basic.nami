@@ -1,5 +1,4 @@
-fn main() {
-    items := [9,2,3];
-    i := 1 + 1;
-    printf("%d\n", items[i]);
+fn main() Int
+{
+    return 0;
 }

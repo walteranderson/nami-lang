@@ -26,5 +26,20 @@ fn main() {
     printf("  item[1] = %d\n", items[1]);
     printf("  item[2] = %d\n", items[2]);
     printf("  item[3] = %d\n", items[3]);
+
+    printf("Reassignment:\n");
+
+    foo: [2]Int = [1,2];
+    loop i in foo {
+        printf("  item = %d\n", i);
+    }
+
+    // TODO: this should be a compiler error, since the length of this array if larger than what was initially allocated
+    printf("Reassigning to [3,4,5,6]\n");
+    foo = [3,4,5,6];
+
+    loop i in foo {
+        printf("  item = %d\n", i);
+    }
     
 }

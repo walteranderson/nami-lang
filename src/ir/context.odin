@@ -675,24 +675,10 @@ gen_index_addr :: proc(ctx: ^Context, expr: ^ast.IndexExpr) -> Operand {
 	return add_dest
 }
 
-//
-// TODO: handle zero-initialization
-//
-gen_array_expr :: proc(ctx: ^Context, arr: ^ast.Array) -> Operand {
-	block := get_last_block(ctx)
+gen_array_expr_elements :: proc(ctx: ^Context, arr: ^ast.Array, head: Operand) {
 	typeinfo := arr.resolved_type.data.(ast.ArrayTypeInfo)
-	head_dest := Operand{.Temporary, make_temp(ctx)}
 	alignment := type_to_size(typeinfo.elements_type.kind)
 	element_type := type_ast_to_ir(typeinfo.elements_type.kind)
-	alloc_inst := make_instruction(
-		ctx,
-		.Alloc,
-		dest = head_dest,
-		dest_type = type_ast_to_ir(arr.resolved_type.kind),
-		src1 = Operand{.Integer, typeinfo_to_size(arr.resolved_type)},
-		alignment = alignment,
-	)
-	append(&block.instructions, alloc_inst)
 
 	for el_expr, idx in arr.elements {
 		offset := alignment * idx
@@ -700,7 +686,7 @@ gen_array_expr :: proc(ctx: ^Context, arr: ^ast.Array) -> Operand {
 
 		// If index is 0, we want to store the head pointer
 		// otherwise do some pointer arithmatic to get the correct offset and use that instead
-		src2 := head_dest
+		src2 := head
 		if idx > 0 {
 			add_dest := Operand{.Temporary, make_temp(ctx)}
 			add_inst := make_instruction(
@@ -708,10 +694,10 @@ gen_array_expr :: proc(ctx: ^Context, arr: ^ast.Array) -> Operand {
 				opcode = .Add,
 				dest = add_dest,
 				dest_type = .Long,
-				src1 = head_dest,
+				src1 = head,
 				src2 = Operand{.Integer, offset},
 			)
-			append(&block.instructions, add_inst)
+			add_instruction(ctx, add_inst)
 			src2 = add_dest
 		}
 
@@ -722,8 +708,28 @@ gen_array_expr :: proc(ctx: ^Context, arr: ^ast.Array) -> Operand {
 			src1 = src1,
 			src2 = src2,
 		)
-		append(&block.instructions, store_inst)
+		add_instruction(ctx, store_inst)
 	}
+}
+
+//
+// TODO: handle zero-initialization
+//
+gen_array_expr :: proc(ctx: ^Context, arr: ^ast.Array) -> Operand {
+	head_dest := Operand{.Temporary, make_temp(ctx)}
+
+	typeinfo := arr.resolved_type.data.(ast.ArrayTypeInfo)
+	alloc_inst := make_instruction(
+		ctx,
+		.Alloc,
+		dest = head_dest,
+		dest_type = type_ast_to_ir(arr.resolved_type.kind),
+		src1 = Operand{.Integer, typeinfo_to_size(arr.resolved_type)},
+		alignment = type_to_size(typeinfo.elements_type.kind),
+	)
+	add_instruction(ctx, alloc_inst)
+
+	gen_array_expr_elements(ctx, arr, head_dest)
 
 	return head_dest
 }
@@ -997,11 +1003,23 @@ gen_prefix_expr :: proc(ctx: ^Context, expr: ^ast.PrefixExpr) -> Operand {
 	return dest
 }
 
+gen_reassign_array :: proc(ctx: ^Context, expr: ^ast.ReassignExpr) -> Operand {
+	lvalue := get_lvalue_addr(ctx, expr.target)
+	arr := expr.value.(^ast.Array)
+	gen_array_expr_elements(ctx, arr, lvalue)
+	return lvalue
+}
+
 gen_reassign :: proc(ctx: ^Context, expr: ^ast.ReassignExpr) -> Operand {
+	lvalue_typeinfo := ast.get_resolved_type_from_expr(expr.target)
+	if lvalue_typeinfo.kind == .Array {
+		return gen_reassign_array(ctx, expr)
+	}
+
 	lvalue := get_lvalue_addr(ctx, expr.target)
 	rvalue := gen_expr(ctx, expr.value)
+
 	rvalue_typeinfo := ast.get_resolved_type_from_expr(expr.value)
-	block := get_last_block(ctx)
 	inst := make_instruction(
 		ctx,
 		.Store,
@@ -1009,7 +1027,10 @@ gen_reassign :: proc(ctx: ^Context, expr: ^ast.ReassignExpr) -> Operand {
 		src1 = rvalue,
 		src2 = lvalue,
 	)
+
+	block := get_last_block(ctx)
 	append(&block.instructions, inst)
+
 	return lvalue
 }
 
@@ -1273,6 +1294,11 @@ make_instruction :: proc(
 	inst.alignment = alignment
 	inst.conversion_type = conversion_type
 	return inst
+}
+
+add_instruction :: proc(ctx: ^Context, inst: ^Instruction) {
+	block := get_last_block(ctx)
+	append(&block.instructions, inst)
 }
 
 make_data_content :: proc(fields: ..DataField) -> DataContent {
