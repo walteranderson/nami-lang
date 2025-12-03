@@ -17,6 +17,7 @@ import tc "typechecker"
 Options :: struct {
 	file_name: string `args:"pos=0,required" usage:"Path to file, ex: ./example.nami"`,
 	ast:       bool `usage:"Prints the AST"`,
+	static:    bool `usage:"Create a static executable"`,
 }
 
 main :: proc() {
@@ -94,7 +95,7 @@ main :: proc() {
 		logger.info("> Starting compilation...")
 		comp_start := time.now()
 		program_name := fs.extract_base_name(opt.file_name)
-		ok := codegen.compile_qbe(&qbe_codegen.sb, program_name)
+		ok := codegen.compile_qbe(&qbe_codegen.sb, program_name, opt.static)
 		if !ok {
 			os.exit(1)
 		}

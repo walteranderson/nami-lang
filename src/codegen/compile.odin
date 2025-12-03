@@ -5,7 +5,7 @@ import "../logger"
 import os "core:os/os2"
 import "core:strings"
 
-compile_qbe :: proc(sb: ^strings.Builder, program_name: string) -> bool {
+compile_qbe :: proc(sb: ^strings.Builder, program_name: string, static: bool) -> bool {
 	qbe_file := fs.create_file_name(program_name, "ssa", context.temp_allocator)
 	asm_file := fs.create_file_name(program_name, "s", context.temp_allocator)
 	defer free_all(context.temp_allocator)
@@ -44,11 +44,16 @@ compile_qbe :: proc(sb: ^strings.Builder, program_name: string) -> bool {
 
 	// ASM -> Executable
 	{
-		cmd := []string{"gcc", "-o", program_name, asm_file}
+		cmd := make([dynamic]string)
+		append(&cmd, "gcc")
+		if static {
+			append(&cmd, "-static")
+		}
+		append(&cmd, "-o", program_name, asm_file)
 		logger.info("Running command: %v", cmd)
 
 		desc := os.Process_Desc {
-			command = cmd,
+			command = cmd[:],
 			stdin   = os.stdin,
 			stdout  = os.stdout,
 			stderr  = os.stderr,
