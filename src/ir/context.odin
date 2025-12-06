@@ -22,7 +22,6 @@ SymbolTable :: map[string]^SymbolEntry
 SymbolEntry :: struct {
 	name:     string,
 	kind:     SymbolKind,
-	ir_kind:  TypeKind,
 	typeinfo: ^ast.TypeInfo,
 	op:       Operand,
 }
@@ -59,7 +58,6 @@ add_global_symbols :: proc(ctx: ^Context, global_symbols: map[string]^ast.TypeIn
 			ctx,
 			name = key,
 			kind = kind,
-			ir_kind = type_ast_to_ir(value.kind),
 			typeinfo = value,
 			op = Operand{.GlobalSymbol, key},
 		)
@@ -266,7 +264,6 @@ gen_iterator_create_idx :: proc(ctx: ^Context, loop: ^ast.LoopStatement) -> Oper
 			ctx,
 			name = ident.value,
 			kind = .Local,
-			ir_kind = .Word,
 			typeinfo = ident.resolved_type,
 			op = idx,
 		)
@@ -368,7 +365,6 @@ gen_iterator_item :: proc(
 		ctx,
 		name = item_ident.value,
 		kind = .Local,
-		ir_kind = type_ast_to_ir(item_ident.resolved_type.kind),
 		typeinfo = item_ident.resolved_type,
 		op = add_dest,
 	)
@@ -454,7 +450,6 @@ gen_array_assign :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) {
 		ctx,
 		name = stmt.name.value,
 		kind = .Local,
-		ir_kind = type_ast_to_ir(stmt.resolved_type.kind),
 		typeinfo = stmt.resolved_type,
 		op = operand,
 	)
@@ -502,7 +497,6 @@ gen_assign_stmt :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) {
 		ctx,
 		name = stmt.name.value,
 		kind = .Local,
-		ir_kind = type_ast_to_ir(stmt.resolved_type.kind),
 		typeinfo = stmt.resolved_type,
 		op = Operand{kind = .Temporary, data = dest_name},
 	)
@@ -553,7 +547,6 @@ gen_global_assign :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) {
 		ctx,
 		name = stmt.name.value,
 		kind = .Global,
-		ir_kind = type_ast_to_ir(stmt.resolved_type.kind),
 		typeinfo = stmt.resolved_type,
 		op = Operand{kind = .GlobalSymbol, data = stmt.name.value},
 	)
@@ -1053,6 +1046,7 @@ get_lvalue_addr :: proc(ctx: ^Context, target: ast.Expr) -> Operand {
 
 gen_identifier :: proc(ctx: ^Context, expr: ^ast.Identifier) -> Operand {
 	ident, found := lookup_symbol(ctx, expr.value)
+	ir_kind := type_ast_to_ir(ident.typeinfo.kind)
 	if !found {
 		error(ctx, expr.tok, "undefined identifier: %s", expr.value)
 		return Operand{.Invalid, -1}
@@ -1068,8 +1062,8 @@ gen_identifier :: proc(ctx: ^Context, expr: ^ast.Identifier) -> Operand {
 		inst := make_instruction(
 			ctx,
 			.Load,
-			dest_type = ident.ir_kind,
-			opcode_type = ident.ir_kind,
+			dest_type = ir_kind,
+			opcode_type = ir_kind,
 			src1 = ident.op,
 			dest = dest,
 		)
@@ -1132,7 +1126,6 @@ gen_function_stmt :: proc(ctx: ^Context, stmt: ^ast.FunctionStatement) {
 		ctx,
 		name = def.name,
 		kind = .Func,
-		ir_kind = type_ast_to_ir(stmt.resolved_type.kind),
 		typeinfo = stmt.resolved_type,
 		op = Operand{.GlobalSymbol, def.name},
 	)
@@ -1149,7 +1142,6 @@ gen_function_stmt :: proc(ctx: ^Context, stmt: ^ast.FunctionStatement) {
 			ctx,
 			name = arg.ident.value,
 			kind = .FuncParam,
-			ir_kind = param.type,
 			typeinfo = arg.resolved_type,
 			op = param.op,
 		)
@@ -1352,14 +1344,12 @@ push_symbol_entry :: proc(
 	ctx: ^Context,
 	name: string,
 	kind: SymbolKind,
-	ir_kind: TypeKind,
 	typeinfo: ^ast.TypeInfo,
 	op: Operand,
 ) {
 	entry := new(SymbolEntry, ctx.allocator)
 	entry.name = name
 	entry.kind = kind
-	entry.ir_kind = ir_kind
 	entry.typeinfo = typeinfo
 	entry.op = op
 	ctx.symbol_stack[len(ctx.symbol_stack) - 1][entry.name] = entry
