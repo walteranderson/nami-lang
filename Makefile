@@ -5,7 +5,7 @@ SRC=./src
 
 .PHONY: build
 build:
-	odin build $(SRC) $(FLAGS)
+	ODIN_ERROR_POS_STYLE="unix" odin build $(SRC) $(FLAGS)
 
 .PHONY: test
 test:

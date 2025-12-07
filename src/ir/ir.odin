@@ -7,7 +7,7 @@ import "../logger"
 Module :: struct {
 	functions: [dynamic]^FunctionDef,
 	data:      [dynamic]^DataDef,
-	// types:     [dynamic]^TypeDef,
+	types:     [dynamic]^TypeDef,
 }
 
 FunctionDef :: struct {
@@ -170,6 +170,43 @@ CallArgument :: struct {
 	value: Operand,
 }
 
+
+TypeDef :: struct {
+	name:      string,
+	alignment: int,
+	content:   TypeDefContent,
+}
+
+TypeDefContent :: union {
+	OpaqueTypeContent,
+	SequentialTypeContent,
+	UnionTypeContent,
+}
+
+// type :t = align 16 { 32 }
+// alignment is required
+OpaqueTypeContent :: struct {
+	size: int,
+}
+
+// type :t = { w 32, l, :foo }
+SequentialTypeContent :: struct {
+	fields: [dynamic]TypeField,
+}
+
+// type :t = { {w}, {l}, {:foo} }
+UnionTypeContent :: struct {
+	fields: [dynamic]TypeField,
+}
+
+TypeField :: struct {
+	kind: TypeKind,
+	data: union {
+		string, // for ident
+		int, // size
+	},
+}
+
 DataDef :: struct {
 	name:    string,
 	linkage: Linkage,
@@ -215,4 +252,5 @@ TypeKind :: enum {
 	// Double,
 	Byte,
 	HalfByte,
+	Aggregate,
 }

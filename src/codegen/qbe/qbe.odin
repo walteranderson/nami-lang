@@ -23,9 +23,54 @@ from_ir :: proc(qbe: ^QbeCodegen, module: ^ir.Module) {
 	for def in module.data {
 		gen_data(qbe, def)
 	}
+	for t in module.types {
+		gen_types(qbe, t)
+	}
 	for func in module.functions {
 		gen_func(qbe, func)
 	}
+}
+
+gen_types :: proc(qbe: ^QbeCodegen, typedef: ^ir.TypeDef) {
+	emit(qbe, "type %s = ", get_aggregate_type_name(qbe, typedef.name))
+	if typedef.alignment > 0 {
+		emit(qbe, "align %d ", typedef.alignment)
+	}
+	emit(qbe, "{{ ")
+	switch c in typedef.content {
+	case ir.UnionTypeContent:
+		for field, idx in c.fields {
+			emit(qbe, "{{")
+			if field.kind == .Aggregate {
+				emit(qbe, "%s", get_aggregate_type_name(qbe, typedef.name))
+			} else {
+				emit(qbe, "%s", type_to_str(field.kind))
+			}
+			emit(qbe, "}}")
+			if idx < len(c.fields) - 1 {
+				emit(qbe, ", ")
+			}
+		}
+	case ir.OpaqueTypeContent:
+		emit(qbe, "%d", c.size)
+	case ir.SequentialTypeContent:
+		for field, idx in c.fields {
+			if field.kind == .Aggregate {
+				name := field.data.(string)
+				emit(qbe, "%s", get_aggregate_type_name(qbe, name))
+			} else {
+				emit(qbe, "%s", type_to_str(field.kind))
+				size, ok := field.data.(int)
+				if ok {
+					emit(qbe, " %d", size)
+				}
+			}
+			if idx < len(c.fields) - 1 {
+				emit(qbe, ", ")
+			}
+		}
+	}
+	emit(qbe, " }}\n")
 }
 
 gen_data :: proc(qbe: ^QbeCodegen, def: ^ir.DataDef) {
@@ -175,6 +220,14 @@ gen_jump :: proc(qbe: ^QbeCodegen, jump: ^ir.Jump) {
 	case .Hlt:
 		panic("TODO: Hlt not implemented")
 	}
+}
+
+get_aggregate_type_name :: proc(qbe: ^QbeCodegen, name: string) -> string {
+	sb: strings.Builder
+	strings.builder_init(&sb, qbe.allocator)
+	defer strings.builder_destroy(&sb)
+	fmt.sbprintf(&sb, ":%s", name)
+	return strings.to_string(sb)
 }
 
 get_operand :: proc(qbe: ^QbeCodegen, op: ir.Operand) -> string {
@@ -337,7 +390,7 @@ type_to_str :: proc(type: ir.TypeKind) -> string {
 	switch type {
 	case .Word:
 		return "w"
-	case .Long:
+	case .Long, .Aggregate:
 		return "l"
 	case .Byte:
 		return "b"

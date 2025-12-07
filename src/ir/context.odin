@@ -42,7 +42,21 @@ new_context :: proc(
 	ctx.errors = make([dynamic]logger.CompilerError, allocator)
 	push_symbol_scope(ctx)
 	add_global_symbols(ctx, global_symbols)
+	add_builtins(ctx)
 	return ctx
+}
+
+add_builtins :: proc(ctx: ^Context) {
+	array_typedef_content := SequentialTypeContent{}
+	head := TypeField {
+		kind = .Long,
+	}
+	length := TypeField {
+		kind = .Word,
+	}
+	append(&array_typedef_content.fields, head, length)
+	array_typedef := make_typedef(ctx, name = "Array", content = array_typedef_content)
+	add_typedef(ctx, array_typedef)
 }
 
 add_global_symbols :: proc(ctx: ^Context, global_symbols: map[string]^ast.TypeInfo) {
@@ -1291,6 +1305,23 @@ make_instruction :: proc(
 add_instruction :: proc(ctx: ^Context, inst: ^Instruction) {
 	block := get_last_block(ctx)
 	append(&block.instructions, inst)
+}
+
+make_typedef :: proc(
+	ctx: ^Context,
+	name: string,
+	alignment: int = 0,
+	content: TypeDefContent = nil,
+) -> ^TypeDef {
+	td := new(TypeDef, ctx.allocator)
+	td.name = name
+	td.alignment = alignment
+	td.content = content
+	return td
+}
+
+add_typedef :: proc(ctx: ^Context, td: ^TypeDef) {
+	append(&ctx.module.types, td)
 }
 
 make_data_content :: proc(fields: ..DataField) -> DataContent {
