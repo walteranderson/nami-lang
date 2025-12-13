@@ -1,4 +1,6 @@
 fn main(args: []String) Int
 {
-    return 1;
+    loop arg, i in args {
+        printf("i=%d, arg=%s\n", i, arg);
+    }
 }

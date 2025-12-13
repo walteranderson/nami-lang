@@ -7,7 +7,7 @@ import "core:fmt"
 import "core:mem"
 import "core:strings"
 
-USER_MAIN_NAME :: "usermain"
+USER_MAIN_NAME :: "user_main"
 
 Context :: struct {
 	allocator:       mem.Allocator,
@@ -302,33 +302,33 @@ gen_iterator_loop :: proc(ctx: ^Context, loop: ^ast.LoopStatement) {
 	load_idx := gen_iterator_load_idx(ctx, idx_operand)
 
 	// TODO: eventually make all arrays use the slice aggregate type
-	src2: Operand
+	count_operand: Operand
 	#partial switch data in items_symbol.typeinfo.data {
 	case ast.ArrayTypeInfo:
-		src2 = Operand{.Integer, data.size}
+		count_operand = Operand{.Integer, data.size}
 	case ast.SliceTypeInfo:
-		count_operand := Operand{.Temporary, make_temp(ctx)}
+		count_ptr := Operand{.Temporary, make_temp(ctx)}
 		add_instruction(
 			ctx,
 			make_instruction(
 				ctx,
 				opcode = .Add,
-				dest = count_operand,
+				dest = count_ptr,
 				dest_type = .Long,
 				src1 = items_symbol.op,
 				src2 = Operand{.Integer, 8},
 			),
 		)
-		src2 = Operand{.Temporary, make_temp(ctx)}
+		count_operand = Operand{.Temporary, make_temp(ctx)}
 		add_instruction(
 			ctx,
 			make_instruction(
 				ctx,
 				opcode = .Load,
 				opcode_type = .Word,
-				dest = src2,
+				dest = count_operand,
 				dest_type = .Word,
-				src1 = count_operand,
+				src1 = count_ptr,
 			),
 		)
 	case:
@@ -338,17 +338,19 @@ gen_iterator_loop :: proc(ctx: ^Context, loop: ^ast.LoopStatement) {
 
 	// Do the comparison: if idx is less than the length of the array
 	condition := Operand{.Temporary, make_temp(ctx)}
-	cond_inst := make_instruction(
+	add_instruction(
 		ctx,
-		dest = condition,
-		dest_type = .Word,
-		opcode = .Compare,
-		comparison_type = .SignedLess,
-		opcode_type = .Word,
-		src1 = load_idx,
-		src2 = src2,
+		make_instruction(
+			ctx,
+			dest = condition,
+			dest_type = .Word,
+			opcode = .Compare,
+			comparison_type = .SignedLess,
+			opcode_type = .Word,
+			src1 = load_idx,
+			src2 = count_operand,
+		),
 	)
-	append(&loop_cond.instructions, cond_inst)
 
 	jnz := make_jump(ctx, .Jnz)
 	jnz.data = JnzData {
@@ -364,7 +366,7 @@ gen_iterator_loop :: proc(ctx: ^Context, loop: ^ast.LoopStatement) {
 
 	add_block(ctx, loop_body)
 
-	gen_iterator_item(ctx, idx_operand, items_symbol, item_ident, array_element_typeinfo)
+	gen_iterator_item(ctx, idx_operand, items_symbol, item_ident)
 	gen_stmt(ctx, loop.block)
 	gen_iterator_increment_idx(ctx, idx_operand)
 
@@ -460,49 +462,70 @@ gen_iterator_item :: proc(
 	idx_operand: Operand,
 	items_symbol: ^SymbolEntry,
 	item_ident: ^ast.Identifier,
-	arr_typeinfo: ast.ArrayTypeInfo,
 ) {
-	block := get_last_block(ctx)
-	element_size := type_to_size(arr_typeinfo.elements_type.kind)
-
 	// load the index
 	load_idx := gen_iterator_load_idx(ctx, idx_operand)
 
 	// multiply index by the element size to get the array offset
 	mul_dest := Operand{.Temporary, make_temp(ctx)}
-	mul_inst := make_instruction(
+	add_instruction(
 		ctx,
-		opcode = .Mul,
-		dest = mul_dest,
-		dest_type = .Word,
-		src1 = load_idx,
-		src2 = Operand{.Integer, element_size},
+		make_instruction(
+			ctx,
+			opcode = .Mul,
+			dest = mul_dest,
+			dest_type = .Word,
+			src1 = load_idx,
+			src2 = Operand{.Integer, type_to_size(item_ident.resolved_type.kind)},
+		),
 	)
-	append(&block.instructions, mul_inst)
 
 	// convert from .Word to .Long so its able to be added to the array pointer
 	conv_dest := Operand{.Temporary, make_temp(ctx)}
-	conv_inst := make_instruction(
+	add_instruction(
 		ctx,
-		opcode = .Convert,
-		conversion_type = .EXT_SIGNED_WORD,
-		dest = conv_dest,
-		dest_type = .Long,
-		src1 = mul_dest,
+		make_instruction(
+			ctx,
+			opcode = .Convert,
+			conversion_type = .EXT_SIGNED_WORD,
+			dest = conv_dest,
+			dest_type = .Long,
+			src1 = mul_dest,
+		),
 	)
-	append(&block.instructions, conv_inst)
+
+
+	arr_ptr: Operand
+	if items_symbol.typeinfo.kind == .Slice {
+		arr_ptr = Operand{.Temporary, make_temp(ctx)}
+		add_instruction(
+			ctx,
+			make_instruction(
+				ctx,
+				opcode = .Load,
+				opcode_type = .Long,
+				dest = arr_ptr,
+				dest_type = .Long,
+				src1 = items_symbol.op,
+			),
+		)
+	} else {
+		arr_ptr = items_symbol.op
+	}
 
 	// add to the array pointer
 	add_dest := Operand{.Temporary, make_temp(ctx)}
-	add_inst := make_instruction(
+	add_instruction(
 		ctx,
-		opcode = .Add,
-		dest = add_dest,
-		dest_type = .Long,
-		src1 = items_symbol.op,
-		src2 = conv_dest,
+		make_instruction(
+			ctx,
+			opcode = .Add,
+			dest = add_dest,
+			dest_type = .Long,
+			src1 = arr_ptr,
+			src2 = conv_dest,
+		),
 	)
-	append(&block.instructions, add_inst)
 
 	// add symbol to symbol_table
 	push_symbol_entry(

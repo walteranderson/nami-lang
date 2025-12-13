@@ -180,19 +180,6 @@ check_loop_stmt :: proc(
 		symbols_push_scope(tc)
 		defer symbols_pop_scope(tc)
 
-		items_typeinfo := check_expr(tc, loop.items)
-		if items_typeinfo.kind != .Array {
-			error(
-				tc,
-				ast.get_token_from_expr(loop.items),
-				"Expected array, got %s",
-				items_typeinfo.kind,
-			)
-			return
-		}
-		arr_typeinfo := items_typeinfo.data.(ast.ArrayTypeInfo)
-
-
 		item_ident, ok := loop.item.(^ast.Identifier)
 		if !ok {
 			error(tc, ast.get_token_from_expr(loop.item), "Expected identifier")
@@ -204,8 +191,27 @@ check_loop_stmt :: proc(
 			item_ident.resolved_type = make_typeinfo(tc, .Invalid)
 			return
 		}
-		item_ident.resolved_type = make_typeinfo(tc, arr_typeinfo.elements_type.kind)
-		add_symbol(tc, item_ident.value, item_ident.resolved_type)
+
+		items_typeinfo := check_expr(tc, loop.items)
+		#partial switch items_typeinfo.kind {
+		case .Array:
+			arr_typeinfo := items_typeinfo.data.(ast.ArrayTypeInfo)
+			item_ident.resolved_type = make_typeinfo(tc, arr_typeinfo.elements_type.kind)
+			add_symbol(tc, item_ident.value, item_ident.resolved_type)
+		case .Slice:
+			slice_typeinfo := items_typeinfo.data.(ast.SliceTypeInfo)
+			item_ident.resolved_type = make_typeinfo(tc, slice_typeinfo.elements_type.kind)
+			add_symbol(tc, item_ident.value, item_ident.resolved_type)
+		case:
+			error(
+				tc,
+				ast.get_token_from_expr(loop.items),
+				"Expected array, got %s",
+				items_typeinfo.kind,
+			)
+			return
+		}
+
 
 		// idx is optional
 		if loop.idx != nil {
