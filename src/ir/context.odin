@@ -7,6 +7,8 @@ import "core:fmt"
 import "core:mem"
 import "core:strings"
 
+USER_MAIN_NAME :: "usermain"
+
 Context :: struct {
 	allocator:       mem.Allocator,
 	module:          ^Module,
@@ -47,16 +49,13 @@ new_context :: proc(
 }
 
 add_builtins :: proc(ctx: ^Context) {
-	array_typedef_content := SequentialTypeContent{}
-	head := TypeField {
-		kind = .Long,
+	{ 	// slice type
+		slice_typedef_content := SequentialTypeContent{}
+		append(&slice_typedef_content.fields, TypeField{.Long, nil})
+		append(&slice_typedef_content.fields, TypeField{.Word, nil})
+		slice_typedef := make_typedef(ctx, name = "Slice", content = slice_typedef_content)
+		add_typedef(ctx, slice_typedef)
 	}
-	length := TypeField {
-		kind = .Word,
-	}
-	append(&array_typedef_content.fields, head, length)
-	array_typedef := make_typedef(ctx, name = "Array", content = array_typedef_content)
-	add_typedef(ctx, array_typedef)
 }
 
 add_global_symbols :: proc(ctx: ^Context, global_symbols: map[string]^ast.TypeInfo) {
@@ -82,6 +81,104 @@ from_ast :: proc(ctx: ^Context, module: ^ast.Module) {
 	for stmt in module.stmts {
 		gen_stmt(ctx, stmt)
 	}
+	gen_main(ctx)
+}
+
+gen_main :: proc(ctx: ^Context) {
+	def := new(FunctionDef, ctx.allocator)
+	def.linkage = .Export
+	def.name = "main"
+	def.return_type = .Word
+
+	argc := FunctionParam {
+		type = .Word,
+		op   = Operand{.Temporary, make_temp(ctx)},
+	}
+	argv := FunctionParam {
+		type = .Long,
+		op   = Operand{.Temporary, make_temp(ctx)},
+	}
+	append(&def.params, argc, argv)
+
+	block := make_block(ctx, "start")
+	append(&def.blocks, block)
+	append(&ctx.module.functions, def)
+
+	// allocate args
+	args_operand := Operand{.Temporary, make_temp(ctx)}
+	add_instruction(
+		ctx,
+		make_instruction(
+			ctx,
+			opcode = .Alloc,
+			dest = args_operand,
+			dest_type = .Long,
+			alignment = 8,
+			src1 = Operand{.Integer, 16},
+		),
+	)
+
+	// store argv ptr in args head
+	add_instruction(
+		ctx,
+		make_instruction(
+			ctx,
+			opcode = .Store,
+			opcode_type = .Long,
+			src1 = argv.op,
+			src2 = args_operand,
+		),
+	)
+
+	// get ptr to count
+	count_operand := Operand{.Temporary, make_temp(ctx)}
+	add_instruction(
+		ctx,
+		make_instruction(
+			ctx,
+			opcode = .Add,
+			dest = count_operand,
+			dest_type = .Long,
+			src1 = args_operand,
+			src2 = Operand{.Integer, 8},
+		),
+	)
+
+	// store argc in count
+	add_instruction(
+		ctx,
+		make_instruction(
+			ctx,
+			opcode = .Store,
+			opcode_type = .Word,
+			src1 = argc.op,
+			src2 = count_operand,
+		),
+	)
+
+	// call USER_MAIN_NAME
+	return_operand := Operand{.Temporary, make_temp(ctx)}
+	call_inst := make_instruction(
+		ctx,
+		opcode = .Call,
+		src1 = Operand{.GlobalSymbol, USER_MAIN_NAME},
+		dest = return_operand,
+		dest_type = .Word,
+	)
+	append(
+		&call_inst.call_args,
+		CallArgument {
+			kind = .Regular,
+			type = .Aggregate,
+			value = args_operand,
+			aggregate_name = "Slice",
+		},
+	)
+	add_instruction(ctx, call_inst)
+
+	ret := make_jump(ctx, .Ret)
+	ret.data = RetData{return_operand}
+	get_last_block(ctx).terminator = ret
 }
 
 gen_stmt :: proc(ctx: ^Context, stmt: ast.Statement) {
@@ -200,9 +297,44 @@ gen_iterator_loop :: proc(ctx: ^Context, loop: ^ast.LoopStatement) {
 		error(ctx, items_ident.tok, "Identifier not found %s", items_ident.value)
 		return
 	}
-	array_element_typeinfo := items_symbol.typeinfo.data.(ast.ArrayTypeInfo)
+
 
 	load_idx := gen_iterator_load_idx(ctx, idx_operand)
+
+	// TODO: eventually make all arrays use the slice aggregate type
+	src2: Operand
+	#partial switch data in items_symbol.typeinfo.data {
+	case ast.ArrayTypeInfo:
+		src2 = Operand{.Integer, data.size}
+	case ast.SliceTypeInfo:
+		count_operand := Operand{.Temporary, make_temp(ctx)}
+		add_instruction(
+			ctx,
+			make_instruction(
+				ctx,
+				opcode = .Add,
+				dest = count_operand,
+				dest_type = .Long,
+				src1 = items_symbol.op,
+				src2 = Operand{.Integer, 8},
+			),
+		)
+		src2 = Operand{.Temporary, make_temp(ctx)}
+		add_instruction(
+			ctx,
+			make_instruction(
+				ctx,
+				opcode = .Load,
+				opcode_type = .Word,
+				dest = src2,
+				dest_type = .Word,
+				src1 = count_operand,
+			),
+		)
+	case:
+		error(ctx, items_ident.tok, "Unexpected identifier metadata")
+		return
+	}
 
 	// Do the comparison: if idx is less than the length of the array
 	condition := Operand{.Temporary, make_temp(ctx)}
@@ -214,9 +346,7 @@ gen_iterator_loop :: proc(ctx: ^Context, loop: ^ast.LoopStatement) {
 		comparison_type = .SignedLess,
 		opcode_type = .Word,
 		src1 = load_idx,
-		// TODO: since we only support fixed-size arrays,
-		// hardcoding the array size here for figuring out when we're done iterating the array
-		src2 = Operand{.Integer, array_element_typeinfo.size},
+		src2 = src2,
 	)
 	append(&loop_cond.instructions, cond_inst)
 
@@ -1128,13 +1258,13 @@ gen_function_stmt :: proc(ctx: ^Context, stmt: ^ast.FunctionStatement) {
 	is_main := stmt.name.value == "main"
 
 	if is_main {
-		def.linkage = .Export
+		def.name = USER_MAIN_NAME
 	} else {
-		def.linkage = .None
+		def.name = stmt.name.value
 	}
 
+	def.linkage = .None
 	def.return_type = type_ast_to_ir(typeinfo.return_type.kind)
-	def.name = stmt.name.value
 
 	push_symbol_entry(
 		ctx,
@@ -1151,6 +1281,9 @@ gen_function_stmt :: proc(ctx: ^Context, stmt: ^ast.FunctionStatement) {
 		param := FunctionParam {
 			type = type_ast_to_ir(arg.resolved_type.kind),
 			op   = Operand{.Temporary, make_temp(ctx)},
+		}
+		if arg.resolved_type.kind == .Slice {
+			param.aggregate_name = "Slice"
 		}
 		push_symbol_entry(
 			ctx,
@@ -1411,6 +1544,8 @@ type_ast_to_ir :: proc(type: ast.TypeKind) -> TypeKind {
 		return .Void
 	case .Array:
 		return .Long
+	case .Slice:
+		return .Aggregate
 	case .Invalid, .Any:
 		panic("ERROR converting ast to ir - Invalid/Any type")
 	}
@@ -1432,7 +1567,7 @@ type_to_size :: proc(type: ast.TypeKind) -> int {
 		return 4
 	case .Bool:
 		return 4
-	case .Array:
+	case .Array, .Slice:
 		return 8
 	case .String:
 		return 8

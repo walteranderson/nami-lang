@@ -496,12 +496,21 @@ parse_type_annotation :: proc(p: ^Parser) -> ^ast.TypeAnnotation {
 	ta := new(ast.TypeAnnotation, p.allocator)
 	ta.tok = p.cur
 
-	if p.cur.type != .L_BRACKET {
+	if !cur_token_is(p, .L_BRACKET) {
 		return ta
 	}
 
 	next_token(p)
 
+	// slices
+	if cur_token_is(p, .R_BRACKET) {
+		next_token(p)
+		elements_type := parse_type_annotation(p)
+		ta.data = ast.SliceTypeAnnotation{elements_type}
+		return ta
+	}
+
+	// arrays
 	size_expr := parse_expr(p, .LOWEST)
 
 	if !expect_peek(p, .R_BRACKET) {

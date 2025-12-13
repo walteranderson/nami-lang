@@ -19,8 +19,11 @@ FunctionDef :: struct {
 }
 
 FunctionParam :: struct {
-	type: TypeKind,
-	op:   Operand,
+	type:           TypeKind,
+	op:             Operand,
+
+	// TODO: more comprehensive solution to aggregate type lookups
+	aggregate_name: string,
 }
 
 Block :: struct {
@@ -162,12 +165,15 @@ ComparisonType :: enum {
 }
 
 CallArgument :: struct {
-	kind:  enum {
+	kind:           enum {
 		Regular,
 		Variadic,
 	},
-	type:  TypeKind,
-	value: Operand,
+	type:           TypeKind,
+	value:          Operand,
+
+	// TODO: more comprehensive solution to aggregate type lookups
+	aggregate_name: string,
 }
 
 

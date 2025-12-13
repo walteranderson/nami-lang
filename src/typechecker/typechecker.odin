@@ -77,6 +77,7 @@ check_func_signature :: proc(tc: ^TypeChecker, fn: ^ast.FunctionStatement) {
 	// or implicitly set it to Int if no type is given
 	if fn.name.value == "main" {
 		tc.has_main = true
+		// TODO: make sure usermain has the correct signature `fn main(args: []String) -> Int`
 		if return_type.kind == .Void {
 			return_type.kind = .Int
 		} else if return_type.kind != .Int {
@@ -268,6 +269,15 @@ check_assign_stmt :: proc(tc: ^TypeChecker, s: ^ast.AssignStatement) {
 	typeinfo := resolve_type_annotation(tc, s.declared_type)
 	if typeinfo.kind == .Invalid {
 		error(tc, s.declared_type.tok, "Invalid type - %s", s.declared_type.tok.type)
+		s.resolved_type = make_typeinfo(tc, .Invalid)
+		return
+	}
+	if typeinfo.kind == .Slice {
+		error(
+			tc,
+			s.declared_type.tok,
+			"Cannot assign to a slice - to allocate a new array provide the size eg: [5]Int",
+		)
 		s.resolved_type = make_typeinfo(tc, .Invalid)
 		return
 	}
@@ -632,6 +642,46 @@ symbols_push_scope :: proc(tc: ^TypeChecker) {
 	append(&tc.symbols, scope)
 }
 
+resolve_array_type_annotation :: proc(
+	tc: ^TypeChecker,
+	annotation: ^ast.TypeAnnotation,
+) -> ^ast.TypeInfo {
+	arr_annotation := annotation.data.(ast.ArrayTypeAnnotation)
+	size_typeinfo := check_expr(tc, arr_annotation.size_expr)
+	if size_typeinfo.kind != .Int {
+		error(tc, ast.get_token_from_expr(arr_annotation.size_expr), "Array size must be an Int")
+		return make_typeinfo(tc, .Invalid)
+	}
+
+	//
+	// TODO: support anything that evaluates to an int
+	//
+	size := arr_annotation.size_expr.(^ast.IntLiteral).value
+	elements_type := resolve_type_annotation(tc, arr_annotation.elements_type)
+
+	arr_typeinfo := make_typeinfo(tc, .Array)
+	arr_typeinfo.data = ast.ArrayTypeInfo {
+		elements_type = elements_type,
+		size          = size,
+	}
+	return arr_typeinfo
+}
+
+resolve_slice_type_annotation :: proc(
+	tc: ^TypeChecker,
+	annotation: ^ast.TypeAnnotation,
+) -> ^ast.TypeInfo {
+	slice_annotation := annotation.data.(ast.SliceTypeAnnotation)
+
+	elements_type := resolve_type_annotation(tc, slice_annotation.elements_type)
+
+	slice_typeinfo := make_typeinfo(tc, .Slice)
+	slice_typeinfo.data = ast.SliceTypeInfo {
+		elements_type = elements_type,
+	}
+	return slice_typeinfo
+}
+
 resolve_type_annotation :: proc(
 	tc: ^TypeChecker,
 	annotation: ^ast.TypeAnnotation,
@@ -650,29 +700,12 @@ resolve_type_annotation :: proc(
 	case .TYPE_VOID:
 		return make_typeinfo(tc, .Void)
 	case .L_BRACKET:
-		arr_annotation := annotation.data.(ast.ArrayTypeAnnotation)
-		size_typeinfo := check_expr(tc, arr_annotation.size_expr)
-		if size_typeinfo.kind != .Int {
-			error(
-				tc,
-				ast.get_token_from_expr(arr_annotation.size_expr),
-				"Array size must be an Int",
-			)
-			return make_typeinfo(tc, .Invalid)
+		switch d in annotation.data {
+		case ast.ArrayTypeAnnotation:
+			return resolve_array_type_annotation(tc, annotation)
+		case ast.SliceTypeAnnotation:
+			return resolve_slice_type_annotation(tc, annotation)
 		}
-
-		//
-		// TODO: support anything that evaluates to an int
-		//
-		size := arr_annotation.size_expr.(^ast.IntLiteral).value
-		elements_type := resolve_type_annotation(tc, arr_annotation.elements_type)
-
-		arr_typeinfo := make_typeinfo(tc, .Array)
-		arr_typeinfo.data = ast.ArrayTypeInfo {
-			elements_type = elements_type,
-			size          = size,
-		}
-		return arr_typeinfo
 	}
 	logger.error("Unreachable type annotation: %s", annotation.tok.type)
 	return make_typeinfo(tc, .Invalid)

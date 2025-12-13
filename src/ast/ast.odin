@@ -152,6 +152,7 @@ TypeKind :: enum {
 	String,
 	Function,
 	Array,
+	Slice,
 }
 
 FunctionTypeInfo :: struct {
@@ -164,12 +165,17 @@ ArrayTypeInfo :: struct {
 	size:          int,
 }
 
+SliceTypeInfo :: struct {
+	elements_type: ^TypeInfo,
+}
+
 TypeInfo :: struct {
 	kind:         TypeKind,
 	reassignable: bool,
 	data:         union {
 		FunctionTypeInfo,
 		ArrayTypeInfo,
+		SliceTypeInfo,
 	},
 }
 
@@ -178,10 +184,15 @@ ArrayTypeAnnotation :: struct {
 	size_expr:     Expr,
 }
 
+SliceTypeAnnotation :: struct {
+	elements_type: ^TypeAnnotation,
+}
+
 TypeAnnotation :: struct {
 	tok:  t.Token,
 	data: union {
 		ArrayTypeAnnotation,
+		SliceTypeAnnotation,
 	},
 }
 
@@ -330,7 +341,8 @@ print_ast :: proc(node: AnyNode, indent_level: int) {
 		fmt.printf("%s  ResolvedReturnType: %s\n", indent, typeinfo.return_type.kind)
 		print_ast(cast(AnyNode)n.body, indent_level + 1)
 	case ^FunctionArg:
-		fmt.printf("%sFunctionArg: %s\n", indent, n.ident.value)
+		fmt.printf("%sFunctionArg:\n", indent)
+		fmt.printf("%s  Name: %s\n", indent, n.ident.value)
 		if n.declared_type != nil {
 			fmt.printf("%s  Type: ", indent)
 			print_type_annotation(n.declared_type)
@@ -483,7 +495,12 @@ print_type_annotation :: proc(ta: ^TypeAnnotation) {
 		fmt.printf("%s", ta.tok.literal)
 		return
 	}
-	array_ta := ta.data.(ArrayTypeAnnotation)
-	fmt.printf("[%d]", array_ta.size_expr.(^IntLiteral).value)
-	print_type_annotation(array_ta.elements_type)
+	switch data in ta.data {
+	case ArrayTypeAnnotation:
+		fmt.printf("[%d]", data.size_expr.(^IntLiteral).value)
+		print_type_annotation(data.elements_type)
+	case SliceTypeAnnotation:
+		fmt.printf("[]")
+		print_type_annotation(data.elements_type)
+	}
 }

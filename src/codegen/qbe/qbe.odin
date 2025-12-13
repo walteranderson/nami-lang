@@ -115,7 +115,12 @@ gen_func :: proc(qbe: ^QbeCodegen, func: ^ir.FunctionDef) {
 	emit(qbe, "(")
 	for param, idx in func.params {
 		assert(param.type != .Void)
-		emit(qbe, "%s %s", type_to_str(param.type), get_operand(qbe, param.op))
+		emit(
+			qbe,
+			"%s %s",
+			param.type == .Aggregate ? get_aggregate_type_name(qbe, param.aggregate_name) : type_to_str(param.type),
+			get_operand(qbe, param.op),
+		)
 		if idx < len(func.params) - 1 {
 			emit(qbe, ", ")
 		}
@@ -178,7 +183,12 @@ gen_inst :: proc(qbe: ^QbeCodegen, inst: ^ir.Instruction) {
 				emit(qbe, "...")
 			} else {
 				assert(arg.type != .Void)
-				emit(qbe, "%s %s", type_to_str(arg.type), get_operand(qbe, arg.value))
+				emit(
+					qbe,
+					"%s %s",
+					arg.type == .Aggregate ? get_aggregate_type_name(qbe, arg.aggregate_name) : type_to_str(arg.type),
+					get_operand(qbe, arg.value),
+				)
 			}
 			if idx < len(inst.call_args) - 1 {
 				emit(qbe, ", ")
