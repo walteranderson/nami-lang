@@ -1,45 +1,39 @@
-fn main() {
+fn main(args: []String)
+{
+    handle_args(args);
+
     items: [4]Int = [69, 420, 69420];
 
-    printf("Access via index:\n");
+    printf("via index:\n");
     printf("  item[0] = %d\n", items[0]);
     printf("  item[1] = %d\n", items[1]);
     printf("  item[2] = %d\n", items[2]);
     printf("  item[3] = %d\n", items[3]);
 
-    printf("loop with idx:\n");
-    loop item, idx in items {
-        printf("  item[%d] = %d\n", idx, item);
-    }
+    printf("loop item, idx in items\n");
+    print_arr(items);
     
-    printf("loop without idx:\n");
+    printf("loop item in items\n");
     loop item in items {
         printf("  item = %d\n", item);
     }
 
-    printf("Change via index:\n");
-    printf("Changing to [1, 2, 3]\n");
-    items[0] = 1;
-    items[1] = 2;
-    items[2] = 3;
-    printf("  item[0] = %d\n", items[0]);
-    printf("  item[1] = %d\n", items[1]);
-    printf("  item[2] = %d\n", items[2]);
-    printf("  item[3] = %d\n", items[3]);
+    printf("Reassignment with index ==> items[3] = 99;\n");
+    items[3] = 99;
+    print_arr(items);
+}
 
-    printf("Reassignment:\n");
-
-    foo: [2]Int = [1,2];
-    loop i in foo {
-        printf("  item = %d\n", i);
+fn handle_args(args: []String)
+{
+    printf("Handling cli args\n");
+    loop arg in args {
+        printf("  arg = %s\n", arg);
     }
+}
 
-    // TODO: this should be a compiler error, since the length of this array if larger than what was initially allocated
-    printf("Reassigning to [3,4,5,6]\n");
-    foo = [3,4,5,6];
-
-    loop i in foo {
-        printf("  item = %d\n", i);
+fn print_arr(items: [4]Int)
+{
+    loop item, idx in items {
+        printf("  idx = %d, item = %d\n", idx, item);
     }
-    
 }

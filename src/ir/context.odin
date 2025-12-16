@@ -78,10 +78,10 @@ add_global_symbols :: proc(ctx: ^Context, global_symbols: map[string]^ast.TypeIn
 }
 
 from_ast :: proc(ctx: ^Context, module: ^ast.Module) {
+	gen_main(ctx)
 	for stmt in module.stmts {
 		gen_stmt(ctx, stmt)
 	}
-	gen_main(ctx)
 }
 
 gen_main :: proc(ctx: ^Context) {
@@ -933,6 +933,9 @@ gen_call_args :: proc(ctx: ^Context, expr: ^ast.CallExpr) -> [dynamic]CallArgume
 			type  = type_ast_to_ir(typeinfo.kind),
 			value = op,
 		}
+		if typeinfo.kind == .Slice {
+			call_arg.aggregate_name = "Slice"
+		}
 		append(&call_args, call_arg)
 	}
 	return call_args
@@ -1225,6 +1228,10 @@ gen_identifier :: proc(ctx: ^Context, expr: ^ast.Identifier) -> Operand {
 	case .FuncParam, .Func:
 		return ident.op
 	case .Local, .Global:
+		if ident.typeinfo.kind == .Array || ident.typeinfo.kind == .Slice {
+			return ident.op
+		}
+
 		dest := Operand{.Temporary, make_temp(ctx)}
 		inst := make_instruction(
 			ctx,
