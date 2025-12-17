@@ -1,6 +1,11 @@
-fn main(args: []string) int
+fn main()
 {
-    loop arg, i in args {
-        printf("i=%d, arg=%s\n", i, arg);
+    foo([1,2,3]);
+}
+
+fn foo(items: []int)
+{
+    loop i in items {
+        printf("%d\n", i);
     }
 }

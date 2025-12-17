@@ -113,56 +113,7 @@ gen_main :: proc(ctx: ^Context) {
 	append(&ctx.module.functions, def)
 
 	// allocate args
-	args_operand := Operand{.Temporary, make_temp(ctx)}
-	add_instruction(
-		ctx,
-		make_instruction(
-			ctx,
-			opcode = .Alloc,
-			dest = args_operand,
-			dest_type = .Long,
-			alignment = 8,
-			src1 = Operand{.Integer, 16},
-		),
-	)
-
-	// store argv ptr in args head
-	add_instruction(
-		ctx,
-		make_instruction(
-			ctx,
-			opcode = .Store,
-			opcode_type = .Long,
-			src1 = argv.op,
-			src2 = args_operand,
-		),
-	)
-
-	// get ptr to count
-	count_operand := Operand{.Temporary, make_temp(ctx)}
-	add_instruction(
-		ctx,
-		make_instruction(
-			ctx,
-			opcode = .Add,
-			dest = count_operand,
-			dest_type = .Long,
-			src1 = args_operand,
-			src2 = Operand{.Integer, 8},
-		),
-	)
-
-	// store argc in count
-	add_instruction(
-		ctx,
-		make_instruction(
-			ctx,
-			opcode = .Store,
-			opcode_type = .Word,
-			src1 = argc.op,
-			src2 = count_operand,
-		),
-	)
+	args_operand := gen_slice(ctx, argv.op, argc.op)
 
 	// call USER_MAIN_NAME
 	return_operand := Operand{.Temporary, make_temp(ctx)}
@@ -187,6 +138,63 @@ gen_main :: proc(ctx: ^Context) {
 	ret := make_jump(ctx, .Ret)
 	ret.data = RetData{return_operand}
 	get_last_block(ctx).terminator = ret
+}
+
+gen_slice :: proc(ctx: ^Context, head: Operand, length: Operand) -> Operand {
+	op := Operand{.Temporary, make_temp(ctx)}
+
+	// allocate slice struct
+	add_instruction(
+		ctx,
+		make_instruction(
+			ctx,
+			opcode = .Alloc,
+			dest = op,
+			dest_type = .Long,
+			alignment = 8,
+			src1 = Operand{.Integer, 16},
+		),
+	)
+
+	// store head of array
+	add_instruction(
+		ctx,
+		make_instruction(
+			ctx,
+			opcode = .Store,
+			opcode_type = .Long,
+			src1 = head,
+			src2 = op,
+		),
+	)
+
+	// calculate offset
+	len_operand := Operand{.Temporary, make_temp(ctx)}
+	add_instruction(
+		ctx,
+		make_instruction(
+			ctx,
+			opcode = .Add,
+			dest = len_operand,
+			dest_type = .Long,
+			src1 = op,
+			src2 = Operand{.Integer, 8},
+		),
+	)
+
+	// store length
+	add_instruction(
+		ctx,
+		make_instruction(
+			ctx,
+			opcode = .Store,
+			opcode_type = .Word,
+			src1 = length,
+			src2 = len_operand,
+		),
+	)
+
+	return op
 }
 
 gen_stmt :: proc(ctx: ^Context, stmt: ast.Statement) {
@@ -954,29 +962,49 @@ gen_printf :: proc(ctx: ^Context, expr: ^ast.CallExpr) -> Operand {
 	}
 	inst.call_args = call_args
 
-	block := get_last_block(ctx)
-	append(&block.instructions, inst)
-
+	add_instruction(ctx, inst)
 	return dest
 }
 
 gen_call_args :: proc(
 	ctx: ^Context,
 	expr: ^ast.CallExpr,
+	func_typeinfo: ^ast.FunctionTypeInfo = nil,
 ) -> [dynamic]CallArgument {
 	call_args := make([dynamic]CallArgument, ctx.allocator)
 	for arg, idx in expr.args {
 		op := gen_expr(ctx, arg)
 		typeinfo := ast.get_resolved_type_from_expr(arg)
-		call_arg := CallArgument {
-			kind  = .Regular,
-			type  = type_ast_to_ir(typeinfo.kind),
-			value = op,
+
+		call_arg_value: Operand
+
+		// implicitly convert arrays to slices, only if the function signature is expecting a slice and we're trying to provide an array
+		if func_typeinfo != nil &&
+		   func_typeinfo.param_types[idx].kind == .Slice &&
+		   typeinfo.kind == .Array {
+			arr_tc := typeinfo.data.(ast.ArrayTypeInfo)
+			call_arg := CallArgument {
+				kind           = .Regular,
+				type           = .Aggregate,
+				aggregate_name = SLICE_TYPE_NAME,
+				value          = gen_slice(
+					ctx,
+					op,
+					Operand{.Integer, arr_tc.size},
+				),
+			}
+			append(&call_args, call_arg)
+		} else {
+			call_arg := CallArgument {
+				kind  = .Regular,
+				type  = type_ast_to_ir(typeinfo.kind),
+				value = op,
+			}
+			if typeinfo.kind == .Slice {
+				call_arg.aggregate_name = SLICE_TYPE_NAME
+			}
+			append(&call_args, call_arg)
 		}
-		if typeinfo.kind == .Slice {
-			call_arg.aggregate_name = SLICE_TYPE_NAME
-		}
-		append(&call_args, call_arg)
 	}
 	return call_args
 }
@@ -1018,7 +1046,7 @@ gen_call_expr :: proc(ctx: ^Context, expr: ^ast.CallExpr) -> Operand {
 		dest = dest,
 		dest_type = dest_type,
 	)
-	inst.call_args = gen_call_args(ctx, expr)
+	inst.call_args = gen_call_args(ctx, expr, &func_typeinfo)
 	add_instruction(ctx, inst)
 
 	d, ok := dest.?

@@ -665,7 +665,8 @@ check_call_expr :: proc(tc: ^TypeChecker, e: ^ast.CallExpr) -> ^ast.TypeInfo {
 			return make_typeinfo(tc, .Invalid)
 		}
 		f_param := f_typeinfo.param_types[i]
-		if arg_typeinfo.kind != f_param.kind {
+
+		if !is_valid_func_arg(f_param, arg_typeinfo) {
 			error(
 				tc,
 				ast.get_token_from_expr(arg),
@@ -680,6 +681,16 @@ check_call_expr :: proc(tc: ^TypeChecker, e: ^ast.CallExpr) -> ^ast.TypeInfo {
 	return e.resolved_type
 }
 
+is_valid_func_arg :: proc(
+	expected: ^ast.TypeInfo,
+	actual: ^ast.TypeInfo,
+) -> bool {
+	if expected.kind == .Slice {
+		return actual.kind == .Slice || actual.kind == .Array
+	} else {
+		return expected.kind == actual.kind
+	}
+}
 
 error :: proc(tc: ^TypeChecker, tok: token.Token, ft: string, args: ..any) {
 	// TODO: I feel like this shouldn't use the temporary allocator

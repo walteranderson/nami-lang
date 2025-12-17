@@ -31,7 +31,7 @@ fn handle_args(args: []string)
     }
 }
 
-fn print_arr(items: [4]int)
+fn print_arr(items: []int)
 {
     loop item, idx in items {
         printf("  idx = %d, item = %d\n", idx, item);
