@@ -53,12 +53,19 @@ add_builtins :: proc(ctx: ^Context) {
 		slice_typedef_content := SequentialTypeContent{}
 		append(&slice_typedef_content.fields, TypeField{.Long, nil})
 		append(&slice_typedef_content.fields, TypeField{.Word, nil})
-		slice_typedef := make_typedef(ctx, name = "Slice", content = slice_typedef_content)
+		slice_typedef := make_typedef(
+			ctx,
+			name = "Slice",
+			content = slice_typedef_content,
+		)
 		add_typedef(ctx, slice_typedef)
 	}
 }
 
-add_global_symbols :: proc(ctx: ^Context, global_symbols: map[string]^ast.TypeInfo) {
+add_global_symbols :: proc(
+	ctx: ^Context,
+	global_symbols: map[string]^ast.TypeInfo,
+) {
 	for key, value in global_symbols {
 		kind: SymbolKind
 		#partial switch value.kind {
@@ -294,7 +301,12 @@ gen_iterator_loop :: proc(ctx: ^Context, loop: ^ast.LoopStatement) {
 	items_ident := loop.items.(^ast.Identifier)
 	items_symbol, ok := lookup_symbol(ctx, items_ident.value)
 	if !ok {
-		error(ctx, items_ident.tok, "Identifier not found %s", items_ident.value)
+		error(
+			ctx,
+			items_ident.tok,
+			"Identifier not found %s",
+			items_ident.value,
+		)
 		return
 	}
 
@@ -378,7 +390,10 @@ gen_iterator_loop :: proc(ctx: ^Context, loop: ^ast.LoopStatement) {
 	pop_loop_end_label(ctx)
 }
 
-gen_iterator_create_idx :: proc(ctx: ^Context, loop: ^ast.LoopStatement) -> Operand {
+gen_iterator_create_idx :: proc(
+	ctx: ^Context,
+	loop: ^ast.LoopStatement,
+) -> Operand {
 	idx := Operand{.Temporary, make_temp(ctx)}
 	idx_alloc_inst := make_instruction(
 		ctx,
@@ -403,7 +418,11 @@ gen_iterator_create_idx :: proc(ctx: ^Context, loop: ^ast.LoopStatement) -> Oper
 	if loop.idx != nil {
 		ident, ok := loop.idx.(^ast.Identifier)
 		if !ok {
-			error(ctx, ast.get_token_from_expr(loop.idx), "expected index to be identifier")
+			error(
+				ctx,
+				ast.get_token_from_expr(loop.idx),
+				"expected index to be identifier",
+			)
 			return invalid_op()
 		}
 		push_symbol_entry(
@@ -476,7 +495,10 @@ gen_iterator_item :: proc(
 			dest = mul_dest,
 			dest_type = .Word,
 			src1 = load_idx,
-			src2 = Operand{.Integer, type_to_size(item_ident.resolved_type.kind)},
+			src2 = Operand {
+				.Integer,
+				type_to_size(item_ident.resolved_type.kind),
+			},
 		),
 	)
 
@@ -612,7 +634,8 @@ gen_empty_arr :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) -> Operand {
 }
 
 gen_array_assign :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) {
-	operand := stmt.value != nil ? gen_expr(ctx, stmt.value) : gen_empty_arr(ctx, stmt)
+	operand :=
+		stmt.value != nil ? gen_expr(ctx, stmt.value) : gen_empty_arr(ctx, stmt)
 	push_symbol_entry(
 		ctx,
 		name = stmt.name.value,
@@ -691,7 +714,11 @@ gen_global_assign :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) {
 	} else {
 		#partial switch stmt.resolved_type.kind {
 		case .Array:
-			error(ctx, stmt.tok, "TODO: Global arrays with initialized values not support yet")
+			error(
+				ctx,
+				stmt.tok,
+				"TODO: Global arrays with initialized values not support yet",
+			)
 			return
 		case .String:
 			str := stmt.value.(^ast.StringLiteral)
@@ -777,7 +804,12 @@ gen_index_addr :: proc(ctx: ^Context, expr: ^ast.IndexExpr) -> Operand {
 	ident, ok := expr.left.(^ast.Identifier)
 	if !ok {
 		tok := ast.get_token_from_expr(expr.left)
-		error(ctx, tok, "Expected identifier when using index expression, got %s", tok.type)
+		error(
+			ctx,
+			tok,
+			"Expected identifier when using index expression, got %s",
+			tok.type,
+		)
 		return invalid_op()
 	}
 	symbol, okk := lookup_symbol(ctx, ident.value)
@@ -835,7 +867,11 @@ gen_index_addr :: proc(ctx: ^Context, expr: ^ast.IndexExpr) -> Operand {
 	return add_dest
 }
 
-gen_array_expr_elements :: proc(ctx: ^Context, arr: ^ast.Array, head: Operand) {
+gen_array_expr_elements :: proc(
+	ctx: ^Context,
+	arr: ^ast.Array,
+	head: Operand,
+) {
 	typeinfo := arr.resolved_type.data.(ast.ArrayTypeInfo)
 	alignment := type_to_size(typeinfo.elements_type.kind)
 	element_type := type_ast_to_ir(typeinfo.elements_type.kind)
@@ -923,7 +959,10 @@ gen_printf :: proc(ctx: ^Context, expr: ^ast.CallExpr) -> Operand {
 	return dest
 }
 
-gen_call_args :: proc(ctx: ^Context, expr: ^ast.CallExpr) -> [dynamic]CallArgument {
+gen_call_args :: proc(
+	ctx: ^Context,
+	expr: ^ast.CallExpr,
+) -> [dynamic]CallArgument {
 	call_args := make([dynamic]CallArgument, ctx.allocator)
 	for arg, idx in expr.args {
 		op := gen_expr(ctx, arg)
@@ -1002,7 +1041,9 @@ gen_infix_expr :: proc(ctx: ^Context, expr: ^ast.InfixExpr) -> Operand {
 	lhs_typeinfo := ast.get_resolved_type_from_expr(expr.left)
 	rhs_typeinfo := ast.get_resolved_type_from_expr(expr.right)
 	if lhs_typeinfo.kind != rhs_typeinfo.kind {
-		logger.error("Infix expressions can only be done on expressions of the same type")
+		logger.error(
+			"Infix expressions can only be done on expressions of the same type",
+		)
 		return invalid_op()
 	}
 
@@ -1585,7 +1626,10 @@ type_ast_to_ir :: proc(type: ast.TypeKind) -> TypeKind {
 typeinfo_to_size :: proc(typeinfo: ^ast.TypeInfo) -> int {
 	if typeinfo.kind == .Array {
 		arr_typeinfo := typeinfo.data.(ast.ArrayTypeInfo)
-		return type_to_size(arr_typeinfo.elements_type.kind) * arr_typeinfo.size
+		return(
+			type_to_size(arr_typeinfo.elements_type.kind) *
+			arr_typeinfo.size \
+		)
 	} else {
 		return type_to_size(typeinfo.kind)
 	}

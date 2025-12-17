@@ -152,7 +152,10 @@ gen_inst :: proc(qbe: ^QbeCodegen, inst: ^ir.Instruction) {
 	dest, ok := inst.dest.?
 	if ok {
 		emit(qbe, "%s", get_operand(qbe, dest))
-		assert(inst.dest_type != nil, "instructions with dest requires a result_type")
+		assert(
+			inst.dest_type != nil,
+			"instructions with dest requires a result_type",
+		)
 		assert(inst.dest_type.? != .Void, fmt.tprintf("%+v", inst))
 		emit(qbe, " =%s ", type_to_str(inst.dest_type.?))
 	}

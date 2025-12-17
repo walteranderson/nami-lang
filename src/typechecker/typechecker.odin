@@ -102,7 +102,11 @@ check_func_signature :: proc(tc: ^TypeChecker, fn: ^ast.FunctionStatement) {
 	add_symbol(tc, fn.name.value, fn.resolved_type)
 }
 
-check_stmt :: proc(tc: ^TypeChecker, stmt: ast.Statement, expected_return_type: ast.TypeKind) {
+check_stmt :: proc(
+	tc: ^TypeChecker,
+	stmt: ast.Statement,
+	expected_return_type: ast.TypeKind,
+) {
 	switch s in stmt {
 	case ^ast.ExprStatement:
 		check_expr(tc, s.value)
@@ -173,7 +177,11 @@ check_loop_stmt :: proc(
 
 	case .Iterator:
 		if loop.item == nil {
-			error(tc, loop.tok, "item variable is required when looping over an array")
+			error(
+				tc,
+				loop.tok,
+				"item variable is required when looping over an array",
+			)
 			return
 		}
 
@@ -182,12 +190,21 @@ check_loop_stmt :: proc(
 
 		item_ident, ok := loop.item.(^ast.Identifier)
 		if !ok {
-			error(tc, ast.get_token_from_expr(loop.item), "Expected identifier")
+			error(
+				tc,
+				ast.get_token_from_expr(loop.item),
+				"Expected identifier",
+			)
 			return
 		}
 		_, found := lookup_symbol(tc, item_ident.value)
 		if found {
-			error(tc, item_ident.tok, "Symbol already declared: %s", item_ident.value)
+			error(
+				tc,
+				item_ident.tok,
+				"Symbol already declared: %s",
+				item_ident.value,
+			)
 			item_ident.resolved_type = make_typeinfo(tc, .Invalid)
 			return
 		}
@@ -196,11 +213,17 @@ check_loop_stmt :: proc(
 		#partial switch items_typeinfo.kind {
 		case .Array:
 			arr_typeinfo := items_typeinfo.data.(ast.ArrayTypeInfo)
-			item_ident.resolved_type = make_typeinfo(tc, arr_typeinfo.elements_type.kind)
+			item_ident.resolved_type = make_typeinfo(
+				tc,
+				arr_typeinfo.elements_type.kind,
+			)
 			add_symbol(tc, item_ident.value, item_ident.resolved_type)
 		case .Slice:
 			slice_typeinfo := items_typeinfo.data.(ast.SliceTypeInfo)
-			item_ident.resolved_type = make_typeinfo(tc, slice_typeinfo.elements_type.kind)
+			item_ident.resolved_type = make_typeinfo(
+				tc,
+				slice_typeinfo.elements_type.kind,
+			)
 			add_symbol(tc, item_ident.value, item_ident.resolved_type)
 		case:
 			error(
@@ -217,12 +240,21 @@ check_loop_stmt :: proc(
 		if loop.idx != nil {
 			idx_ident, ok := loop.idx.(^ast.Identifier)
 			if !ok {
-				error(tc, ast.get_token_from_expr(loop.idx), "Expected idx to be an identifier")
+				error(
+					tc,
+					ast.get_token_from_expr(loop.idx),
+					"Expected idx to be an identifier",
+				)
 				return
 			}
 			_, found := lookup_symbol(tc, idx_ident.value)
 			if found {
-				error(tc, idx_ident.tok, "Symbol already declared: %s", idx_ident.value)
+				error(
+					tc,
+					idx_ident.tok,
+					"Symbol already declared: %s",
+					idx_ident.value,
+				)
 				idx_ident.resolved_type = make_typeinfo(tc, .Invalid)
 				return
 			}
@@ -236,7 +268,11 @@ check_loop_stmt :: proc(
 	}
 }
 
-check_if_stmt :: proc(tc: ^TypeChecker, s: ^ast.IfStatement, expected_return_type: ast.TypeKind) {
+check_if_stmt :: proc(
+	tc: ^TypeChecker,
+	s: ^ast.IfStatement,
+	expected_return_type: ast.TypeKind,
+) {
 	cond_typeinfo := check_expr(tc, s.condition)
 	if cond_typeinfo.kind != .Bool {
 		error(
@@ -274,7 +310,12 @@ check_assign_stmt :: proc(tc: ^TypeChecker, s: ^ast.AssignStatement) {
 
 	typeinfo := resolve_type_annotation(tc, s.declared_type)
 	if typeinfo.kind == .Invalid {
-		error(tc, s.declared_type.tok, "Invalid type - %s", s.declared_type.tok.type)
+		error(
+			tc,
+			s.declared_type.tok,
+			"Invalid type - %s",
+			s.declared_type.tok.type,
+		)
 		s.resolved_type = make_typeinfo(tc, .Invalid)
 		return
 	}
@@ -352,7 +393,12 @@ check_func_stmt :: proc(tc: ^TypeChecker, fn: ^ast.FunctionStatement) {
 
 	typeinfo, ok := fn.resolved_type.data.(ast.FunctionTypeInfo)
 	if !ok {
-		error(tc, fn.tok, "expected functiontypeinfo, got %s", fn.resolved_type.kind)
+		error(
+			tc,
+			fn.tok,
+			"expected functiontypeinfo, got %s",
+			fn.resolved_type.kind,
+		)
 		return
 	}
 
@@ -417,10 +463,17 @@ check_expr :: proc(tc: ^TypeChecker, expr: ast.Expr) -> ^ast.TypeInfo {
 	return nil
 }
 
-check_reassign_expr :: proc(tc: ^TypeChecker, expr: ^ast.ReassignExpr) -> ^ast.TypeInfo {
+check_reassign_expr :: proc(
+	tc: ^TypeChecker,
+	expr: ^ast.ReassignExpr,
+) -> ^ast.TypeInfo {
 	lhs := check_expr(tc, expr.target)
 	if !lhs.reassignable {
-		error(tc, ast.get_token_from_expr(expr.target), "Cannot reassign to immutable expression")
+		error(
+			tc,
+			ast.get_token_from_expr(expr.target),
+			"Cannot reassign to immutable expression",
+		)
 		expr.resolved_type = make_typeinfo(tc, .Invalid)
 		return expr.resolved_type
 	}
@@ -440,7 +493,10 @@ check_reassign_expr :: proc(tc: ^TypeChecker, expr: ^ast.ReassignExpr) -> ^ast.T
 	return nil
 }
 
-check_index_expr :: proc(tc: ^TypeChecker, expr: ^ast.IndexExpr) -> ^ast.TypeInfo {
+check_index_expr :: proc(
+	tc: ^TypeChecker,
+	expr: ^ast.IndexExpr,
+) -> ^ast.TypeInfo {
 	ident_typeinfo := check_expr(tc, expr.left)
 	if ident_typeinfo.kind != .Array {
 		error(
@@ -466,7 +522,11 @@ check_index_expr :: proc(tc: ^TypeChecker, expr: ^ast.IndexExpr) -> ^ast.TypeInf
 	}
 
 	ident_arr_typeinfo := ident_typeinfo.data.(ast.ArrayTypeInfo)
-	expr.resolved_type = make_typeinfo(tc, ident_arr_typeinfo.elements_type.kind, true)
+	expr.resolved_type = make_typeinfo(
+		tc,
+		ident_arr_typeinfo.elements_type.kind,
+		true,
+	)
 
 	return expr.resolved_type
 }
@@ -505,7 +565,10 @@ check_array_expr :: proc(tc: ^TypeChecker, e: ^ast.Array) -> ^ast.TypeInfo {
 	return e.resolved_type
 }
 
-check_infix_expr :: proc(tc: ^TypeChecker, e: ^ast.InfixExpr) -> ^ast.TypeInfo {
+check_infix_expr :: proc(
+	tc: ^TypeChecker,
+	e: ^ast.InfixExpr,
+) -> ^ast.TypeInfo {
 	lhs_type := check_expr(tc, e.left)
 	rhs_type := check_expr(tc, e.right)
 	if lhs_type.kind == .Invalid || rhs_type.kind == .Invalid {
@@ -520,7 +583,13 @@ check_infix_expr :: proc(tc: ^TypeChecker, e: ^ast.InfixExpr) -> ^ast.TypeInfo {
 		return e.resolved_type
 	}
 	if lhs_type.kind != rhs_type.kind {
-		error(tc, e.tok, "type mismatch - expected %s, got %s", lhs_type.kind, rhs_type.kind)
+		error(
+			tc,
+			e.tok,
+			"type mismatch - expected %s, got %s",
+			lhs_type.kind,
+			rhs_type.kind,
+		)
 		e.resolved_type = make_typeinfo(tc, .Invalid)
 		return e.resolved_type
 	}
@@ -545,7 +614,11 @@ check_call_expr :: proc(tc: ^TypeChecker, e: ^ast.CallExpr) -> ^ast.TypeInfo {
 			for arg, i in e.args {
 				arg_typeinfo := check_expr(tc, arg)
 				if arg_typeinfo.kind == .Invalid {
-					error(tc, ast.get_token_from_expr(arg), "invalid function parameter")
+					error(
+						tc,
+						ast.get_token_from_expr(arg),
+						"invalid function parameter",
+					)
 					return make_typeinfo(tc, .Invalid)
 				}
 			}
@@ -584,7 +657,11 @@ check_call_expr :: proc(tc: ^TypeChecker, e: ^ast.CallExpr) -> ^ast.TypeInfo {
 	for arg, i in e.args {
 		arg_typeinfo := check_expr(tc, arg)
 		if arg_typeinfo.kind == .Invalid {
-			error(tc, ast.get_token_from_expr(arg), "invalid function parameter")
+			error(
+				tc,
+				ast.get_token_from_expr(arg),
+				"invalid function parameter",
+			)
 			return make_typeinfo(tc, .Invalid)
 		}
 		f_param := f_typeinfo.param_types[i]
@@ -624,7 +701,13 @@ add_symbol :: proc(tc: ^TypeChecker, name: string, typeinfo: ^ast.TypeInfo) {
 	tc.symbols[len(tc.symbols) - 1][name_copy] = typeinfo
 }
 
-lookup_symbol :: proc(tc: ^TypeChecker, name: string) -> (^ast.TypeInfo, bool) {
+lookup_symbol :: proc(
+	tc: ^TypeChecker,
+	name: string,
+) -> (
+	^ast.TypeInfo,
+	bool,
+) {
 	for i := len(tc.symbols) - 1; i >= 0; i -= 1 {
 		scope := tc.symbols[i]
 		if val, ok := scope[name]; ok {
@@ -655,7 +738,11 @@ resolve_array_type_annotation :: proc(
 	arr_annotation := annotation.data.(ast.ArrayTypeAnnotation)
 	size_typeinfo := check_expr(tc, arr_annotation.size_expr)
 	if size_typeinfo.kind != .Int {
-		error(tc, ast.get_token_from_expr(arr_annotation.size_expr), "Array size must be an Int")
+		error(
+			tc,
+			ast.get_token_from_expr(arr_annotation.size_expr),
+			"Array size must be an Int",
+		)
 		return make_typeinfo(tc, .Invalid)
 	}
 
@@ -679,7 +766,10 @@ resolve_slice_type_annotation :: proc(
 ) -> ^ast.TypeInfo {
 	slice_annotation := annotation.data.(ast.SliceTypeAnnotation)
 
-	elements_type := resolve_type_annotation(tc, slice_annotation.elements_type)
+	elements_type := resolve_type_annotation(
+		tc,
+		slice_annotation.elements_type,
+	)
 
 	slice_typeinfo := make_typeinfo(tc, .Slice)
 	slice_typeinfo.data = ast.SliceTypeInfo {

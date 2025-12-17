@@ -306,7 +306,8 @@ parse_expr :: proc(p: ^Parser, precedence: Precedence) -> ast.Expr {
 		return nil
 	}
 	left := prefix_fn(p)
-	for !peek_token_is(p, .SEMI_COLON) && precedence < get_precedence(p.peek.type) {
+	for !peek_token_is(p, .SEMI_COLON) &&
+	    precedence < get_precedence(p.peek.type) {
 		infix_fn := get_infix_fn(p.peek.type)
 		if infix_fn == nil {
 			return left

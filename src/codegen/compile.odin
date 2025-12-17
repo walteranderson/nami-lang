@@ -5,8 +5,16 @@ import "../logger"
 import os "core:os/os2"
 import "core:strings"
 
-compile_qbe :: proc(sb: ^strings.Builder, program_name: string, static: bool) -> bool {
-	qbe_file := fs.create_file_name(program_name, "ssa", context.temp_allocator)
+compile_qbe :: proc(
+	sb: ^strings.Builder,
+	program_name: string,
+	static: bool,
+) -> bool {
+	qbe_file := fs.create_file_name(
+		program_name,
+		"ssa",
+		context.temp_allocator,
+	)
 	asm_file := fs.create_file_name(program_name, "s", context.temp_allocator)
 	defer free_all(context.temp_allocator)
 

@@ -5,7 +5,13 @@ import "core:mem"
 import "core:os"
 import "core:strings"
 
-read_entire_file :: proc(file_name: string, allocator: mem.Allocator) -> (string, bool) {
+read_entire_file :: proc(
+	file_name: string,
+	allocator: mem.Allocator,
+) -> (
+	string,
+	bool,
+) {
 	data, ok := os.read_entire_file_from_filename(file_name, allocator)
 	if !ok {
 		return "", ok
@@ -21,7 +27,11 @@ extract_base_name :: proc(file_name: string) -> string {
 	return file_name
 }
 
-create_file_name :: proc(base_name: string, ext: string, allocator: mem.Allocator) -> string {
+create_file_name :: proc(
+	base_name: string,
+	ext: string,
+	allocator: mem.Allocator,
+) -> string {
 	sb: strings.Builder
 	strings.builder_init(&sb, allocator)
 	defer strings.builder_destroy(&sb)

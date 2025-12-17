@@ -338,7 +338,11 @@ print_ast :: proc(node: AnyNode, indent_level: int) {
 			fmt.printf("\n")
 		}
 		typeinfo := n.resolved_type.data.(FunctionTypeInfo)
-		fmt.printf("%s  ResolvedReturnType: %s\n", indent, typeinfo.return_type.kind)
+		fmt.printf(
+			"%s  ResolvedReturnType: %s\n",
+			indent,
+			typeinfo.return_type.kind,
+		)
 		print_ast(cast(AnyNode)n.body, indent_level + 1)
 	case ^FunctionArg:
 		fmt.printf("%sFunctionArg:\n", indent)
