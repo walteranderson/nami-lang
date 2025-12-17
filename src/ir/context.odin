@@ -8,6 +8,7 @@ import "core:mem"
 import "core:strings"
 
 USER_MAIN_NAME :: "user_main"
+SLICE_TYPE_NAME :: "_LIB_Slice"
 
 Context :: struct {
 	allocator:       mem.Allocator,
@@ -55,7 +56,7 @@ add_builtins :: proc(ctx: ^Context) {
 		append(&slice_typedef_content.fields, TypeField{.Word, nil})
 		slice_typedef := make_typedef(
 			ctx,
-			name = "Slice",
+			name = SLICE_TYPE_NAME,
 			content = slice_typedef_content,
 		)
 		add_typedef(ctx, slice_typedef)
@@ -178,7 +179,7 @@ gen_main :: proc(ctx: ^Context) {
 			kind = .Regular,
 			type = .Aggregate,
 			value = args_operand,
-			aggregate_name = "Slice",
+			aggregate_name = SLICE_TYPE_NAME,
 		},
 	)
 	add_instruction(ctx, call_inst)
@@ -973,7 +974,7 @@ gen_call_args :: proc(
 			value = op,
 		}
 		if typeinfo.kind == .Slice {
-			call_arg.aggregate_name = "Slice"
+			call_arg.aggregate_name = SLICE_TYPE_NAME
 		}
 		append(&call_args, call_arg)
 	}
@@ -1017,11 +1018,8 @@ gen_call_expr :: proc(ctx: ^Context, expr: ^ast.CallExpr) -> Operand {
 		dest = dest,
 		dest_type = dest_type,
 	)
-	call_args := gen_call_args(ctx, expr)
-	inst.call_args = call_args
-
-	block := get_last_block(ctx)
-	append(&block.instructions, inst)
+	inst.call_args = gen_call_args(ctx, expr)
+	add_instruction(ctx, inst)
 
 	d, ok := dest.?
 	if !ok {
@@ -1354,7 +1352,7 @@ gen_function_stmt :: proc(ctx: ^Context, stmt: ^ast.FunctionStatement) {
 			op   = Operand{.Temporary, make_temp(ctx)},
 		}
 		if arg.resolved_type.kind == .Slice {
-			param.aggregate_name = "Slice"
+			param.aggregate_name = SLICE_TYPE_NAME
 		}
 		push_symbol_entry(
 			ctx,
