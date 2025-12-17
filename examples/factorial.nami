@@ -3,14 +3,14 @@ fn main() {
     printf("10! iteratively = %d\n", factorial_iterative(10));
 }
 
-fn factorial_recursive(current: Int) Int {
+fn factorial_recursive(current: int) int {
     if current == 0 {
         return 1;
     }
     return current * factorial_recursive(current - 1);
 }
 
-fn factorial_iterative(start: Int) Int {
+fn factorial_iterative(start: int) int {
     count := 1;
     current := start;
     loop {

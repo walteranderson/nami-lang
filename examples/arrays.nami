@@ -1,8 +1,8 @@
-fn main(args: []String)
+fn main(args: []string)
 {
     handle_args(args);
 
-    items: [4]Int = [69, 420, 69420];
+    items: [4]int = [69, 420, 69420];
 
     printf("via index:\n");
     printf("  item[0] = %d\n", items[0]);
@@ -23,7 +23,7 @@ fn main(args: []String)
     print_arr(items);
 }
 
-fn handle_args(args: []String)
+fn handle_args(args: []string)
 {
     printf("Handling cli args\n");
     loop arg in args {
@@ -31,7 +31,7 @@ fn handle_args(args: []String)
     }
 }
 
-fn print_arr(items: [4]Int)
+fn print_arr(items: [4]int)
 {
     loop item, idx in items {
         printf("  idx = %d, item = %d\n", idx, item);

@@ -1,4 +1,4 @@
-fn main(args: []String) Int
+fn main(args: []string) int
 {
     loop arg, i in args {
         printf("i=%d, arg=%s\n", i, arg);
