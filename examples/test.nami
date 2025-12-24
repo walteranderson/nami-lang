@@ -1,4 +1,6 @@
 fn main()
 {
-    printf("test\n");
+    foo := 5;
+    bar := &foo;
+    printf("%p\n", bar);
 }

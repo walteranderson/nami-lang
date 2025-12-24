@@ -458,9 +458,39 @@ check_expr :: proc(tc: ^TypeChecker, expr: ast.Expr) -> ^ast.TypeInfo {
 		return check_index_expr(tc, e)
 	case ^ast.ReassignExpr:
 		return check_reassign_expr(tc, e)
+	case ^ast.PointerExpr:
+		return check_pointer_expr(tc, e)
 	}
 	logger.error("Unreachable - checking expr: %+v", expr)
 	return nil
+}
+
+check_pointer_expr :: proc(
+	tc: ^TypeChecker,
+	expr: ^ast.PointerExpr,
+) -> ^ast.TypeInfo {
+	if !is_addressable(expr.operand) {
+		tok := ast.get_token_from_expr(expr.operand)
+		error(tc, tok, "expression is not addressable")
+		return nil
+	}
+	rhs := check_expr(tc, expr.operand)
+	if rhs.kind == .Invalid {
+		return nil
+	}
+	typeinfo := make_typeinfo(tc, .Pointer, reassignable = true)
+	typeinfo.data = ast.PointerTypeInfo{rhs}
+	expr.resolved_type = typeinfo
+	return expr.resolved_type
+}
+
+is_addressable :: proc(expr: ast.Expr) -> bool {
+	#partial switch e in expr {
+	case ^ast.Identifier, ^ast.IndexExpr:
+		return true
+	case:
+		return false
+	}
 }
 
 check_reassign_expr :: proc(

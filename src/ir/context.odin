@@ -779,6 +779,9 @@ gen_expr :: proc(ctx: ^Context, expr: ast.Expr) -> Operand {
 		return gen_array_expr(ctx, e)
 	case ^ast.IndexExpr:
 		return gen_index_expr(ctx, e)
+	case ^ast.PointerExpr:
+		addr := get_lvalue_addr(ctx, e.operand)
+		return addr
 	}
 	typeinfo := ast.get_resolved_type_from_expr(expr)
 	tok := ast.get_token_from_expr(expr)
@@ -1643,6 +1646,8 @@ type_ast_to_ir :: proc(type: ast.TypeKind) -> TypeKind {
 		return .Long
 	case .Slice:
 		return .Aggregate
+	case .Pointer:
+		return .Long
 	case .Invalid, .Any:
 		panic("ERROR converting ast to ir - Invalid/Any type")
 	}
@@ -1678,6 +1683,8 @@ type_to_size :: proc(type: ast.TypeKind) -> int {
 		return 0
 	case .Any:
 		// TODO: Any type - assuming that if we get an `any` at this point, maybe its a pointer?
+		return 8
+	case .Pointer:
 		return 8
 	case .Invalid:
 		return 0

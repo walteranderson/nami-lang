@@ -80,6 +80,8 @@ get_prefix_fn :: proc(tok_type: t.TokenType) -> PrefixParseFns {
 		return parse_grouped_expr
 	case .L_BRACKET:
 		return parse_array
+	case .AMPERSAND:
+		return parse_pointer_expr
 	}
 	return nil
 }
@@ -161,12 +163,17 @@ parse_stmt :: proc(p: ^Parser) -> ast.Statement {
 		if peek_token_is(p, .COLON) {
 			return parse_assign_stmt(p)
 		}
-	// } else if peek_token_is(p, .ASSIGN) {
-	// 	return parse_reassign_stmt(p)
-	// }
 	}
 
 	return parse_expr_stmt(p)
+}
+
+parse_pointer_expr :: proc(p: ^Parser) -> ast.Expr {
+	expr := new(ast.PointerExpr, p.allocator)
+	expr.tok = p.cur
+	next_token(p)
+	expr.operand = parse_expr(p, .PREFIX)
+	return expr
 }
 
 parse_index_expr :: proc(p: ^Parser, left: ast.Expr) -> ast.Expr {

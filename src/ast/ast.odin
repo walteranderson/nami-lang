@@ -68,6 +68,11 @@ ReassignExpr :: struct {
 	value:      Expr,
 }
 
+PointerExpr :: struct {
+	using node: Node,
+	operand:    Expr,
+}
+
 /////////
 
 // entrypoint
@@ -153,6 +158,7 @@ TypeKind :: enum {
 	Function,
 	Array,
 	Slice,
+	Pointer,
 }
 
 FunctionTypeInfo :: struct {
@@ -169,6 +175,10 @@ SliceTypeInfo :: struct {
 	elements_type: ^TypeInfo,
 }
 
+PointerTypeInfo :: struct {
+	base_type: ^TypeInfo,
+}
+
 TypeInfo :: struct {
 	kind:         TypeKind,
 	reassignable: bool,
@@ -176,6 +186,7 @@ TypeInfo :: struct {
 		FunctionTypeInfo,
 		ArrayTypeInfo,
 		SliceTypeInfo,
+		PointerTypeInfo,
 	},
 }
 
@@ -209,6 +220,7 @@ Expr :: union {
 	^Array,
 	^IndexExpr,
 	^ReassignExpr,
+	^PointerExpr,
 }
 
 Statement :: union {
@@ -235,6 +247,7 @@ AnyNode :: union {
 	^Array,
 	^IndexExpr,
 	^ReassignExpr,
+	^PointerExpr,
 	//
 	^Module,
 	^ReturnStatement,
@@ -271,6 +284,8 @@ get_token_from_expr :: proc(expr: Expr) -> t.Token {
 		return e.tok
 	case ^ReassignExpr:
 		return e.tok
+	case ^PointerExpr:
+		return e.tok
 	}
 	panic("Unhandled expression type in ast.get_token_from_expr")
 }
@@ -296,6 +311,8 @@ get_resolved_type_from_expr :: proc(expr: Expr) -> ^TypeInfo {
 	case ^IndexExpr:
 		return e.resolved_type
 	case ^ReassignExpr:
+		return e.resolved_type
+	case ^PointerExpr:
 		return e.resolved_type
 	}
 	panic("Unhandled expression type in ast.get_resolved_type_from_expr")
@@ -441,6 +458,11 @@ print_ast :: proc(node: AnyNode, indent_level: int) {
 		print_expr(n.target, indent_level + 2)
 		fmt.printf("%s  Value:\n", indent)
 		print_expr(n.value, indent_level + 2)
+	case ^PointerExpr:
+		fmt.printf("%sPointerExpression:\n", indent)
+		fmt.printf("%s  ResolvedType: %s\n", indent, n.resolved_type.kind)
+		fmt.printf("%s  Operand:\n", indent)
+		print_expr(n.operand, indent_level + 2)
 	}
 }
 
@@ -490,6 +512,8 @@ print_expr :: proc(expr: Expr, indent_level: int) {
 	case ^IndexExpr:
 		print_ast(cast(AnyNode)e, indent_level)
 	case ^ReassignExpr:
+		print_ast(cast(AnyNode)e, indent_level)
+	case ^PointerExpr:
 		print_ast(cast(AnyNode)e, indent_level)
 	}
 }
