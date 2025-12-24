@@ -82,6 +82,8 @@ get_prefix_fn :: proc(tok_type: t.TokenType) -> PrefixParseFns {
 		return parse_array
 	case .AMPERSAND:
 		return parse_pointer_expr
+	case .STAR:
+		return parse_deref_expr
 	}
 	return nil
 }
@@ -166,6 +168,14 @@ parse_stmt :: proc(p: ^Parser) -> ast.Statement {
 	}
 
 	return parse_expr_stmt(p)
+}
+
+parse_deref_expr :: proc(p: ^Parser) -> ast.Expr {
+	expr := new(ast.DerefExpr, p.allocator)
+	expr.tok = p.cur
+	next_token(p)
+	expr.operand = parse_expr(p, .PREFIX)
+	return expr
 }
 
 parse_pointer_expr :: proc(p: ^Parser) -> ast.Expr {

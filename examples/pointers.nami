@@ -1,0 +1,32 @@
+fn main()
+{
+    foo := "Hello";
+    bar := 5;
+    baz := true;
+    printf("Before\n");
+    printf("foo = %s\n", foo);
+    printf("bar = %d\n", bar);
+    printf("baz = %d\n", baz);
+    f(&foo);
+    b(&bar);
+    bz(&baz);
+    printf("After\n");
+    printf("foo = %s\n", foo);
+    printf("bar = %d\n", bar);
+    printf("baz = %d\n", baz);
+}
+
+fn f(foo: *string)
+{
+    *foo = "Goodbye";
+}
+
+fn b(bar: *int)
+{
+    *bar = 10;
+}
+
+fn bz(baz: *bool)
+{
+    *baz = false;
+}

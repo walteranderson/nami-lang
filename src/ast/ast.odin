@@ -73,6 +73,11 @@ PointerExpr :: struct {
 	operand:    Expr,
 }
 
+DerefExpr :: struct {
+	using node: Node,
+	operand:    Expr,
+}
+
 /////////
 
 // entrypoint
@@ -226,6 +231,7 @@ Expr :: union {
 	^IndexExpr,
 	^ReassignExpr,
 	^PointerExpr,
+	^DerefExpr,
 }
 
 Statement :: union {
@@ -253,6 +259,7 @@ AnyNode :: union {
 	^IndexExpr,
 	^ReassignExpr,
 	^PointerExpr,
+	^DerefExpr,
 	//
 	^Module,
 	^ReturnStatement,
@@ -291,6 +298,8 @@ get_token_from_expr :: proc(expr: Expr) -> t.Token {
 		return e.tok
 	case ^PointerExpr:
 		return e.tok
+	case ^DerefExpr:
+		return e.tok
 	}
 	panic("Unhandled expression type in ast.get_token_from_expr")
 }
@@ -318,6 +327,8 @@ get_resolved_type_from_expr :: proc(expr: Expr) -> ^TypeInfo {
 	case ^ReassignExpr:
 		return e.resolved_type
 	case ^PointerExpr:
+		return e.resolved_type
+	case ^DerefExpr:
 		return e.resolved_type
 	}
 	panic("Unhandled expression type in ast.get_resolved_type_from_expr")
@@ -468,6 +479,11 @@ print_ast :: proc(node: AnyNode, indent_level: int) {
 		fmt.printf("%s  ResolvedType: %s\n", indent, n.resolved_type.kind)
 		fmt.printf("%s  Operand:\n", indent)
 		print_expr(n.operand, indent_level + 2)
+	case ^DerefExpr:
+		fmt.printf("%sDereferenceExpression:\n", indent)
+		fmt.printf("%s  ResolvedType: %s\n", indent, n.resolved_type.kind)
+		fmt.printf("%s  Operand:\n", indent)
+		print_expr(n.operand, indent_level + 2)
 	}
 }
 
@@ -519,6 +535,8 @@ print_expr :: proc(expr: Expr, indent_level: int) {
 	case ^ReassignExpr:
 		print_ast(cast(AnyNode)e, indent_level)
 	case ^PointerExpr:
+		print_ast(cast(AnyNode)e, indent_level)
+	case ^DerefExpr:
 		print_ast(cast(AnyNode)e, indent_level)
 	}
 }

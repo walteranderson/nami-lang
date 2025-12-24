@@ -460,9 +460,27 @@ check_expr :: proc(tc: ^TypeChecker, expr: ast.Expr) -> ^ast.TypeInfo {
 		return check_reassign_expr(tc, e)
 	case ^ast.PointerExpr:
 		return check_pointer_expr(tc, e)
+	case ^ast.DerefExpr:
+		return check_deref_expr(tc, e)
 	}
 	logger.error("Unreachable - checking expr: %+v", expr)
 	return nil
+}
+
+check_deref_expr :: proc(
+	tc: ^TypeChecker,
+	expr: ^ast.DerefExpr,
+) -> ^ast.TypeInfo {
+	rhs := check_expr(tc, expr.operand)
+	if rhs.kind != .Pointer {
+		tok := ast.get_token_from_expr(expr.operand)
+		error(tc, tok, "Cannot dereference a non-pointer")
+		return nil
+	}
+
+	ptr_typeinfo := rhs.data.(ast.PointerTypeInfo)
+	expr.resolved_type = ptr_typeinfo.base_type
+	return expr.resolved_type
 }
 
 check_pointer_expr :: proc(
@@ -486,7 +504,7 @@ check_pointer_expr :: proc(
 
 is_addressable :: proc(expr: ast.Expr) -> bool {
 	#partial switch e in expr {
-	case ^ast.Identifier, ^ast.IndexExpr:
+	case ^ast.Identifier, ^ast.IndexExpr, ^ast.DerefExpr:
 		return true
 	case:
 		return false
@@ -841,11 +859,11 @@ resolve_type_annotation :: proc(
 
 	#partial switch annotation.tok.type {
 	case .TYPE_INT:
-		return make_typeinfo(tc, .Int)
+		return make_typeinfo(tc, .Int, reassignable = true)
 	case .TYPE_STRING:
-		return make_typeinfo(tc, .String)
+		return make_typeinfo(tc, .String, reassignable = true)
 	case .TYPE_BOOL:
-		return make_typeinfo(tc, .Bool)
+		return make_typeinfo(tc, .Bool, reassignable = true)
 	case .TYPE_VOID:
 		return make_typeinfo(tc, .Void)
 	case .STAR:

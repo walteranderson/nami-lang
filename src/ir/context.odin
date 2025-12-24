@@ -782,6 +782,7 @@ gen_expr :: proc(ctx: ^Context, expr: ast.Expr) -> Operand {
 	case ^ast.PointerExpr:
 		addr := get_lvalue_addr(ctx, e.operand)
 		return addr
+	case ^ast.DerefExpr:
 	}
 	typeinfo := ast.get_resolved_type_from_expr(expr)
 	tok := ast.get_token_from_expr(expr)
@@ -1278,6 +1279,8 @@ get_lvalue_addr :: proc(ctx: ^Context, target: ast.Expr) -> Operand {
 		return ident.op
 	case ^ast.IndexExpr:
 		return gen_index_addr(ctx, e)
+	case ^ast.DerefExpr:
+		return gen_expr(ctx, e.operand)
 	}
 	tok := ast.get_token_from_expr(target)
 	error(ctx, tok, "%s is not a valid lvalue", tok.type)
