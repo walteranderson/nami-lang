@@ -1,6 +1,10 @@
 fn main()
 {
     foo := 5;
-    bar := &foo;
-    printf("%p\n", bar);
+    f(&foo);
+}
+
+fn f(foo: *int)
+{
+    printf("%p\n", foo);
 }

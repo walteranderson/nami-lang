@@ -199,11 +199,16 @@ SliceTypeAnnotation :: struct {
 	elements_type: ^TypeAnnotation,
 }
 
+PointerTypeAnnotation :: struct {
+	base_type: ^TypeAnnotation,
+}
+
 TypeAnnotation :: struct {
 	tok:  t.Token,
 	data: union {
 		ArrayTypeAnnotation,
 		SliceTypeAnnotation,
+		PointerTypeAnnotation,
 	},
 }
 
@@ -530,5 +535,8 @@ print_type_annotation :: proc(ta: ^TypeAnnotation) {
 	case SliceTypeAnnotation:
 		fmt.printf("[]")
 		print_type_annotation(data.elements_type)
+	case PointerTypeAnnotation:
+		fmt.printf("*")
+		print_type_annotation(data.base_type)
 	}
 }

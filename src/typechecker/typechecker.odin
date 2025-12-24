@@ -772,6 +772,18 @@ symbols_push_scope :: proc(tc: ^TypeChecker) {
 	append(&tc.symbols, scope)
 }
 
+resolve_pointer_type_annotation :: proc(
+	tc: ^TypeChecker,
+	annotation: ^ast.TypeAnnotation,
+) -> ^ast.TypeInfo {
+	ptr_ta := annotation.data.(ast.PointerTypeAnnotation)
+
+	base_type := resolve_type_annotation(tc, ptr_ta.base_type)
+	typeinfo := make_typeinfo(tc, .Pointer, reassignable = true)
+	typeinfo.data = ast.PointerTypeInfo{base_type}
+	return typeinfo
+}
+
 resolve_array_type_annotation :: proc(
 	tc: ^TypeChecker,
 	annotation: ^ast.TypeAnnotation,
@@ -836,8 +848,10 @@ resolve_type_annotation :: proc(
 		return make_typeinfo(tc, .Bool)
 	case .TYPE_VOID:
 		return make_typeinfo(tc, .Void)
+	case .STAR:
+		return resolve_pointer_type_annotation(tc, annotation)
 	case .L_BRACKET:
-		switch d in annotation.data {
+		#partial switch d in annotation.data {
 		case ast.ArrayTypeAnnotation:
 			return resolve_array_type_annotation(tc, annotation)
 		case ast.SliceTypeAnnotation:

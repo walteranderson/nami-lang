@@ -496,7 +496,9 @@ parse_func :: proc(p: ^Parser) -> ast.Statement {
 }
 
 parse_type_annotation :: proc(p: ^Parser) -> ^ast.TypeAnnotation {
-	if p.cur.type != .L_BRACKET && !t.is_type(p.cur.type) {
+	if p.cur.type != .L_BRACKET &&
+	   p.cur.type != .STAR &&
+	   !t.is_type(p.cur.type) {
 		error(p, "Expected a type, got %s", p.cur.literal)
 		return nil
 	}
@@ -504,36 +506,46 @@ parse_type_annotation :: proc(p: ^Parser) -> ^ast.TypeAnnotation {
 	ta := new(ast.TypeAnnotation, p.allocator)
 	ta.tok = p.cur
 
-	if !cur_token_is(p, .L_BRACKET) {
-		return ta
-	}
-
-	next_token(p)
-
-	// slices
-	if cur_token_is(p, .R_BRACKET) {
+	#partial switch p.cur.type {
+	case .STAR:
 		next_token(p)
+		if !t.is_type(p.cur.type) {
+			error(p, "Expected a type, got %s", p.cur.literal)
+			return nil
+		}
+		base_type := parse_type_annotation(p)
+		ta.data = ast.PointerTypeAnnotation{base_type}
+		return ta
+
+	case .L_BRACKET:
+		next_token(p)
+
+		// slices
+		if cur_token_is(p, .R_BRACKET) {
+			next_token(p)
+			elements_type := parse_type_annotation(p)
+			ta.data = ast.SliceTypeAnnotation{elements_type}
+			return ta
+		}
+
+		// arrays
+		size_expr := parse_expr(p, .LOWEST)
+
+		if !expect_peek(p, .R_BRACKET) {
+			return nil
+		}
+
+		next_token(p)
+
 		elements_type := parse_type_annotation(p)
-		ta.data = ast.SliceTypeAnnotation{elements_type}
+
+		ta.data = ast.ArrayTypeAnnotation {
+			elements_type = elements_type,
+			size_expr     = size_expr,
+		}
+
 		return ta
 	}
-
-	// arrays
-	size_expr := parse_expr(p, .LOWEST)
-
-	if !expect_peek(p, .R_BRACKET) {
-		return nil
-	}
-
-	next_token(p)
-
-	elements_type := parse_type_annotation(p)
-
-	ta.data = ast.ArrayTypeAnnotation {
-		elements_type = elements_type,
-		size_expr     = size_expr,
-	}
-
 	return ta
 }
 
