@@ -151,6 +151,18 @@ BreakStatement :: struct {
 	using node: Node,
 }
 
+StructStatement :: struct {
+	using node: Node,
+	name:       ^Identifier,
+	fields:     [dynamic]^StructField,
+}
+
+StructField :: struct {
+	using node: Node,
+	name:       ^Identifier,
+	type:       ^TypeAnnotation,
+}
+
 ///////
 
 TypeKind :: enum {
@@ -208,12 +220,17 @@ PointerTypeAnnotation :: struct {
 	base_type: ^TypeAnnotation,
 }
 
+StructTypeAnnotation :: struct {
+	name: ^Identifier,
+}
+
 TypeAnnotation :: struct {
 	tok:  t.Token,
 	data: union {
 		ArrayTypeAnnotation,
 		SliceTypeAnnotation,
 		PointerTypeAnnotation,
+		StructTypeAnnotation,
 	},
 }
 
@@ -245,6 +262,8 @@ Statement :: union {
 	^IfStatement,
 	^LoopStatement,
 	^BreakStatement,
+	^StructStatement,
+	^StructField,
 }
 
 AnyNode :: union {
@@ -271,6 +290,8 @@ AnyNode :: union {
 	^IfStatement,
 	^LoopStatement,
 	^BreakStatement,
+	^StructStatement,
+	^StructField,
 }
 
 
@@ -484,6 +505,20 @@ print_ast :: proc(node: AnyNode, indent_level: int) {
 		fmt.printf("%s  ResolvedType: %s\n", indent, n.resolved_type.kind)
 		fmt.printf("%s  Operand:\n", indent)
 		print_expr(n.operand, indent_level + 2)
+	case ^StructStatement:
+		fmt.printf("%sStructStatement:\n", indent)
+		fmt.printf("%s  ResolvedType: %s\n", indent, n.resolved_type.kind)
+		print_expr(n.name, indent_level + 1)
+		for field in n.fields {
+			print_statement(field, indent_level + 1)
+		}
+	case ^StructField:
+		fmt.printf("%sStructField:\n", indent)
+		fmt.printf("%s  ResolvedType: %s\n", indent, n.resolved_type.kind)
+		print_expr(n.name, indent_level + 1)
+		fmt.printf("%s  Type: ", indent)
+		print_type_annotation(n.type)
+		fmt.printf("\n")
 	}
 }
 
@@ -508,6 +543,10 @@ print_statement :: proc(stmt: Statement, indent_level: int) {
 	case ^LoopStatement:
 		print_ast(cast(AnyNode)s, indent_level)
 	case ^BreakStatement:
+		print_ast(cast(AnyNode)s, indent_level)
+	case ^StructStatement:
+		print_ast(cast(AnyNode)s, indent_level)
+	case ^StructField:
 		print_ast(cast(AnyNode)s, indent_level)
 	}
 }
@@ -556,5 +595,7 @@ print_type_annotation :: proc(ta: ^TypeAnnotation) {
 	case PointerTypeAnnotation:
 		fmt.printf("*")
 		print_type_annotation(data.base_type)
+	case StructTypeAnnotation:
+		fmt.printf("%s", data.name.value)
 	}
 }

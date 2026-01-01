@@ -140,6 +140,8 @@ check_stmt :: proc(
 		return
 	// TODO: Not sure if I need to do anything with break statements here
 	// error(tc, s.tok, "TODO: break statement not typechecked")
+	case ^ast.StructStatement, ^ast.StructField:
+		logger.error("TODO structs: %+v", stmt)
 
 	case ^ast.Module, ^ast.FunctionArg, ^ast.BlockStatement:
 		logger.error("Unreachable statement: %+v", stmt)

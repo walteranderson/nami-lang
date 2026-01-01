@@ -221,6 +221,8 @@ gen_stmt :: proc(ctx: ^Context, stmt: ast.Statement) {
 		gen_loop_stmt(ctx, v)
 	case ^ast.BreakStatement:
 		gen_break_stmt(ctx, v)
+	case ^ast.StructStatement, ^ast.StructField:
+		logger.error("TODO structs: %+v", stmt)
 	}
 }
 

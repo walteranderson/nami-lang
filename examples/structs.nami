@@ -1,0 +1,10 @@
+struct User
+{
+    id: int,
+    name: string,
+}
+
+fn main()
+{
+    //
+}

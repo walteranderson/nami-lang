@@ -45,6 +45,7 @@ TokenType :: enum {
 	BREAK,
 	IN,
 	WHEN,
+	STRUCT,
 	//
 	TYPE_STRING,
 	TYPE_INT,
@@ -98,6 +99,8 @@ ident_lookup :: proc(ident: string) -> TokenType {
 		return .TYPE_BOOL
 	case "void":
 		return .TYPE_VOID
+	case "struct":
+		return .STRUCT
 	case:
 		return .IDENT
 	}

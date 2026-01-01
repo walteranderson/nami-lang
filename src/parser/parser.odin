@@ -161,6 +161,8 @@ parse_stmt :: proc(p: ^Parser) -> ast.Statement {
 		return parse_loop_stmt(p)
 	case .BREAK:
 		return parse_break_stmt(p)
+	case .STRUCT:
+		return parse_struct(p)
 	case .IDENT:
 		if peek_token_is(p, .COLON) {
 			return parse_assign_stmt(p)
@@ -168,6 +170,78 @@ parse_stmt :: proc(p: ^Parser) -> ast.Statement {
 	}
 
 	return parse_expr_stmt(p)
+}
+
+parse_struct :: proc(p: ^Parser) -> ast.Statement {
+	stmt := new(ast.StructStatement, p.allocator)
+	stmt.tok = p.cur
+	next_token(p)
+
+	next := parse_expr(p, .LOWEST)
+	ident, ok := next.(^ast.Identifier)
+	if !ok {
+		error(p, "Expected identifier, got %s", ast.get_token_from_expr(next))
+		return nil
+	}
+
+	stmt.name = ident
+	if !expect_peek(p, .L_BRACE) {
+		return nil
+	}
+	next_token(p)
+
+	stmt.fields = parse_struct_fields(p)
+
+	return stmt
+}
+
+parse_struct_fields :: proc(p: ^Parser) -> [dynamic]^ast.StructField {
+	fields := make([dynamic]^ast.StructField, p.allocator)
+
+	for !cur_token_is(p, .R_BRACE) {
+		// TODO: check if p.cur == .FUNC for struct methods
+		// example:
+		// struct User
+		// {
+		//     id: int,
+		//     name: string,
+		//     fn foo(self: *User) {
+		//       //
+		//     }
+		// }
+
+		field := new(ast.StructField, p.allocator)
+		field.tok = p.cur
+		name_expr := parse_expr(p, .LOWEST)
+		name, ok := name_expr.(^ast.Identifier)
+		if !ok {
+			error(
+				p,
+				"Expected identifier, got %s",
+				ast.get_token_from_expr(name_expr).type,
+			)
+			return nil
+		}
+		field.name = name
+		if !expect_peek(p, .COLON) {
+			return nil
+		}
+		next_token(p)
+		ta := parse_type_annotation(p)
+		if ta == nil {
+			return nil
+		}
+		field.type = ta
+
+		append(&fields, field)
+
+		if peek_token_is(p, .COMMA) {
+			next_token(p)
+		}
+		next_token(p)
+	}
+
+	return fields
 }
 
 parse_deref_expr :: proc(p: ^Parser) -> ast.Expr {
