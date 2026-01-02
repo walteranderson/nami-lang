@@ -536,7 +536,7 @@ gen_iterator_item :: proc(
 			src1 = load_idx,
 			src2 = Operand {
 				.Integer,
-				type_to_size(item_ident.resolved_type.kind),
+				typeinfo_to_size(item_ident.resolved_type),
 			},
 		),
 	)
@@ -717,7 +717,7 @@ gen_assign_stmt :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) {
 	alloc_inst := make_instruction(
 		ctx,
 		.Alloc,
-		alignment = type_to_size(stmt.resolved_type.kind),
+		alignment = typeinfo_to_size(stmt.resolved_type),
 		dest = Operand{.Temporary, dest_name},
 		dest_type = .Long,
 		src1 = Operand{.Integer, typeinfo_to_size(stmt.resolved_type)},
@@ -885,7 +885,7 @@ gen_index_addr :: proc(ctx: ^Context, expr: ^ast.IndexExpr) -> Operand {
 	index_operand := gen_expr(ctx, expr.index)
 
 	arr_typeinfo := symbol.typeinfo.data.(ast.ArrayTypeInfo)
-	element_size := type_to_size(arr_typeinfo.elements_type.kind)
+	element_size := typeinfo_to_size(arr_typeinfo.elements_type)
 	block := get_last_block(ctx)
 
 	// multiply index by the element size to get the array offset
@@ -933,7 +933,7 @@ gen_array_expr_elements :: proc(
 	head: Operand,
 ) {
 	typeinfo := arr.resolved_type.data.(ast.ArrayTypeInfo)
-	alignment := type_to_size(typeinfo.elements_type.kind)
+	alignment := typeinfo_to_size(typeinfo.elements_type)
 	element_type := type_ast_to_ir(typeinfo.elements_type.kind)
 
 	for el_expr, idx in arr.elements {
@@ -981,7 +981,7 @@ gen_array_expr :: proc(ctx: ^Context, arr: ^ast.Array) -> Operand {
 		dest = head_dest,
 		dest_type = type_ast_to_ir(arr.resolved_type.kind),
 		src1 = Operand{.Integer, typeinfo_to_size(arr.resolved_type)},
-		alignment = type_to_size(typeinfo.elements_type.kind),
+		alignment = typeinfo_to_size(typeinfo.elements_type),
 	)
 	add_instruction(ctx, alloc_inst)
 
@@ -1707,31 +1707,24 @@ type_ast_to_ir :: proc(type: ast.TypeKind) -> TypeKind {
 }
 
 typeinfo_to_size :: proc(typeinfo: ^ast.TypeInfo) -> int {
-	if typeinfo.kind == .Array {
-		arr_typeinfo := typeinfo.data.(ast.ArrayTypeInfo)
-		return(
-			type_to_size(arr_typeinfo.elements_type.kind) *
-			arr_typeinfo.size \
-		)
-	} else {
-		return type_to_size(typeinfo.kind)
-	}
-}
-
-type_to_size :: proc(type: ast.TypeKind) -> int {
-	switch type {
-	case .Int, .Bool:
-		return 4
-	case .Array, .Slice, .String, .Function, .Pointer:
-		// TODO: function size should refer to a pointer maybe?
-		return 8
-	case .Any:
-		// TODO: Any type - assuming that if we get an `any` at this point, maybe its a pointer?
-		return 8
+	switch typeinfo.kind {
 	case .Struct:
 		// TODO
 		return 0
-	case .Void, .Invalid:
+	case .Array:
+		arr_typeinfo := typeinfo.data.(ast.ArrayTypeInfo)
+		return typeinfo_to_size(arr_typeinfo.elements_type) * arr_typeinfo.size
+	case .Slice:
+		// is it ok to hard-code this? :Slice = { l, w } aka alloc8 16
+		return 16
+	case .Int, .Bool:
+		return 4
+	case .String, .Pointer:
+		return 8
+	case .Function:
+		// TODO: function size should refer to a pointer maybe?
+		return 0
+	case .Void, .Invalid, .Any:
 		return 0
 	}
 	return 0
