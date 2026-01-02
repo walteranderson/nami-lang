@@ -176,6 +176,7 @@ TypeKind :: enum {
 	Array,
 	Slice,
 	Pointer,
+	Struct,
 }
 
 FunctionTypeInfo :: struct {
@@ -196,6 +197,13 @@ PointerTypeInfo :: struct {
 	base_type: ^TypeInfo,
 }
 
+StructTypeInfo :: struct {
+	name:   string,
+	fields: [dynamic]^StructField,
+	// size:      int,
+	// alignment: int,
+}
+
 TypeInfo :: struct {
 	kind:         TypeKind,
 	reassignable: bool,
@@ -204,6 +212,7 @@ TypeInfo :: struct {
 		ArrayTypeInfo,
 		SliceTypeInfo,
 		PointerTypeInfo,
+		StructTypeInfo,
 	},
 }
 
@@ -220,6 +229,7 @@ PointerTypeAnnotation :: struct {
 	base_type: ^TypeAnnotation,
 }
 
+// TODO: do i need this?
 StructTypeAnnotation :: struct {
 	name: ^Identifier,
 }
@@ -507,18 +517,18 @@ print_ast :: proc(node: AnyNode, indent_level: int) {
 		print_expr(n.operand, indent_level + 2)
 	case ^StructStatement:
 		fmt.printf("%sStructStatement:\n", indent)
+		fmt.printf("%s  Name: %s\n", indent, n.name.value)
 		fmt.printf("%s  ResolvedType: %s\n", indent, n.resolved_type.kind)
-		print_expr(n.name, indent_level + 1)
 		for field in n.fields {
 			print_statement(field, indent_level + 1)
 		}
 	case ^StructField:
 		fmt.printf("%sStructField:\n", indent)
-		fmt.printf("%s  ResolvedType: %s\n", indent, n.resolved_type.kind)
-		print_expr(n.name, indent_level + 1)
-		fmt.printf("%s  Type: ", indent)
+		fmt.printf("%s  Name: %s\n", indent, n.name.value)
+		fmt.printf("%s  TypeAnnotation: ", indent)
 		print_type_annotation(n.type)
 		fmt.printf("\n")
+		fmt.printf("%s  ResolvedType: %s\n", indent, n.resolved_type.kind)
 	}
 }
 

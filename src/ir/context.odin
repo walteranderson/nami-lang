@@ -8,7 +8,7 @@ import "core:mem"
 import "core:strings"
 
 USER_MAIN_NAME :: "user_main"
-SLICE_TYPE_NAME :: "_LIB_Slice"
+SLICE_TYPE_NAME :: "__Slice"
 
 Context :: struct {
 	allocator:       mem.Allocator,
@@ -221,9 +221,37 @@ gen_stmt :: proc(ctx: ^Context, stmt: ast.Statement) {
 		gen_loop_stmt(ctx, v)
 	case ^ast.BreakStatement:
 		gen_break_stmt(ctx, v)
-	case ^ast.StructStatement, ^ast.StructField:
-		logger.error("TODO structs: %+v", stmt)
+	case ^ast.StructStatement:
+		gen_struct_stmt(ctx, v)
+	case ^ast.StructField:
+		// struct fields are processed as part of StructStatement
+		// TODO: maybe this should be an expression instead?
+		error(ctx, v.tok, "Unreachable - struct_field")
 	}
+}
+
+gen_struct_stmt :: proc(ctx: ^Context, stmt: ^ast.StructStatement) {
+	td_content := SequentialTypeContent{}
+	for field in stmt.fields {
+		tf := TypeField {
+			kind = type_ast_to_ir(field.resolved_type.kind),
+		}
+		#partial switch field.resolved_type.kind {
+		case .Struct:
+			ti := field.resolved_type.data.(ast.StructTypeInfo)
+			tf.data = ti.name
+		case .Slice:
+			tf.data = SLICE_TYPE_NAME
+		case .Array:
+			ti := field.resolved_type.data.(ast.ArrayTypeInfo)
+			tf.data = ti.size
+		}
+		append(&td_content.fields, tf)
+	}
+	add_typedef(
+		ctx,
+		make_typedef(ctx, name = stmt.name.value, content = td_content),
+	)
 }
 
 gen_break_stmt :: proc(ctx: ^Context, stmt: ^ast.BreakStatement) {
@@ -644,6 +672,18 @@ gen_empty_arr :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) -> Operand {
 	return gen_array_expr(ctx, empty_arr)
 }
 
+gen_struct_assign :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) {
+	// if stmt.value == nil {
+	//
+	// }
+
+	error(
+		ctx,
+		stmt.tok,
+		"TODO: non-empty struct assignments not implemented yet",
+	)
+}
+
 gen_array_assign :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) {
 	operand :=
 		stmt.value != nil ? gen_expr(ctx, stmt.value) : gen_empty_arr(ctx, stmt)
@@ -667,15 +707,20 @@ gen_assign_stmt :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) {
 		return
 	}
 
+	if stmt.resolved_type.kind == .Struct {
+		gen_struct_assign(ctx, stmt)
+		return
+	}
+
 	block := get_last_block(ctx)
 	dest_name := make_temp(ctx)
 	alloc_inst := make_instruction(
 		ctx,
 		.Alloc,
+		alignment = type_to_size(stmt.resolved_type.kind),
 		dest = Operand{.Temporary, dest_name},
 		dest_type = .Long,
 		src1 = Operand{.Integer, typeinfo_to_size(stmt.resolved_type)},
-		alignment = type_to_size(stmt.resolved_type.kind),
 	)
 	append(&block.instructions, alloc_inst)
 
@@ -1653,6 +1698,8 @@ type_ast_to_ir :: proc(type: ast.TypeKind) -> TypeKind {
 		return .Aggregate
 	case .Pointer:
 		return .Long
+	case .Struct:
+		return .Aggregate
 	case .Invalid, .Any:
 		panic("ERROR converting ast to ir - Invalid/Any type")
 	}
@@ -1673,25 +1720,18 @@ typeinfo_to_size :: proc(typeinfo: ^ast.TypeInfo) -> int {
 
 type_to_size :: proc(type: ast.TypeKind) -> int {
 	switch type {
-	case .Int:
+	case .Int, .Bool:
 		return 4
-	case .Bool:
-		return 4
-	case .Array, .Slice:
+	case .Array, .Slice, .String, .Function, .Pointer:
+		// TODO: function size should refer to a pointer maybe?
 		return 8
-	case .String:
-		return 8
-	case .Function:
-		// TODO: Kind of assuming that maybe in the future, function size will refer to a function pointer
-		return 8
-	case .Void:
-		return 0
 	case .Any:
 		// TODO: Any type - assuming that if we get an `any` at this point, maybe its a pointer?
 		return 8
-	case .Pointer:
-		return 8
-	case .Invalid:
+	case .Struct:
+		// TODO
+		return 0
+	case .Void, .Invalid:
 		return 0
 	}
 	return 0

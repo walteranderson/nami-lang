@@ -580,28 +580,24 @@ parse_func :: proc(p: ^Parser) -> ast.Statement {
 }
 
 parse_type_annotation :: proc(p: ^Parser) -> ^ast.TypeAnnotation {
-	if p.cur.type != .L_BRACKET &&
-	   p.cur.type != .STAR &&
-	   !t.is_type(p.cur.type) {
-		error(p, "Expected a type, got %s", p.cur.literal)
-		return nil
-	}
-
 	ta := new(ast.TypeAnnotation, p.allocator)
 	ta.tok = p.cur
 
-	#partial switch p.cur.type {
-	case .STAR:
+	// regular base type
+	if t.is_type(p.cur.type) {
+		return ta
+	}
+
+	// pointers
+	if p.cur.type == .STAR {
 		next_token(p)
-		if !t.is_type(p.cur.type) {
-			error(p, "Expected a type, got %s", p.cur.literal)
-			return nil
-		}
 		base_type := parse_type_annotation(p)
 		ta.data = ast.PointerTypeAnnotation{base_type}
 		return ta
+	}
 
-	case .L_BRACKET:
+	// arrays/slices
+	if p.cur.type == .L_BRACKET {
 		next_token(p)
 
 		// slices
@@ -614,23 +610,27 @@ parse_type_annotation :: proc(p: ^Parser) -> ^ast.TypeAnnotation {
 
 		// arrays
 		size_expr := parse_expr(p, .LOWEST)
-
 		if !expect_peek(p, .R_BRACKET) {
 			return nil
 		}
-
 		next_token(p)
-
 		elements_type := parse_type_annotation(p)
-
 		ta.data = ast.ArrayTypeAnnotation {
 			elements_type = elements_type,
 			size_expr     = size_expr,
 		}
-
 		return ta
 	}
-	return ta
+
+	// potentially a struct
+	if p.cur.type == .IDENT {
+		ident := parse_ident(p).(^ast.Identifier)
+		ta.data = ast.StructTypeAnnotation{ident}
+		return ta
+	}
+
+	error(p, "Expected a type, got %s", p.cur.literal)
+	return nil
 }
 
 parse_block_stmt :: proc(p: ^Parser) -> ^ast.BlockStatement {

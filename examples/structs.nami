@@ -1,10 +1,10 @@
 struct User
 {
     id: int,
-    name: string,
+    foo: int,
 }
 
 fn main()
 {
-    //
+    u: User;
 }

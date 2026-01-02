@@ -24,13 +24,13 @@ init :: proc(tc: ^TypeChecker, p: ^ast.Module, allocator: mem.Allocator) {
 }
 
 check_module :: proc(tc: ^TypeChecker) {
-	check_funcs(tc)
+	register_symbols(tc)
 	if len(tc.errors) > 0 {
 		return
 	}
 
 	for stmt in tc.program.stmts {
-		check_stmt(tc, stmt, .Invalid)
+		check_stmt(tc, stmt, expected_return_type = .Invalid)
 	}
 
 	if !tc.has_main {
@@ -38,12 +38,37 @@ check_module :: proc(tc: ^TypeChecker) {
 	}
 }
 
-check_funcs :: proc(tc: ^TypeChecker) {
+register_symbols :: proc(tc: ^TypeChecker) {
 	for stmt in tc.program.stmts {
-		if fn, ok := stmt.(^ast.FunctionStatement); ok {
-			check_func_signature(tc, fn)
+		#partial switch s in stmt {
+		case ^ast.FunctionStatement:
+			check_func_signature(tc, s)
+		case ^ast.StructStatement:
+		// TODO: QBE doesn't let you define types in whatever order you want.
+		// So until i decide to topological sort the types during ir generation, structs have to be defined before use
+		// register_struct_symbol(tc, s)
 		}
 	}
+}
+
+register_struct_symbol :: proc(tc: ^TypeChecker, stmt: ^ast.StructStatement) {
+	_, found := lookup_symbol(tc, stmt.name.value)
+	if found {
+		error(
+			tc,
+			stmt.name.tok,
+			"Struct already declared: %s",
+			stmt.name.value,
+		)
+		return
+	}
+
+	typeinfo := make_typeinfo(tc, .Struct)
+	typeinfo.data = ast.StructTypeInfo {
+		name = stmt.name.value,
+	}
+	stmt.resolved_type = typeinfo
+	add_symbol(tc, stmt.name.value, stmt.resolved_type)
 }
 
 check_func_signature :: proc(tc: ^TypeChecker, fn: ^ast.FunctionStatement) {
@@ -137,14 +162,28 @@ check_stmt :: proc(
 		check_loop_stmt(tc, s, expected_return_type)
 
 	case ^ast.BreakStatement:
+		// TODO: Not sure if I need to do anything with break statements here
+		// error(tc, s.tok, "TODO: break statement not typechecked")
 		return
-	// TODO: Not sure if I need to do anything with break statements here
-	// error(tc, s.tok, "TODO: break statement not typechecked")
-	case ^ast.StructStatement, ^ast.StructField:
-		logger.error("TODO structs: %+v", stmt)
+	case ^ast.StructStatement:
+		check_struct_stmt(tc, s)
 
-	case ^ast.Module, ^ast.FunctionArg, ^ast.BlockStatement:
+	case ^ast.Module, ^ast.FunctionArg, ^ast.BlockStatement, ^ast.StructField:
 		logger.error("Unreachable statement: %+v", stmt)
+	}
+}
+
+check_struct_stmt :: proc(tc: ^TypeChecker, stmt: ^ast.StructStatement) {
+	// registering first, TODO: eventually move this to top-level
+	register_struct_symbol(tc, stmt)
+
+	data, ok := stmt.resolved_type.data.(ast.StructTypeInfo)
+	if !ok {
+		return
+	}
+	for field in stmt.fields {
+		field.resolved_type = resolve_type_annotation(tc, field.type)
+		append(&data.fields, field)
 	}
 }
 
@@ -870,6 +909,8 @@ resolve_type_annotation :: proc(
 		return make_typeinfo(tc, .Void)
 	case .STAR:
 		return resolve_pointer_type_annotation(tc, annotation)
+	case .IDENT:
+		return resolve_struct_type_annotation(tc, annotation)
 	case .L_BRACKET:
 		#partial switch d in annotation.data {
 		case ast.ArrayTypeAnnotation:
@@ -880,6 +921,33 @@ resolve_type_annotation :: proc(
 	}
 	logger.error("Unreachable type annotation: %s", annotation.tok.type)
 	return make_typeinfo(tc, .Invalid)
+}
+
+resolve_struct_type_annotation :: proc(
+	tc: ^TypeChecker,
+	annotation: ^ast.TypeAnnotation,
+) -> ^ast.TypeInfo {
+	ta_data := annotation.data.(ast.StructTypeAnnotation)
+	typeinfo, ok := lookup_symbol(tc, ta_data.name.value)
+	if !ok {
+		error(
+			tc,
+			annotation.tok,
+			"Struct \"%s\" not found",
+			ta_data.name.value,
+		)
+		return nil
+	}
+	if typeinfo.kind != .Struct {
+		error(
+			tc,
+			annotation.tok,
+			"Expecting struct, but got %s",
+			typeinfo.kind,
+		)
+		return nil
+	}
+	return typeinfo
 }
 
 make_typeinfo :: proc(
