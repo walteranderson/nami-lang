@@ -672,18 +672,6 @@ gen_empty_arr :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) -> Operand {
 	return gen_array_expr(ctx, empty_arr)
 }
 
-gen_struct_assign :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) {
-	// if stmt.value == nil {
-	//
-	// }
-
-	error(
-		ctx,
-		stmt.tok,
-		"TODO: non-empty struct assignments not implemented yet",
-	)
-}
-
 gen_array_assign :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) {
 	operand :=
 		stmt.value != nil ? gen_expr(ctx, stmt.value) : gen_empty_arr(ctx, stmt)
@@ -707,17 +695,12 @@ gen_assign_stmt :: proc(ctx: ^Context, stmt: ^ast.AssignStatement) {
 		return
 	}
 
-	if stmt.resolved_type.kind == .Struct {
-		gen_struct_assign(ctx, stmt)
-		return
-	}
-
 	block := get_last_block(ctx)
 	dest_name := make_temp(ctx)
 	alloc_inst := make_instruction(
 		ctx,
 		.Alloc,
-		alignment = typeinfo_to_size(stmt.resolved_type),
+		alignment = typeinfo_to_alignment(stmt.resolved_type),
 		dest = Operand{.Temporary, dest_name},
 		dest_type = .Long,
 		src1 = Operand{.Integer, typeinfo_to_size(stmt.resolved_type)},
@@ -1706,11 +1689,35 @@ type_ast_to_ir :: proc(type: ast.TypeKind) -> TypeKind {
 	panic("Unhandled ast type in ir.type_ast_to_ir")
 }
 
+typeinfo_to_alignment :: proc(typeinfo: ^ast.TypeInfo) -> int {
+	switch typeinfo.kind {
+	case .Struct:
+		data := typeinfo.data.(ast.StructTypeInfo)
+		return data.alignment
+	case .Array:
+		arr_typeinfo := typeinfo.data.(ast.ArrayTypeInfo)
+		return typeinfo_to_alignment(arr_typeinfo.elements_type)
+	case .Slice:
+		// is it ok to hard-code this? :Slice = { l, w } aka alloc8 16
+		return 8
+	case .Int, .Bool:
+		return 4
+	case .String, .Pointer:
+		return 8
+	case .Function:
+		// TODO: function size should refer to a pointer maybe?
+		return 0
+	case .Void, .Invalid, .Any:
+		return 0
+	}
+	return 0
+}
+
 typeinfo_to_size :: proc(typeinfo: ^ast.TypeInfo) -> int {
 	switch typeinfo.kind {
 	case .Struct:
-		// TODO
-		return 0
+		data := typeinfo.data.(ast.StructTypeInfo)
+		return data.size
 	case .Array:
 		arr_typeinfo := typeinfo.data.(ast.ArrayTypeInfo)
 		return typeinfo_to_size(arr_typeinfo.elements_type) * arr_typeinfo.size

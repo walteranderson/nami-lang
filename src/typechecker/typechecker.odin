@@ -5,6 +5,7 @@ import "core:mem"
 import "core:strings"
 
 import "../ast"
+import "../ir"
 import "../logger"
 import "../token"
 
@@ -43,32 +44,12 @@ register_symbols :: proc(tc: ^TypeChecker) {
 		#partial switch s in stmt {
 		case ^ast.FunctionStatement:
 			check_func_signature(tc, s)
-		case ^ast.StructStatement:
 		// TODO: QBE doesn't let you define types in whatever order you want.
+		// case ^ast.StructStatement:
 		// So until i decide to topological sort the types during ir generation, structs have to be defined before use
 		// register_struct_symbol(tc, s)
 		}
 	}
-}
-
-register_struct_symbol :: proc(tc: ^TypeChecker, stmt: ^ast.StructStatement) {
-	_, found := lookup_symbol(tc, stmt.name.value)
-	if found {
-		error(
-			tc,
-			stmt.name.tok,
-			"Struct already declared: %s",
-			stmt.name.value,
-		)
-		return
-	}
-
-	typeinfo := make_typeinfo(tc, .Struct)
-	typeinfo.data = ast.StructTypeInfo {
-		name = stmt.name.value,
-	}
-	stmt.resolved_type = typeinfo
-	add_symbol(tc, stmt.name.value, stmt.resolved_type)
 }
 
 check_func_signature :: proc(tc: ^TypeChecker, fn: ^ast.FunctionStatement) {
@@ -174,17 +155,55 @@ check_stmt :: proc(
 }
 
 check_struct_stmt :: proc(tc: ^TypeChecker, stmt: ^ast.StructStatement) {
-	// registering first, TODO: eventually move this to top-level
-	register_struct_symbol(tc, stmt)
-
-	data, ok := stmt.resolved_type.data.(ast.StructTypeInfo)
-	if !ok {
+	_, found := lookup_symbol(tc, stmt.name.value)
+	if found {
+		error(
+			tc,
+			stmt.name.tok,
+			"Struct already declared: %s",
+			stmt.name.value,
+		)
 		return
 	}
-	for field in stmt.fields {
-		field.resolved_type = resolve_type_annotation(tc, field.type)
-		append(&data.fields, field)
+
+	typeinfo := make_typeinfo(tc, .Struct)
+	stmt.resolved_type = typeinfo
+	add_symbol(tc, stmt.name.value, stmt.resolved_type)
+
+	data := ast.StructTypeInfo {
+		name = stmt.name.value,
 	}
+
+	struct_alignment := 4
+	current_offset := 0
+
+	for field, idx in stmt.fields {
+		field.resolved_type = resolve_type_annotation(tc, field.type)
+		alignment := ir.typeinfo_to_alignment(field.resolved_type)
+		size := ir.typeinfo_to_size(field.resolved_type)
+		if alignment > struct_alignment {
+			struct_alignment = alignment
+		}
+
+		// Snap the offset to the field's alignment
+		current_offset = (current_offset + alignment - 1) & ~(alignment - 1)
+
+		field_typeinfo := ast.StructFieldTypeInfo {
+			type   = field.resolved_type,
+			name   = field.name.value,
+			offset = current_offset,
+		}
+		append(&data.fields, field_typeinfo)
+
+		current_offset += size
+	}
+
+	total_size :=
+		(current_offset + struct_alignment - 1) & ~(struct_alignment - 1)
+
+	data.size = total_size
+	data.alignment = struct_alignment
+	stmt.resolved_type.data = data
 }
 
 check_loop_stmt :: proc(

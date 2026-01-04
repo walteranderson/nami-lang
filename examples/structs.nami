@@ -1,10 +1,16 @@
+struct Vec
+{
+    x: int,
+    y: int,
+    z: int,
+}
 struct User
 {
-    id: int,
-    foo: int,
+    foo: string,
+    pos: Vec,
 }
 
 fn main()
 {
-    u: User;
+    v: Vec;
 }

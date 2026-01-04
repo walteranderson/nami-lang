@@ -198,10 +198,16 @@ PointerTypeInfo :: struct {
 }
 
 StructTypeInfo :: struct {
+	name:      string,
+	fields:    [dynamic]StructFieldTypeInfo,
+	size:      int,
+	alignment: int,
+}
+
+StructFieldTypeInfo :: struct {
 	name:   string,
-	fields: [dynamic]^StructField,
-	// size:      int,
-	// alignment: int,
+	type:   ^TypeInfo,
+	offset: int,
 }
 
 TypeInfo :: struct {
@@ -516,9 +522,12 @@ print_ast :: proc(node: AnyNode, indent_level: int) {
 		fmt.printf("%s  Operand:\n", indent)
 		print_expr(n.operand, indent_level + 2)
 	case ^StructStatement:
+		data := n.resolved_type.data.(StructTypeInfo)
 		fmt.printf("%sStructStatement:\n", indent)
-		fmt.printf("%s  Name: %s\n", indent, n.name.value)
 		fmt.printf("%s  ResolvedType: %s\n", indent, n.resolved_type.kind)
+		fmt.printf("%s  Name: %s\n", indent, n.name.value)
+		fmt.printf("%s  Alignment: %d\n", indent, data.alignment)
+		fmt.printf("%s  Size: %d\n", indent, data.size)
 		for field in n.fields {
 			print_statement(field, indent_level + 1)
 		}
