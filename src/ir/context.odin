@@ -223,10 +223,6 @@ gen_stmt :: proc(ctx: ^Context, stmt: ast.Statement) {
 		gen_break_stmt(ctx, v)
 	case ^ast.StructStatement:
 		gen_struct_stmt(ctx, v)
-	case ^ast.StructField:
-		// struct fields are processed as part of StructStatement
-		// TODO: maybe this should be an expression instead?
-		error(ctx, v.tok, "Unreachable - struct_field")
 	}
 }
 

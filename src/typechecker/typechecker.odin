@@ -149,7 +149,7 @@ check_stmt :: proc(
 	case ^ast.StructStatement:
 		check_struct_stmt(tc, s)
 
-	case ^ast.Module, ^ast.FunctionArg, ^ast.BlockStatement, ^ast.StructField:
+	case ^ast.Module, ^ast.FunctionArg, ^ast.BlockStatement:
 		logger.error("Unreachable statement: %+v", stmt)
 	}
 }

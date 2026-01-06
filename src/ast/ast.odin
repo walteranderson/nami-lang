@@ -279,7 +279,6 @@ Statement :: union {
 	^LoopStatement,
 	^BreakStatement,
 	^StructStatement,
-	^StructField,
 }
 
 AnyNode :: union {
@@ -307,7 +306,6 @@ AnyNode :: union {
 	^LoopStatement,
 	^BreakStatement,
 	^StructStatement,
-	^StructField,
 }
 
 
@@ -528,16 +526,19 @@ print_ast :: proc(node: AnyNode, indent_level: int) {
 		fmt.printf("%s  Name: %s\n", indent, n.name.value)
 		fmt.printf("%s  Alignment: %d\n", indent, data.alignment)
 		fmt.printf("%s  Size: %d\n", indent, data.size)
-		for field in n.fields {
-			print_statement(field, indent_level + 1)
+		fmt.printf("%s  Fields:\n", indent)
+		for field, idx in n.fields {
+			fmt.printf("%s    Name: %s\n", indent, field.name.value)
+			fmt.printf("%s      TypeAnnotation: ", indent)
+			print_type_annotation(field.type)
+			fmt.printf("\n")
+			fmt.printf(
+				"%s      ResolvedType: %s\n",
+				indent,
+				field.resolved_type.kind,
+			)
+			fmt.printf("%s      Offset: %d\n", indent, data.fields[idx].offset)
 		}
-	case ^StructField:
-		fmt.printf("%sStructField:\n", indent)
-		fmt.printf("%s  Name: %s\n", indent, n.name.value)
-		fmt.printf("%s  TypeAnnotation: ", indent)
-		print_type_annotation(n.type)
-		fmt.printf("\n")
-		fmt.printf("%s  ResolvedType: %s\n", indent, n.resolved_type.kind)
 	}
 }
 
@@ -564,8 +565,6 @@ print_statement :: proc(stmt: Statement, indent_level: int) {
 	case ^BreakStatement:
 		print_ast(cast(AnyNode)s, indent_level)
 	case ^StructStatement:
-		print_ast(cast(AnyNode)s, indent_level)
-	case ^StructField:
 		print_ast(cast(AnyNode)s, indent_level)
 	}
 }

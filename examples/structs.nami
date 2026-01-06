@@ -1,16 +1,9 @@
-struct Vec
+fn main() {}
+
+struct Foo
 {
-    x: int,
-    y: int,
-    z: int,
-}
-struct User
-{
-    foo: string,
-    pos: Vec,
+    name: string,
+    age: int,
+    dob: int,
 }
 
-fn main()
-{
-    v: Vec;
-}
